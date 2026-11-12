@@ -1,6 +1,6 @@
 # MAGverify
 
-MAGverify assesses the integrity of metagenome assemblies and metagenome-assembled genomes (MAGs) using PacBio HiFi reads. Its numbered modules follow the assembly-validation methods: read mapping, circularity, clipping, false closure, phantom sequences, repeats, taxonomic chimeras, false duplication, assembly variants and integrated QC.
+MAGverify assesses the integrity of metagenome assemblies and metagenome-assembled genomes (MAGs) using PacBio HiFi reads. The modules are organized according to the read-to-assembly validation workflow: read mapping, circularity, clipping, false closure, phantom sequences, repeats, taxonomic chimeras, false duplication and assembly variants.
 
 ## Installation
 
@@ -15,26 +15,28 @@ MAGverify doctor
 MAGverify list
 ```
 
-**Run the creation command from the repository root**, since `environment.yml` installs the local MAGverify Python package via its `pip:` section. See [INSTALL.md](docs/INSTALL.md) for package checks and platform limitations.
 
 ## Database preparation
 
 Prepare external inputs once under `/path/to/MAGverify_output/0_prep/`. Full fixed-release download links, required source files, preparation scripts, taxonomy TSV format and GTDB-Tk workflow appear in [PROTOCOL.md](PROTOCOL.md#database-preparation-once-before-analysis).
 
-**GTDB R232 MMseqs2 protein taxonomy DB** (required for chimera unless `--taxonomy FILE` is supplied):
+**GTDB R232 MMseqs2 protein taxonomy DB** (required for chimera unless `--taxonomy FILE` is supplied): First, download the GTDB R232 [representative protein archive](https://data.gtdb.ecogenomic.org/releases/release232/232.0/genomic_files_reps/gtdb_proteins_aa_reps_r232.tar.gz) (~123 GB), [bacterial taxonomy TSV](https://data.gtdb.ecogenomic.org/releases/release232/232.0/bac120_taxonomy_r232.tsv) and [archaeal taxonomy TSV](https://data.gtdb.ecogenomic.org/releases/release232/232.0/ar53_taxonomy_r232.tsv) yourself into the same directory. Exact `wget` commands are in [PROTOCOL.md](PROTOCOL.md#database-preparation-once-before-analysis).
 
 ```bash
 conda activate MAGverify
 MAGverify prep-chimera \
+  --gtdb-dir /path/to/GTDB_R232_files \
+  --database-prefix /path/to/databases/GTDB_R232 \
   --output-dir /path/to/MAGverify_output \
   --threads 100
 ```
 
-This downloads the fixed R232 representative **protein** archive (`gtdb_proteins_aa_reps_r232.tar.gz`) plus `bac120_taxonomy_r232.tsv` and `ar53_taxonomy_r232.tsv` from the official [GTDB R232 release](https://data.gtdb.ecogenomic.org/releases/release232/232.0/), and creates `$PREP/GTDB_R232` (MMseqs2 taxonomy DB prefix). Plan for large storage needs; the protein download alone is ~123 GB compressed.
+This builds the MMseqs2 taxonomy DB **from local files without downloading anything**. The `--database-prefix` option controls where the DB is created; if omitted, it defaults to `OUTPUT_DIR/0_prep/GTDB_R232`. Supply the same prefix to `MAGverify chimera --database`. Plan for substantial disk usage beyond the ~123 GB compressed archive.
 
 **MAG taxonomy TSV:** Prepare `$PREP/MAG_taxonomy.tsv` with `ID`, `GTDB_Domain`, `GTDB_Phylum`, `GTDB_Class`, `GTDB_Order`. Use an existing table or convert existing GTDB-Tk `classify_wf` summary TSVs without rerunning classification:
 
 ```bash
+PREP=/path/to/MAGverify_output/0_prep
 python -m scripts.prep_gtdbtk_summary_to_mag_taxonomy \
   --gtdbtk-dir /path/to/GTDBTk_results \
   --mag-dir /path/to/MAGs \
@@ -77,7 +79,7 @@ MAGverify clipping \
 MAGverify chimera \
   --assemblies-dir /path/to/assemblies \
   --mag-dir /path/to/MAGs \
-  --database /path/to/MAGverify_output/0_prep/GTDB_R232 \
+  --database /path/to/databases/GTDB_R232 \
   --mag-taxonomy /path/to/MAGverify_output/0_prep/MAG_taxonomy.tsv \
   --output-dir /path/to/MAGverify_output \
   --threads 100

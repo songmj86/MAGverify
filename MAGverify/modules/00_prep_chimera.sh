@@ -1,37 +1,39 @@
 #!/usr/bin/env bash
-# Prepare the fixed-release GTDB R232 MMseqs2 protein taxonomy DB for the chimera module.
-# Based on the public MMseqs2 GTDB database workflow (tar2db + createtaxdb).
+# Build an MMseqs2 protein taxonomy DB using manually downloaded GTDB R232 files.
+# Based on the MMseqs2 GTDB database workflow (tar2db + createtaxdb).
 set -euo pipefail
 
-if [[ $# -lt 1 || $# -gt 2 ]]; then
-    echo 'Internal helper: use MAGverify prep-chimera --output-dir /path/to/MAGverify_output --threads 100' >&2
+if [[ $# -ne 4 ]]; then
+    echo 'Internal helper: use MAGverify prep-chimera --gtdb-dir DIR --output-dir DIR [--database-prefix PREFIX] --threads N' >&2
     exit 2
 fi
 
 PREP=$(mkdir -p "$1" && cd "$1" && pwd)
-THREADS="${2:-100}"
+THREADS="$2"
 [[ "$THREADS" =~ ^[1-9][0-9]*$ ]] || { echo 'threads must be a positive integer' >&2; exit 2; }
-for executable in wget mmseqs awk sed; do
+[[ -d "$3" ]] || { echo "GTDB input directory not found: $3" >&2; exit 2; }
+GTDB_DIR=$(cd "$3" && pwd)
+DB_DIR=$(dirname "$4")
+DB_NAME=$(basename "$4")
+[[ -n "$DB_NAME" && "$DB_NAME" != '.' && "$DB_NAME" != '..' ]] || { echo 'Invalid database prefix' >&2; exit 2; }
+mkdir -p "$DB_DIR"
+DB="$(cd "$DB_DIR" && pwd)/$DB_NAME"
+for executable in mmseqs awk sed; do
     command -v "$executable" >/dev/null 2>&1 || { echo "Missing command: $executable" >&2; exit 1; }
 done
 
-DB="$PREP/GTDB_R232"
-DL="$PREP/gtdb_r232_downloads"
 TMP="$PREP/mmseqs_tmp"
-BASE='https://data.gtdb.ecogenomic.org/releases/release232/232.0'
-mkdir -p "$DL" "$TMP/taxonomy"
+mkdir -p "$TMP/taxonomy"
 
-# Fixed release: these are all three downloaded inputs, not marker-gene alignments.
-PROTEINS="$DL/gtdb_proteins_aa_reps_r232.tar.gz"
-BAC="$DL/bac120_taxonomy_r232.tsv"
-ARC="$DL/ar53_taxonomy_r232.tsv"
-
-wget -c -O "$PROTEINS" "$BASE/genomic_files_reps/gtdb_proteins_aa_reps_r232.tar.gz"
-wget -c -O "$BAC" "$BASE/bac120_taxonomy_r232.tsv"
-wget -c -O "$ARC" "$BASE/ar53_taxonomy_r232.tsv"
+# These files must be downloaded by the user before running this command.
+PROTEINS="$GTDB_DIR/gtdb_proteins_aa_reps_r232.tar.gz"
+BAC="$GTDB_DIR/bac120_taxonomy_r232.tsv"
+ARC="$GTDB_DIR/ar53_taxonomy_r232.tsv"
 for file in "$PROTEINS" "$BAC" "$ARC"; do
-    [[ -s "$file" ]] || { echo "Download missing or empty: $file" >&2; exit 1; }
+    [[ -s "$file" ]] || { echo "GTDB R232 input missing or empty: $file" >&2; exit 1; }
 done
+printf 'Using GTDB R232 inputs from: %s\n' "$GTDB_DIR"
+printf 'MMseqs2 taxonomy database prefix: %s\n' "$DB"
 
 # Each nested *_protein.faa.gz is ingested and its genome accession
 # becomes the identifier needed for mapping GTDB taxonomy to sequences.

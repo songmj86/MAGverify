@@ -31,4 +31,4 @@ The automated test suite uses small fixtures and command stubs. Passing CI demon
 
 The layout adopts conventional separation of package code, user documentation, environmental dependencies, unit tests and continuous integration used by established bioinformatics repositories. Examples: [CheckM2](https://github.com/chklovski/CheckM2), [SemiBin](https://github.com/BigDataBiology/SemiBin), [geNomad](https://github.com/apcamargo/genomad), and [anvi'o](https://github.com/merenlab/anvio). These are organizational references, not software dependencies or imported code.
 
-The preparation-only `modules/00_prep_chimera.sh` downloads GTDB R232 inputs and builds the MMseqs2 taxonomy database. It is invoked once by the `MAGverify prep-chimera` CLI command and is not one of the ten analysis modules.
+The preparation-only `modules/00_prep_chimera.sh` uses manually downloaded GTDB R232 inputs to build the MMseqs2 taxonomy database. It is invoked once by the `MAGverify prep-chimera` CLI command and is not one of the ten analysis modules.

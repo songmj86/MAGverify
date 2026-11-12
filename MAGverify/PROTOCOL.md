@@ -28,31 +28,49 @@ The MMseqs2 input is **the protein FASTA archive for GTDB R232 species represent
 
 Official [R232 protein directory](https://data.gtdb.ecogenomic.org/releases/release232/232.0/genomic_files_reps/) and [R232 taxonomy directory](https://data.gtdb.ecogenomic.org/releases/release232/232.0/). **Do not use** `bac120_msa_reps_r232.faa.gz` or `ar53_msa_reps_r232.faa.gz`; these are concatenated marker alignments rather than the complete representative predicted protein sets. `gtdb_proteins_nt_reps_r232.tar.gz` is nucleotides, not proteins. The protein archive is large, and decompression, temporary databases and taxonomy indexing require substantially more disk space than the compressed download alone.
 
-**Run with the single MAGverify Conda environment active.** The `prep-chimera` command invokes `modules/00_prep_chimera.sh` internally. It downloads exactly these three files, builds the protein sequence DB and assigns GTDB lineage IDs to sequences using the MMseqs2 GTDB taxonomy workflow:
+Download the three files yourself to a shared directory. The command below only downloads files; it does **not** invoke MAGverify or build a database:
+
+```bash
+GTDB_DIR=/path/to/GTDB_R232_files
+mkdir -p "$GTDB_DIR"
+BASE=https://data.gtdb.ecogenomic.org/releases/release232/232.0
+wget -c -P "$GTDB_DIR" "$BASE/genomic_files_reps/gtdb_proteins_aa_reps_r232.tar.gz"
+wget -c -P "$GTDB_DIR" "$BASE/bac120_taxonomy_r232.tsv"
+wget -c -P "$GTDB_DIR" "$BASE/ar53_taxonomy_r232.tsv"
+```
+
+Alternatively, obtain the same files using the official links in the table above and place them together in `GTDB_DIR`. The `prep-chimera` command **never downloads GTDB data**. It expects all three files to exist before it starts. The protein archive is ~123 GB compressed; allow significantly more storage for the database and work files.
+
+**Build the MMseqs2 protein taxonomy database** from your local files:
 
 ```bash
 conda activate MAGverify
-PREP=/path/to/MAGverify_output/0_prep
+GTDB_DIR=/path/to/GTDB_R232_files
+DB=/path/to/databases/GTDB_R232
 MAGverify prep-chimera \
+  --gtdb-dir "$GTDB_DIR" \
+  --database-prefix "$DB" \
   --output-dir /path/to/MAGverify_output \
   --threads 100
 ```
 
-The `prep-chimera` command performs the following workflow steps (view it for full, executable code):
+`--gtdb-dir` selects the directory holding the pre-downloaded GTDB R232 archive and both taxonomy TSV files. `--database-prefix` selects the **complete MMseqs2 output prefix** (not just a parent directory). If omitted, the prefix defaults to `/path/to/MAGverify_output/0_prep/GTDB_R232`. Temporary build files are written under `/path/to/MAGverify_output/0_prep/mmseqs_tmp`. The `--output-dir` option refers to the MAGverify results root, not its `0_prep` child.
 
-1. Downloads R232 proteins to `$PREP/gtdb_r232_downloads/gtdb_proteins_aa_reps_r232.tar.gz` and bacterial/archaeal taxonomy TSVs to the same folder.
-2. Reads nested `*_protein.faa.gz` using `mmseqs tar2db` and creates the final MMseqs2 sequence database with `mmseqs createdb`.
-3. Uses **both** GTDB rank tables to create a GTDB taxonomic tree and accession-to-taxon mapping (`nodes.dmp`, `names.dmp`, `mapping_genomes`).
-4. Runs `mmseqs createtaxdb` with `--ncbi-tax-dump` (the locally generated GTDB-derived taxdump), `--tax-mapping-file` and `--tax-mapping-mode 1`. Do not use a downloaded NCBI taxonomy mapping for GTDB protein IDs.
+The preparation helper `modules/00_prep_chimera.sh` performs the following operations, without any network download:
 
-Verify the completed database:
+1. Verifies that all three R232 input files exist and are non-empty.
+2. Reads nested `*_protein.faa.gz` entries with `mmseqs tar2db` and builds the sequence database with `mmseqs createdb`.
+3. Builds a GTDB lineage tree and accession-to-taxon mapping from both bacterial and archaeal taxonomy tables (`nodes.dmp`, `names.dmp`, `mapping_genomes`).
+4. Runs `mmseqs createtaxdb` using the locally constructed GTDB taxdump and accession mapping. An NCBI taxdump is not substituted for GTDB lineage assignments.
+
+Verify the database at its chosen prefix:
 
 ```bash
-ls -lh "$PREP/GTDB_R232.dbtype" "$PREP/GTDB_R232_mapping" "$PREP/GTDB_R232_taxonomy"
-cat "$PREP/GTDB_R232.version"
+ls -lh "${DB}.dbtype" "${DB}_mapping" "${DB}_taxonomy"
+cat "${DB}.version"
 ```
 
-The command automatically creates the `0_prep/` directory inside the specified `--output-dir` (do not append `/0_prep` to that option). The resulting **MMseqs2 database prefix** is `/path/to/MAGverify_output/0_prep/GTDB_R232`, which is the exact `--database` argument passed to `MAGverify chimera`. The files in `gtdb_r232_downloads/` are input downloads, not MAGverify analysis results. The `mmseqs databases GTDB ...` convenience command fetches the upstream **latest** release and is not recommended when R232 must remain fixed. A compatible, previously created gene taxonomy table may be provided using `--taxonomy FILE` instead of `--database`.
+Use **the same prefix** for `MAGverify chimera --database "$DB"`. `--taxonomy FILE` can bypass database creation when a compatible gene taxonomy table is already available. Avoid `mmseqs databases GTDB ...` for pinned R232 workflows, since that command may select a newer release.
 
 ### B. MAG taxonomy TSV (`--mag-taxonomy`)
 
@@ -113,18 +131,27 @@ Adapt `--extension fa` if MAG FASTAs are `.fna` or `.fasta`. GTDB-Tk R232 classi
 
 ### Prepared inputs and their use
 
+The downloads, database and MAGverify output can be placed in separate locations:
+
 ```text
+/path/to/GTDB_R232_files/                  # manually downloaded inputs
+├── gtdb_proteins_aa_reps_r232.tar.gz
+├── bac120_taxonomy_r232.tsv
+└── ar53_taxonomy_r232.tsv
+/path/to/databases/                        # optional external MMseqs2 DB location
+├── GTDB_R232
+├── GTDB_R232.dbtype
+├── GTDB_R232_mapping
+└── GTDB_R232_taxonomy
 /path/to/MAGverify_output/
-├── 0_prep/                                # user-created (before analysis)
-│   ├── gtdb_r232_downloads/               # R232 protein archive, bac120/ar53 TSVs
-│   ├── GTDB_R232                          # MMseqs2 protein database prefix
-│   ├── GTDB_R232.dbtype
-│   ├── GTDB_R232_mapping
-│   ├── GTDB_R232_taxonomy
+├── 0_prep/                                # preparation work files and MAG taxonomy
+│   ├── mmseqs_tmp/                        # intermediate DB-building files
 │   ├── MAG_taxonomy.tsv                   # input to --mag-taxonomy
-│   └── GTDBTk_results/                   # optional (only if classification run)
-└── 00_prep/                               # automatically generated by MAGverify
+│   └── GTDBTk_results/                   # optional classification output
+└── 00_prep/                               # automatically generated analysis inputs
 ```
+
+If `--database-prefix` is omitted, the MMseqs2 DB files are created under `/path/to/MAGverify_output/0_prep/` instead of the separate `/path/to/databases/` directory.
 
 The relevant analysis command is unchanged:
 
@@ -132,7 +159,7 @@ The relevant analysis command is unchanged:
 MAGverify chimera \
   --assemblies-dir /path/to/assemblies/ \
   --mag-dir /path/to/MAGs \
-  --database /path/to/MAGverify_output/0_prep/GTDB_R232 \
+  --database /path/to/databases/GTDB_R232 \
   --mag-taxonomy /path/to/MAGverify_output/0_prep/MAG_taxonomy.tsv \
   --output-dir /path/to/MAGverify_output \
   --threads 100
@@ -232,7 +259,7 @@ Quantifies repeat regions. Main outputs: `repeats_contig.tsv`, `repeats_mag.tsv`
 MAGverify chimera \
   --assemblies-dir /path/to/assemblies/ \
   --mag-dir /path/to/MAGs \
-  --database /path/to/MAGverify_output/0_prep/GTDB_R232 \
+  --database /path/to/databases/GTDB_R232 \
   --mag-taxonomy /path/to/MAGverify_output/0_prep/MAG_taxonomy.tsv \
   --output-dir /path/to/MAGverify_output \
   --threads 100

@@ -1,6 +1,6 @@
 # Modules and dependencies
 
-Before using `MAGverify chimera`, build the external GTDB R232 taxonomy database once with `MAGverify prep-chimera --output-dir /path/to/MAGverify_output --threads 100`. The CLI invokes `modules/00_prep_chimera.sh` internally. Preparation is distinct from the ten analysis modules. See [Database preparation](../PROTOCOL.md#database-preparation-once-before-analysis).
+Before `MAGverify chimera`, download the GTDB R232 protein archive and both taxonomy TSVs manually, then build a local MMseqs2 database with `MAGverify prep-chimera --gtdb-dir /path/to/GTDB_R232_files --database-prefix /path/to/databases/GTDB_R232 --output-dir /path/to/MAGverify_output --threads 100`. The CLI invokes `modules/00_prep_chimera.sh` to build the database but never downloads files. Preparation is separate from the ten analysis modules. See [Database preparation](../PROTOCOL.md#database-preparation-once-before-analysis).
 
 MAGverify modules are run individually. The preprocessing required by an analysis is performed internally, and all paths are supplied on the command line.
 

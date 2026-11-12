@@ -64,16 +64,19 @@ Continue the remaining modules in the order specified in [PROTOCOL.md](../PROTOC
 
 ## 4. Database preparation (not installed by Conda)
 
-The single Conda environment installs the executables, not the large external GTDB data. The **Database preparation** section of [PROTOCOL.md](../PROTOCOL.md#database-preparation-once-before-analysis) gives the exact pinned R232 source URLs, the three files required for MMseqs2 (`gtdb_proteins_aa_reps_r232.tar.gz`, `bac120_taxonomy_r232.tsv`, `ar53_taxonomy_r232.tsv`), download/build code and verification steps.
+The Conda environment installs the executable tools, but not the large GTDB data. Download the three fixed GTDB R232 inputs yourself using the official URLs and `wget` commands in [PROTOCOL.md](../PROTOCOL.md#database-preparation-once-before-analysis). Then build the MMseqs2 protein taxonomy DB at a chosen location:
 
 ```bash
-PREP=/path/to/MAGverify_output/0_prep
 MAGverify prep-chimera \
+  --gtdb-dir /path/to/GTDB_R232_files \
+  --database-prefix /path/to/databases/GTDB_R232 \
   --output-dir /path/to/MAGverify_output \
   --threads 100
 ```
 
-The command creates the GTDB R232 MMseqs2 taxonomy database prefix at `$PREP/GTDB_R232`. To supply MAG taxonomy, use an existing `MAG_taxonomy.tsv` or run the bundled GTDB-Tk-summary converter on prior `classify_wf` results. Only if those results are absent, prepare the separate R232 GTDB-Tk reference package, run `gtdbtk classify_wf`, and convert its `summary.tsv` output as described in PROTOCOL.md. You do not need a second Conda environment and the main MAGverify code is unchanged.
+The command builds the MMseqs2 DB entirely from existing local files and **does not download GTDB data**. Use `/path/to/databases/GTDB_R232` as the `MAGverify chimera --database` prefix. Without `--database-prefix`, the DB is written to `OUTPUT_DIR/0_prep/GTDB_R232`.
+
+To supply MAG taxonomy, use an existing `MAG_taxonomy.tsv` or run the bundled GTDB-Tk-summary converter on prior `classify_wf` results. Only if those results are absent, prepare the separate R232 GTDB-Tk reference package, run `gtdbtk classify_wf`, and convert its `summary.tsv` output as described in PROTOCOL.md. You do not need a second Conda environment and the main MAGverify code is unchanged.
 
 ## 5. Validation and reproducibility
 

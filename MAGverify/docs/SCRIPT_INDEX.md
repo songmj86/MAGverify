@@ -1,6 +1,6 @@
 # Script index
 
-The CLI command `MAGverify prep-chimera` invokes `modules/00_prep_chimera.sh` to create the R232 MMseqs2 protein taxonomy database used by `MAGverify chimera`; the ten analysis shell modules are `modules/01_mapping.sh` to `modules/10_summary.sh`.
+The CLI command `MAGverify prep-chimera` invokes `modules/00_prep_chimera.sh` to build the R232 MMseqs2 protein taxonomy database from existing GTDB files, without downloading data, for `MAGverify chimera`; the ten analysis shell modules are `modules/01_mapping.sh` to `modules/10_summary.sh`.
 Python helper filenames begin with the analysis module responsible for their execution. Internal Python helper scripts are called by the numbered stage shell scripts and are not separate user-facing CLI commands.
 | Prefix | Purpose | Files |
 | --- | --- | ---: |

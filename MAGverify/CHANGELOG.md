@@ -10,7 +10,7 @@
 ## Unreleased
 
 - Flattened repository structure: `modules/` for shell analysis stages and `scripts/` for Python helpers, without the old nested `magverify/` directory.
-- Moved the GTDB R232 MMseqs2 preparation script to `modules/00_prep_chimera.sh`. Added `MAGverify prep-chimera --output-dir DIR --threads N` to invoke this script before chimera analysis. The ten analysis modules are unchanged.
+- Moved the GTDB R232 MMseqs2 preparation script to `modules/00_prep_chimera.sh`. Added `MAGverify prep-chimera --gtdb-dir DIR --output-dir DIR [--database-prefix PREFIX] --threads N` to build the taxonomy database from pre-downloaded GTDB files before chimera analysis. The ten analysis modules are unchanged.
 
 - Public package layout with `MAGverify` command and a source-checkout launcher.
 - Consolidated internal module path defaults; removed user-facing `config/modules/` files.

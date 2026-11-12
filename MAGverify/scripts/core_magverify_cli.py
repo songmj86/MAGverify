@@ -284,7 +284,7 @@ def check_programs(stage, mapping=False, env=None):
     if stage == 'clipping':
         core.add('anvi-script-find-misassemblies')
     if stage == 'prep-chimera':
-        core.update({'wget', 'mmseqs', 'awk', 'sed'})
+        core.update({'mmseqs', 'awk', 'sed'})
     if stage == 'variants':
         core.update({'anvi-profile', 'anvi-script-reformat-fasta',
                      'anvi-script-reformat-bam', 'anvi-gen-contigs-database',
@@ -589,30 +589,45 @@ def need_result(name, args, root, env, stage, optional=False):
 
 
 def prep_chimera_run(args):
-    """Prepare the GTDB R232 MMseqs2 database in OUTPUT/0_prep."""
+    """Build an MMseqs2 taxonomy DB from user-downloaded GTDB R232 inputs."""
     root, env = defaults_for('prep-chimera', args)
     script = ROOT / '00_prep_chimera.sh'
     if not script.is_file():
         raise UsageError(f'Missing installed GTDB preparation module: {script}')
+    gtdb_dir = dir_input(args.gtdb_dir, '--gtdb-dir')
+    inputs = ('gtdb_proteins_aa_reps_r232.tar.gz',
+              'bac120_taxonomy_r232.tsv', 'ar53_taxonomy_r232.tsv')
+    for name in inputs:
+        file_input(gtdb_dir / name, f'GTDB R232 input in --gtdb-dir ({name})')
     if not args.dry_run:
         check_programs('prep-chimera', env=env)
     prep = root / '0_prep'
-    print('GTDB R232 database output: ' + str(prep / 'GTDB_R232'), flush=True)
-    run(['bash', str(script), str(prep), env['THREADS']], env, args.dry_run)
+    db = (Path(args.database_prefix).expanduser().resolve()
+          if args.database_prefix else prep / 'GTDB_R232')
+    if db.is_dir():
+        raise UsageError(f'--database-prefix must name an MMseqs2 prefix, not a directory: {db}')
+    print('GTDB R232 input directory: ' + str(gtdb_dir), flush=True)
+    print('GTDB R232 database prefix: ' + str(db), flush=True)
+    run(['bash', str(script), str(prep), env['THREADS'], str(gtdb_dir), str(db)],
+        env, args.dry_run)
 
 
 def add_prep_parser(subparsers):
     """A setup command, separate from the ten analysis stages."""
     p = subparsers.add_parser('prep-chimera',
-        help='Download GTDB R232 and build the MMseqs2 taxonomy database',
-        description='Prepare the fixed-release GTDB R232 taxonomy database for the chimera module')
+        help='Build the MMseqs2 GTDB R232 database from locally downloaded files',
+        description='Build the fixed-release GTDB R232 MMseqs2 protein taxonomy database without downloading data')
     p.add_argument('-o', '--output-dir', '--output-directory', dest='output_directory',
                    required=True, metavar='DIR',
-                   help='Shared MAGverify output directory; database is created in DIR/0_prep')
+                   help='Shared MAGverify results directory; preparation work files go to DIR/0_prep')
+    p.add_argument('--gtdb-dir', required=True, metavar='DIR',
+                   help='Directory with the three manually downloaded GTDB R232 source files')
+    p.add_argument('--database-prefix', metavar='PREFIX',
+                   help='Where to create the MMseqs2 taxonomy DB (default OUTPUT_DIR/0_prep/GTDB_R232)')
     p.add_argument('-t', '--threads', type=int, metavar='N',
                    help='CPU threads (default up to 100, limited by detected CPUs)')
     p.add_argument('--dry-run', action='store_true',
-                   help='Print preparation command without downloading or creating files')
+                   help='Print preparation command without creating database or work files')
     return p
 
 def stage_run(args):
@@ -774,7 +789,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if args.module == 'list':
         print('Preparation (run once):')
-        print('  prep-chimera       Download GTDB R232 and build MMseqs2 taxonomy database')
+        print('  prep-chimera       Build MMseqs2 taxonomy database from local GTDB R232 files')
         print('Analysis modules (run separately):')
         for name, (_, _, desc) in STAGES.items():
             print(f'  {name:18s} {desc}')
