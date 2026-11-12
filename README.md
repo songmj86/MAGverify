@@ -4,18 +4,18 @@ MAGverify assesses the integrity of metagenome assemblies and metagenome-assembl
 
 ## Installation
 
-Linux and Conda (or Mamba) are supported. One Conda environment installs MAGverify, anvi'o v9 and the command-line tools needed by its modules.
+Linux and Conda/Mamba are supported. One Conda environment installs MAGverify, anvi'o v9 and the command-line tools needed by its modules.
 
 ```bash
-cd /data/MJ/Sejong/Platform/Upload/github/test
 git clone https://github.com/songmj86/MAGverify.git
-conda env create -f environment.yml -n MAGverify
+cd /path/to/MAGverify
+mamba env create -f environment.yml -n MAGverify
 conda activate MAGverify
 MAGverify doctor
 MAGverify list
 ```
 
-**Run the creation command from the repository root**, since `environment.yml` installs the local MAGverify Python package via its `pip:` section. No separate `pip install`, `anvio-9` installation or `--anvio-env` flag is necessary. Re-activate `MAGverify` in each new shell session. See [INSTALL.md](docs/INSTALL.md) for package checks and platform limitations. The example anvi'o release is not claimed to be the exact version used in the original study.
+**Run the creation command from the repository root**, since `environment.yml` installs the local MAGverify Python package via its `pip:` section. See [INSTALL.md](docs/INSTALL.md) for package checks and platform limitations.
 
 ## Database preparation
 
@@ -25,7 +25,6 @@ Prepare external inputs once under `/path/to/MAGverify_output/0_prep/`. Full fix
 
 ```bash
 conda activate MAGverify
-PREP=/path/to/MAGverify_output/0_prep
 MAGverify prep-chimera \
   --output-dir /path/to/MAGverify_output \
   --threads 100
