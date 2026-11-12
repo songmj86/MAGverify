@@ -7,8 +7,8 @@ MAGverify assesses the integrity of metagenome assemblies and metagenome-assembl
 Linux and Conda (or Mamba) are supported. One Conda environment installs MAGverify, anvi'o v9 and the command-line tools needed by its modules.
 
 ```bash
+cd /data/MJ/Sejong/Platform/Upload/github/test
 git clone https://github.com/songmj86/MAGverify.git
-cd MAGverify
 conda env create -f environment.yml -n MAGverify
 conda activate MAGverify
 MAGverify doctor
