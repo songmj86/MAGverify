@@ -1,0 +1,32 @@
+name: tests
+on:
+  push:
+  pull_request:
+jobs:
+  syntax-and-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Python package
+        run: python -m pip install .
+      - name: Check shell syntax
+        run: |
+          find modules -type f -name '*.sh' -print0 | xargs -0 -n 1 bash -n
+          find tests -type f -name '*.sh' -print0 | xargs -0 -n 1 bash -n
+      - name: Check Python syntax
+        run: python -m compileall -q magverify_cli.py modules scripts tests
+      - name: Python unit tests
+        run: python -m unittest discover -s tests -p 'test_*.py'
+      - name: Shell regression tests
+        run: |
+          bash tests/test_cli.sh
+          bash tests/test_inputs.sh
+          bash tests/test_clipping_inputs.sh
+      - name: Validate installed command
+        run: |
+          MAGverify --help
+          MAGverify list
+          MAGverify prep-chimera --help

@@ -1,0 +1,28 @@
+# Install MAGverify and all command-line dependencies in one Conda environment.
+# Run `conda env create -f environment.yml` from the repository root.
+# anvi'o v9 is provided by Bioconda's `anvio-minimal` package.
+name: MAGverify
+channels:
+  - conda-forge
+  - bioconda
+  - nodefaults
+dependencies:
+  - python=3.10
+  - pip
+  - setuptools
+  - wheel
+  - anvio-minimal=9
+  - minimap2
+  - samtools
+  - bedtools
+  - blast
+  - mmseqs2
+  - wget
+  - gtdbtk=2.8.0  # Optional taxonomy-generation workflow; use the same environment
+  - prodigal
+  - meryl
+  - hmmer
+  - pip:
+      # Installs the MAGverify command from this checkout in the same environment.
+      # Run the conda env create command inside the MAGverify repository directory.
+      - -e .
