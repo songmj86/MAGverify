@@ -17,25 +17,7 @@ MAGverify list
 
 The environment includes anvi'o v9 and the command-line tools used by MAGverify. `MAGverify doctor` checks executable availability; it is not a full pipeline test. See [Installation](docs/INSTALL.md) for troubleshooting.
 
-## 2. Input data
-
-- **Assemblies** — Original, unbinned assembly FASTA files (`.fa`, `.fasta` or `.fna`). Supply a directory with `--assemblies-dir`, or use repeated `--source-assembly /path/to/file.fa` options when files are in different locations.
-- **MAGs** — One FASTA per MAG in `--mag-dir`. MAG contig IDs must match those in the original assembly FASTAs, and assembly contig IDs must be unique across input files.
-- **Reads** — PacBio HiFi reads (`.fastq` or `.fastq.gz`) supplied with `--reads` when needed.
-- **Output** — Use the same `--output-dir` for every module so that completed results can be reused.
-
-Example assembly directory:
-
-```text
-/path/to/assemblies/
-├── hifiasm_meta.fa
-├── metaFlye.fa
-└── metaMDBG.fa
-```
-
-**Keep assembler FASTAs separate.** MAGverify maps reads to each original assembly separately to avoid competing alignments between similar contigs from different assemblers. Do not merge these files into one mapping reference. Any combined FASTA needed downstream is prepared internally.
-
-## 3. Database preparation
+## 2. Database preparation
 
 Chimera analysis uses an MMseqs2 GTDB protein taxonomy database (`--database`) or an existing compatible gene taxonomy table (`--taxonomy`). MAG-level GTDB classifications (`--mag-taxonomy`) are a separate input used for domain-matched SCG annotation. Prepare these inputs once; the main analysis modules do not download GTDB data.
 
@@ -54,7 +36,7 @@ Download the three files from the fixed **GTDB R232 (232.0)** release:
 **Download with aria2c** (the commands only download the files):
 
 ```bash
-GTDB_DIR=/path/to/GTDB_R232_files
+GTDB_DIR=/path/to/GTDB_R232
 BASE=https://data.gtdb.ecogenomic.org/releases/release232/232.0
 mkdir -p "$GTDB_DIR"
 
@@ -131,6 +113,26 @@ python -m scripts.prep_gtdbtk_summary_to_mag_taxonomy \
 ```
 
 Change `--extension fa` for `.fna` or `.fasta` inputs. GTDB-Tk bacterial classification may need approximately 140 GB RAM. Set `GTDBTK_DATA_PATH` in any new shell session before using GTDB-Tk. The user-prepared `0_prep/` is distinct from MAGverify's internally generated `00_prep/`.
+
+
+## 3. Input data
+
+- **Assemblies** — Original, unbinned assembly FASTA files (`.fa`, `.fasta` or `.fna`). Supply a directory with `--assemblies-dir`, or use repeated `--source-assembly /path/to/file.fa` options when files are in different locations.
+- **MAGs** — One FASTA per MAG in `--mag-dir`. MAG contig IDs must match those in the original assembly FASTAs, and assembly contig IDs must be unique across input files.
+- **Reads** — PacBio HiFi reads (`.fastq` or `.fastq.gz`) supplied with `--reads` when needed.
+- **Output** — Use the same `--output-dir` for every module so that completed results can be reused.
+
+Example assembly directory:
+
+```text
+/path/to/assemblies/
+├── hifiasm_meta.fa
+├── metaFlye.fa
+└── metaMDBG.fa
+```
+
+**Keep assembler FASTAs separate.** MAGverify maps reads to each original assembly separately to avoid competing alignments between similar contigs from different assemblers. Do not merge these files into one mapping reference.
+
 
 ## 4. Run the analysis modules
 
