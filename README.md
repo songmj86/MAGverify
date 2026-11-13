@@ -17,7 +17,27 @@ MAGverify list
 
 The environment includes anvi'o v9 and the command-line tools used by MAGverify. `MAGverify doctor` checks executable availability; it is not a full pipeline test. Detailed installation and environment verification are described in [Installation](docs/INSTALL.md). See [Recorded tool versions](docs/TOOL_VERSIONS.md) for software versions.
 
-## 2. Input data
+## 3. Database preparation
+
+Taxonomic chimera analysis uses an MMseqs2 GTDB R232 protein taxonomy database (`--database`) or a gene taxonomy table (`--taxonomy`). MAG-level classification (`--mag-taxonomy`) is a separate input used for SCG annotation.
+
+The MMseqs2 database uses three files from **GTDB R232**:
+
+| Download | Content |
+| --- | --- |
+| [`gtdb_proteins_aa_reps_r232.tar.gz`](https://data.gtdb.ecogenomic.org/releases/release232/232.0/genomic_files_reps/gtdb_proteins_aa_reps_r232.tar.gz) | Predicted amino-acid sequences from GTDB representative genomes (~123 GB compressed) |
+| [`bac120_taxonomy_r232.tsv`](https://data.gtdb.ecogenomic.org/releases/release232/232.0/bac120_taxonomy_r232.tsv) | Bacterial genome accession → full GTDB lineage |
+| [`ar53_taxonomy_r232.tsv`](https://data.gtdb.ecogenomic.org/releases/release232/232.0/ar53_taxonomy_r232.tsv) | Archaeal genome accession → full GTDB lineage |
+
+Detailed download commands, MMseqs2 DB construction, MAG taxonomy TSV format, existing GTDB-Tk result conversion and optional GTDB-Tk R232 classification are described in [Database preparation](docs/DATABASE_PREPARATION.md).
+
+## 4. Run the analysis modules
+
+Run each command separately in the following order, using the **same `--output-dir`** throughout. The examples use 100 threads; adjust this to the CPU allocation. The mapping manifest created in Step 1 is reused automatically by later modules. No `00_config.sh`, separate gene-taxonomy module or separate SCG module is needed. Detailed module prerequisites and outputs are described in [Module inputs and outputs](docs/MODULES.md).
+
+
+
+## Input data
 
 - **Assemblies** — Original, unbinned assembly FASTA files (`.fa`, `.fasta` or `.fna`). Supply the directory with `--contigs-dir`.
 - **MAGs** — One FASTA per MAG in `--mag-dir`. MAG contig IDs must match those in the original assembly FASTAs, and assembly contig IDs must be unique across input files.
@@ -37,23 +57,9 @@ Example assembly directory:
 
 Detailed input specifications are described in [Input formats](docs/INPUT_FORMATS.md).
 
-## 3. Database preparation
 
-Taxonomic chimera analysis uses an MMseqs2 GTDB R232 protein taxonomy database (`--database`) or an existing gene taxonomy table (`--taxonomy`). MAG-level classification (`--mag-taxonomy`) is a separate input used for SCG annotation. MAGverify builds databases from local files but does not download GTDB datasets.
 
-The MMseqs2 database uses these three files from **GTDB R232 (232.0)**:
 
-| Download | Content |
-| --- | --- |
-| [`gtdb_proteins_aa_reps_r232.tar.gz`](https://data.gtdb.ecogenomic.org/releases/release232/232.0/genomic_files_reps/gtdb_proteins_aa_reps_r232.tar.gz) | Predicted amino-acid sequences from GTDB representative genomes (~123 GB compressed) |
-| [`bac120_taxonomy_r232.tsv`](https://data.gtdb.ecogenomic.org/releases/release232/232.0/bac120_taxonomy_r232.tsv) | Bacterial genome accession → full GTDB lineage |
-| [`ar53_taxonomy_r232.tsv`](https://data.gtdb.ecogenomic.org/releases/release232/232.0/ar53_taxonomy_r232.tsv) | Archaeal genome accession → full GTDB lineage |
-
-Detailed download commands, MMseqs2 DB construction, MAG taxonomy TSV format, existing GTDB-Tk result conversion and optional GTDB-Tk R232 classification are described in [Database preparation](docs/DATABASE_PREPARATION.md).
-
-## 4. Run the analysis modules
-
-Run each command separately in the following order, using the **same `--output-dir`** throughout. The examples use 100 threads; adjust this to the CPU allocation. The mapping manifest created in Step 1 is reused automatically by later modules. No `00_config.sh`, separate gene-taxonomy module or separate SCG module is needed. Detailed module prerequisites and outputs are described in [Module inputs and outputs](docs/MODULES.md).
 
 ### 1. Read mapping
 
