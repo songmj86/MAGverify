@@ -47,36 +47,24 @@ A single activation is sufficient for all modules:
 
 ```bash
 MAGverify map \
-  --assemblies-dir /data/assemblies \
+  --contigs-dir /data/assemblies \
   --reads /data/hifi.fastq.gz \
   --output-dir /data/MAGverify_output \
   --threads 100
 
 MAGverify circularity \
-  --assemblies-dir /data/assemblies \
+  --contigs-dir /data/assemblies \
   --mag-dir /data/MAGs \
   --reads /data/hifi.fastq.gz \
   --output-dir /data/MAGverify_output \
   --threads 100
 ```
 
-Continue the remaining modules in the order specified in [PROTOCOL.md](../PROTOCOL.md). All commands accept `--assemblies-dir` for the directory of original assembler FASTA files and `--output-dir` for the common output root. Neither `--anvio-env` nor an explicit `--mapping-manifest` is needed when using the same `--output-dir` for every stage. The manifest is created by `MAGverify map` in `OUTPUT/01_mapping/assembler_mapping_outputs.tsv` and linked under `OUTPUT/results/mapping_manifest.tsv`.
+Continue the remaining modules in the order specified in the [README](../README.md). All commands accept `--contigs-dir` for the directory of original assembler FASTA files and `--output-dir` for the common output root. Neither `--anvio-env` nor an explicit `--mapping-manifest` is needed when using the same `--output-dir` for every stage. The manifest is created by `MAGverify map` in `OUTPUT/01_mapping/assembler_mapping_outputs.tsv` and linked under `OUTPUT/results/mapping_manifest.tsv`.
 
-## 4. Database preparation (not installed by Conda)
+## 4. Database preparation
 
-The Conda environment installs the executable tools, but not the large GTDB data. Download the three fixed GTDB R232 inputs yourself using the official URLs and `wget` commands in [PROTOCOL.md](../PROTOCOL.md#database-preparation-once-before-analysis). Then build the MMseqs2 protein taxonomy DB at a chosen location:
-
-```bash
-MAGverify prep-chimera \
-  --gtdb-dir /path/to/GTDB_R232_files \
-  --database-prefix /path/to/databases/GTDB_R232 \
-  --output-dir /path/to/MAGverify_output \
-  --threads 100
-```
-
-The command builds the MMseqs2 DB entirely from existing local files and **does not download GTDB data**. Use `/path/to/databases/GTDB_R232` as the `MAGverify chimera --database` prefix. Without `--database-prefix`, the DB is written to `OUTPUT_DIR/0_prep/GTDB_R232`.
-
-To supply MAG taxonomy, use an existing `MAG_taxonomy.tsv` or run the bundled GTDB-Tk-summary converter on prior `classify_wf` results. Only if those results are absent, prepare the separate R232 GTDB-Tk reference package, run `gtdbtk classify_wf`, and convert its `summary.tsv` output as described in PROTOCOL.md. You do not need a second Conda environment and the main MAGverify code is unchanged.
+The environment includes GTDB-related software but not the large GTDB datasets. Follow [Database preparation](DATABASE_PREPARATION.md) to download fixed GTDB R232 files, build the MMseqs2 protein taxonomy database, and optionally run GTDB-Tk when MAG taxonomy is unavailable.
 
 ## 5. Validation and reproducibility
 

@@ -11,7 +11,7 @@ MAGverify separates the public command-line interface from the existing research
 - `modules/lib_config.sh`, `modules/lib_qc.sh`, and `modules/lib_scg.sh` are internal support code.
 - `modules/defaults.sh` and `modules/stage_paths.sh` are internal defaults and computed output paths; they replace the earlier `config/project.sh` and ten `config/modules/*.sh` files. They are **not** user configuration files.
 - `tests/` checks CLI behavior, input validation, summary consistency, and script compatibility.
-- `docs/` explains installation, accepted inputs, dependencies, and tool versions; `PROTOCOL.md` lists the ten analyses in the execution order.
+- `docs/` explains installation, database preparation, accepted inputs, dependencies and tool versions. The README lists the ten analyses in execution order.
 
 ## Input and output contract
 
@@ -21,7 +21,7 @@ Output names and internal paths are managed by the CLI, not by a user-edited mod
 
 ## Workflow dependencies
 
-Mapping provides shared read evidence. Clipping uses read mapping. False closure uses validated clipping and assembler circularity. Chimera reuses mapping, clipping, gene taxonomy, and SCGs. False duplication uses mapping and clipping. Summary combines results from completed analyses only. See [Modules](MODULES.md) and [Protocol](../PROTOCOL.md).
+Mapping provides shared read evidence. Clipping uses read mapping. False closure uses validated clipping and assembler circularity. Chimera reuses mapping, clipping, gene taxonomy, and SCGs. False duplication uses mapping and clipping. Summary combines results from completed analyses only. See [Modules](MODULES.md) and the [README](../README.md).
 
 ## Testing scope
 

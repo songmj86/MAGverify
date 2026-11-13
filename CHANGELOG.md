@@ -3,7 +3,7 @@
 - Use `conda env create -f environment.yml` followed by `conda activate MAGverify` once for all modules.
 - Install anvi'o v9 from Bioconda as `anvio-minimal=9` and install the MAGverify CLI through the YAML `pip:` section.
 - Remove the separate anvi'o environment file; no module command needs an anvi'o environment argument.
-- Keep `--assemblies-dir`, `--output-dir` and automatic `mapping_manifest.tsv` reuse as the public workflow.
+- Keep `--contigs-dir`, `--output-dir` and automatic `mapping_manifest.tsv` reuse as the public workflow.
 
 # Changelog
 
@@ -14,7 +14,7 @@
 
 - Public package layout with `MAGverify` command and a source-checkout launcher.
 - Consolidated internal module path defaults; removed user-facing `config/modules/` files.
-- Module-specific CLI, analysis-order protocol, and automated syntax and unit tests.
+- Module-specific CLI, ordered README workflow, and automated syntax and unit tests.
 - Integrated result consistency validation in the summary step.
 
 The current codebase has not undergone complete end-to-end benchmarking with representative PacBio HiFi datasets.

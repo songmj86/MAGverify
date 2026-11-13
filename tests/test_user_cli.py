@@ -30,7 +30,9 @@ class CommandTests(unittest.TestCase):
         self.data.mkdir()
         self.assembly = self.data / 'full.fasta'
         self.assembly.write_text('>ctg1\nACGTACGT\n')
-        self.source = self.home / 'assembler_one.fa'
+        self.source_dir = self.home / 'source_assemblies'
+        self.source_dir.mkdir()
+        self.source = self.source_dir / 'assembler_one.fa'
         self.source.write_text('>ctg1\nACGTACGT\n')
         self.mag = self.home / 'Bin13L.fna'
         self.mag.write_text('>ctg1\nACGTACGT\n')
@@ -93,50 +95,52 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
                 result = self.call(name, '--help')
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertIn('--output-dir', result.stdout)
-                self.assertIn('--assemblies-dir', result.stdout)
+                self.assertIn('--contigs-dir', result.stdout)
+                self.assertNotIn('--source-assembly', result.stdout)
                 self.assertNotIn('--anvio-env', result.stdout)
                 self.assertIn('--output-directory', result.stdout)  # legacy alias
 
     def test_legacy_output_directory_option(self):
-        p = self.call('map', '--source-assembly', self.source, '--reads', self.reads,
+        p = self.call('map', '--contigs-dir', self.source_dir, '--reads', self.reads,
                       '--output-directory', self.output, '--threads', '2')
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         self.assertTrue((self.output / 'results' / 'mapping_manifest.tsv').is_symlink())
 
     def test_clipping_direct_files_without_study_directory(self):
         p = self.call('clipping', '-i', self.assembly, '--mag-fasta', self.mag,
-                      '--reads', self.reads, '--source-assembly', self.source,
+                      '--reads', self.reads, '--contigs-dir', self.source_dir,
                       '-o', self.output, '-t', '2')
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         self.assertTrue((self.output / '01_mapping/assembler_mapping_outputs.tsv').is_file())
         self.assertEqual((self.output / '00_prep/mag_fasta_links/Bin13L.fna').resolve(), self.mag)
-        self.assertEqual((self.output / '00_prep/source_assembly_links/assembler_one.fa').resolve(), self.source)
+        self.assertEqual((self.output / '01_mapping/assembler_mapping_outputs.tsv').is_file(), True)
         self.assertTrue((self.output / '03_clipping/forwarded.txt').is_file())
 
     def test_downstream_reuses_mapping_with_reads_automatically(self):
         assemblies = self.home / 'assembler_fastas'
         assemblies.mkdir()
         shutil.copy2(self.source, assemblies / self.source.name)
-        first = self.call('map', '--reads', self.reads, '--assemblies-dir', assemblies,
+        first = self.call('map', '--reads', self.reads, '--contigs-dir', assemblies,
                           '--output-dir', self.output, '--threads', '2')
         self.assertEqual(first.returncode, 0, first.stdout + first.stderr)
         mapping_script = self.repo / 'modules/01_mapping.sh'
         mapping_script.write_text('#!/bin/bash\nexit 77\n')
         second = self.call('clipping', '--reads', self.reads,
-                           '--assemblies-dir', assemblies, '--mag-fasta', self.mag,
+                           '--contigs-dir', assemblies, '--mag-fasta', self.mag,
                            '--output-dir', self.output, '--threads', '2')
         self.assertEqual(second.returncode, 0, second.stdout + second.stderr)
         self.assertTrue((self.output / '03_clipping/forwarded.txt').exists())
 
-    def test_map_direct_multiple_source_fastas(self):
-        other = self.home / 'assembler_two.fa'
+    def test_map_multiple_source_fastas_in_directory(self):
+        other = self.source_dir / 'assembler_two.fa'
         other.write_text('>ctg2\nAAAA\n')
-        p = self.call('map', '--reads', self.reads, '--source-assembly', self.source,
-                      '--source-assembly', other, '-o', self.output)
+        p = self.call('map', '--reads', self.reads, '--contigs-dir', self.source_dir,
+                      '-o', self.output)
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         rows = (self.output / '01_mapping/assembler_mapping_outputs.tsv').read_text().splitlines()
         self.assertEqual(len(rows), 3)
-        self.assertTrue((self.output / '00_prep/source_assembly_links/assembler_two.fa').is_symlink())
+        self.assertIn('assembler_two.fa', rows[2])
+
 
     def test_reuses_an_explicit_manifest(self):
         p = self.call('clipping', '-i', self.assembly, '--mag-fasta', self.mag,
@@ -151,7 +155,7 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
         assemblies = self.home / 'original_assemblies'
         assemblies.mkdir()
         shutil.copy2(self.source, assemblies / self.source.name)
-        p = self.call('clipping', '--assemblies-dir', assemblies, '--mag-dir', mags,
+        p = self.call('clipping', '--contigs-dir', assemblies, '--mag-dir', mags,
                       '--reads', self.reads, '--output-dir', self.output,
                       '--threads', '2')
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
@@ -178,7 +182,7 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
         originals.mkdir()
         shutil.copy2(self.source, originals / 'first.fa')
         shutil.copy2(self.source, originals / 'second.fa')
-        p = self.call('clipping', '--assemblies-dir', originals, '--mag-fasta', self.mag,
+        p = self.call('clipping', '--contigs-dir', originals, '--mag-fasta', self.mag,
                       '--reads', self.reads, '--output-dir', self.output)
         self.assertNotEqual(p.returncode, 0)
         self.assertIn('Duplicate contig ID', p.stderr)
@@ -187,7 +191,7 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
         originals = self.home / 'orig'
         originals.mkdir()
         shutil.copy2(self.source, originals / 'source.fa')
-        base = ('clipping', '--assemblies-dir', originals, '--mag-fasta', self.mag,
+        base = ('clipping', '--contigs-dir', originals, '--mag-fasta', self.mag,
                 '--reads', self.reads, '--output-dir', self.output)
         first = self.call(*base)
         self.assertEqual(first.returncode, 0, first.stdout + first.stderr)
@@ -203,7 +207,7 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
         p = self.call('clipping', '-i', self.assembly, '--mag-fasta', self.mag,
                       '--reads', self.reads, '-o', self.output)
         self.assertNotEqual(p.returncode, 0)
-        self.assertIn('--source-assembly', p.stderr)
+        self.assertIn('--contigs-dir', p.stderr)
 
     def test_rejects_study_directory_as_input(self):
         p = self.call('clipping', '-i', self.data, '--mag-fasta', self.mag,
@@ -213,60 +217,55 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
 
     def test_dry_run_does_not_write_directories(self):
         p = self.call('clipping', '-i', self.assembly, '--mag-fasta', self.mag,
-                      '--reads', self.reads, '--source-assembly', self.source,
+                      '--reads', self.reads, '--contigs-dir', self.source_dir,
                       '-o', self.output, '--dry-run')
         self.assertEqual(p.returncode, 0, p.stderr)
         self.assertIn('01_mapping.sh', p.stdout)
         self.assertIn('03_clipping.sh', p.stdout)
         self.assertFalse(self.output.exists())
 
-    def test_same_source_basename_in_different_directories(self):
-        duplicate = self.home / 'something' / 'assembler_one.fa'
-        duplicate.parent.mkdir()
-        duplicate.write_text('>ctg2\nAAAA\n')
-        p = self.call('map', '-r', self.reads, '--source-assembly', self.source,
-                      '--source-assembly', duplicate, '-o', self.output)
-        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
-        self.assertTrue((self.output / '00_prep/source_assembly_links/something_assembler_one.fa').is_symlink())
-
-    def test_explicit_assembler_labels(self):
-        other = self.home / 'other' / 'assembly.fasta'
-        other.parent.mkdir()
-        other.write_text('>ctg2\nAAAA\n')
-        original = self.home / 'first' / 'assembly.fasta'
-        original.parent.mkdir()
-        original.write_text('>ctg1\nACGTACGT\n')
-        p = self.call('map', '-r', self.reads,
-                      '--source-assembly', 'flye=' + str(original),
-                      '--source-assembly', 'metamdbg=' + str(other),
+    def test_missing_directory_rejected(self):
+        p = self.call('map', '-r', self.reads, '--contigs-dir', self.home / 'missing',
                       '-o', self.output)
-        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
-        self.assertEqual((self.output / '00_prep/source_assembly_links/flye.fasta').resolve(), original)
-        self.assertEqual((self.output / '00_prep/source_assembly_links/metamdbg.fasta').resolve(), other)
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn('--contigs-dir', p.stderr)
 
-    def test_source_dir_is_optional_alternative(self):
-        p = self.call('map', '--reads', self.reads, '--assemblies-dir', self.home,
+    def test_old_assemblies_dir_option_is_rejected(self):
+        p = self.call('map', '--reads', self.reads, '--assemblies-dir', self.source_dir,
+                      '-o', self.output)
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn('unrecognized arguments', p.stderr)
+
+    def test_removed_source_assembly_option_is_rejected(self):
+        p = self.call('map', '--reads', self.reads, '--source-assembly', self.source,
+                      '-o', self.output)
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn('unrecognized arguments', p.stderr)
+
+    def test_source_dir_is_supported(self):
+        p = self.call('map', '--reads', self.reads, '--contigs-dir', self.source_dir,
                       '-o', self.output, '--dry-run')
         self.assertEqual(p.returncode, 0, p.stderr + p.stdout)
+
 
     def test_each_stage_dry_run(self):
         base = ['-i', str(self.assembly), '--mag-map', str(self.map_table),
                 '-o', str(self.output), '--dry-run']
         mapped = ['--mapping-manifest', str(self.manifest)]
         cases = {
-            'map': ['-r', str(self.reads), '--source-assembly', str(self.source), '-o', str(self.output)],
+            'map': ['-r', str(self.reads), '--contigs-dir', str(self.source_dir), '-o', str(self.output)],
             'clipping': ['-i', str(self.assembly), '--mag-fasta', str(self.mag),
                          '-o', str(self.output)] + mapped,
             'chimera': base + mapped + ['--taxonomy', str(self.generic_tsv),
                                         '--clipping-table', str(self.generic_tsv)],
             'circularity': ['--mag-fasta', str(self.mag), '--reads', str(self.reads),
-                            '--source-assembly', str(self.source), '-o', str(self.output)],
+                            '--contigs-dir', str(self.source_dir), '-o', str(self.output)],
             'false-closure': base + mapped + ['--clipping-table', str(self.generic_tsv),
                         '--clipping-all-table', str(self.generic_tsv), '--scg-table', str(self.generic_tsv),
                         '--assembler-circularity', str(self.generic_tsv)],
             'variants': base + mapped + ['--reads', str(self.reads)],
             'phantom': base + mapped + ['--reads', str(self.reads)],
-            'repeats': base + ['--source-assembly', str(self.source)],
+            'repeats': base + ['--contigs-dir', str(self.source_dir)],
             'false-duplication': base + mapped + ['--clipping-table', str(self.generic_tsv)],
             'summary': base + ['--include', 'repeats', '--repeats-table', str(self.generic_tsv),
                                  '--repeats-mag-table', str(self.generic_tsv)],
@@ -284,7 +283,7 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
         mag_dir.mkdir()
         shutil.copy2(self.source, source_dir / self.source.name)
         shutil.copy2(self.mag, mag_dir / self.mag.name)
-        shared = ['--assemblies-dir', str(source_dir), '-o', str(self.output), '--dry-run']
+        shared = ['--contigs-dir', str(source_dir), '-o', str(self.output), '--dry-run']
         mags = ['--mag-dir', str(mag_dir)]
         manifest = ['--mapping-manifest', str(self.manifest)]
         reads = ['--reads', str(self.reads)]

@@ -181,7 +181,7 @@ def fasta_paths(directory, label):
     parent = dir_input(directory, label)
     paths = sorted(p for p in parent.iterdir() if p.is_file() and p.suffix.lower() in ('.fa', '.fna', '.fasta'))
     if not paths:
-        raise UsageError(f'No FASTA files found in {parent}; check the directory or provide individual FASTAs')
+        raise UsageError(f'No FASTA files found in {parent}; check --contigs-dir or --mag-dir')
     return paths
 
 
@@ -213,43 +213,14 @@ def link_inputs(named_paths, directory, dry_run):
 
 
 def source_inputs(args, output_root):
-    if getattr(args, 'source_assembly', None) and getattr(args, 'source_assemblies', None):
-        raise UsageError('Choose repeated --source-assembly FILE options OR --assemblies-dir DIR, not both')
-    if getattr(args, 'source_assembly', None):
-        specified = []
-        for value in args.source_assembly:
-            label = None
-            raw = value
-            if '=' in value:
-                label, raw = value.split('=', 1)
-                if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*', label):
-                    raise UsageError('--source-assembly labels must use letters, digits, dots, dashes or underscores')
-            source = file_input(raw, '--source-assembly')
-            if source.suffix.lower() not in ('.fa', '.fasta', '.fna'):
-                raise UsageError('--source-assembly accepts .fa, .fna or .fasta')
-            specified.append((label, source))
-        if len({path for _, path in specified}) != len(specified):
-            raise UsageError('The same source FASTA was supplied more than once')
-        names = []
-        for label, source in specified:
-            name = f'{label}{source.suffix}' if label else source.name
-            if not re.fullmatch(r'[A-Za-z0-9_.-]+\.(fa|fasta|fna)', name, re.IGNORECASE):
-                name = re.sub(r'[^A-Za-z0-9_.-]+', '_', source.stem) + source.suffix
-            if name in names and not label:
-                name = re.sub(r'[^A-Za-z0-9_.-]+', '_', source.parent.name) + '_' + name
-            if name in names:
-                raise UsageError('Source assembly names are ambiguous. Use --source-assembly NAME=/path/to/assembly.fasta')
-            names.append(name)
-        if len({Path(name).stem for name in names}) != len(names):
-            raise UsageError('Source assembly names must have unique identifiers. Use NAME=/path/to/assembly.fasta')
-        named = list(zip(names, [path for _, path in specified]))
-        parent = link_inputs(named, output_root / '00_prep' / 'source_assembly_links', args.dry_run)
-    elif getattr(args, 'source_assemblies', None):
-        paths = validate_fasta_paths(fasta_paths(args.source_assemblies, '--assemblies-dir'), '--assemblies-dir')
-        names = [p.name for p in paths]
-        parent = dir_input(args.source_assemblies, '--assemblies-dir')
-    else:
+    """Accept the directory of original, unbinned assembler FASTAs."""
+    if not getattr(args, 'source_assemblies', None):
         return None
+    paths = validate_fasta_paths(
+        fasta_paths(args.source_assemblies, '--contigs-dir'), '--contigs-dir'
+    )
+    parent = dir_input(args.source_assemblies, '--contigs-dir')
+    names = [p.name for p in paths]
     print(f'Source assemblies ({len(names)}): ' + ', '.join(names), flush=True)
     return parent, ' '.join(names)
 
@@ -498,9 +469,9 @@ def mapping_result(stage, args, root, env, sources):
         run(['bash', str(ROOT / '01_mapping.sh'), env['READS'], str(root / '01_mapping')], env, args.dry_run)
         return generated if args.dry_run else check_manifest(generated)
     if getattr(args, 'reads', None) and not sources and not generated.is_file():
-        raise UsageError('Provide one or more --source-assembly FILE paths with --reads, or --mapping-manifest')
+        raise UsageError('Provide --contigs-dir DIR with --reads, or --mapping-manifest')
     raise UsageError(f'{stage} needs an existing map result in --output-dir, '
-                     'or --reads FASTQ and --assemblies-dir DIR (or repeated --source-assembly FASTA).')
+                     'or --reads FASTQ and --contigs-dir DIR.')
 
 
 def choose_inputs(args, root, env):
@@ -635,11 +606,11 @@ def stage_run(args):
     root, env = defaults_for(stage, args)
     main_input, sources = choose_inputs(args, root, env)
     if stage not in ('map', 'circularity') and not main_input:
-        raise UsageError(f'{stage} needs --assemblies-dir DIR (to build its assembly FASTA automatically), '
+        raise UsageError(f'{stage} needs --contigs-dir DIR (to build its assembly FASTA automatically), '
                          '--mapping-manifest TSV, or an existing --input FASTA')
     if stage in NEEDS_SOURCES and not sources:
-        raise UsageError(f'{stage} needs --assemblies-dir DIR (original assembler FASTAs), '
-                         'one or more --source-assembly FASTA options, or a mapping manifest')
+        raise UsageError(f'{stage} needs --contigs-dir DIR (original assembler FASTAs), '
+                         'or a mapping manifest')
     if stage == 'map' and not args.reads:
         raise UsageError('map needs --reads /path/to/HiFi.fastq.gz')
     if stage == 'circularity' and ('MAG_DIR' not in env or not args.reads):
@@ -739,8 +710,7 @@ def add_stage_parser(subparsers, stage):
     p.add_argument('--dry-run', action='store_true', help='Print the analysis command without running it')
     if handles('map', 'clipping', 'chimera', 'circularity', 'false-closure', 'variants', 'phantom', 'false-duplication'):
         p.add_argument('-r', '--reads', metavar='FASTQ', help='Original PacBio HiFi reads (FASTQ or FASTQ.GZ)')
-    p.add_argument('--source-assembly', action='append', metavar='FASTA', help='Original assembler FASTA; repeat if needed. Accepts NAME=/path/to/file.fa')
-    p.add_argument('-a', '--assemblies-dir', '--assemblies', '--source-assemblies', dest='source_assemblies', metavar='DIR', help='Directory of original assembler FASTA files (legacy aliases: --assemblies, --source-assemblies)')
+    p.add_argument('--contigs-dir', dest='source_assemblies', metavar='DIR', help='Directory of original, unbinned assembler FASTA files')
     if handles('clipping','chimera','circularity','false-closure','variants','phantom','repeats','false-duplication','summary'):
         p.add_argument('--mag-fasta', action='append', metavar='FASTA', help='Alternative to --mag-dir: repeat for individual MAG FASTAs')
         p.add_argument('-m', '--mag-dir', metavar='DIR', help='Directory with one FASTA per MAG')
