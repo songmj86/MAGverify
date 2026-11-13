@@ -35,7 +35,9 @@ gtdbtk --version
 python -c 'import anvio; print(anvio.__version__)'
 ```
 
-The listed programs should be found under the same Conda environment's `bin` directory. `MAGverify doctor` lists available executables, but does not replace a functional test. Confirm that any prerequisite programs not found on PATH are installed before processing data. The `anvi-self-test --suite mini --no-interactive` command can be used for a separate anvi'o functional test.
+`MAGverify doctor` lists available executables, but does not replace a functional test. 
+Confirm that any prerequisite programs not found on PATH are installed before processing data.
+The `anvi-self-test --suite mini --no-interactive` command can be used for a separate anvi'o functional test.
 
 Start a new shell session using only:
 
