@@ -9,7 +9,7 @@ MAGverify supports Linux with Conda or Mamba. Create the environment from the re
 ```bash
 git clone https://github.com/songmj86/MAGverify.git
 cd MAGverify
-mamba env create -f environment.yml -n MAGverify
+mamba env create -f environment.yml
 conda activate MAGverify
 MAGverify doctor
 MAGverify list
