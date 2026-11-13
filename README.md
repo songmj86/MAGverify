@@ -1,10 +1,10 @@
 # MAGverify
 
-MAGverify assesses the integrity of metagenome assemblies and metagenome-assembled genomes (MAGs) using PacBio HiFi reads. The modules are organized according to the read-to-assembly validation workflow: read mapping, circularity, clipping, false closure, phantom sequences, repeats, taxonomic chimeras, false duplication and assembly variants.
+MAGverify assesses the integrity of metagenome assemblies and metagenome-assembled genomes (MAGs) using PacBio HiFi reads. Its ten modules cover read mapping, circularity, clipping, false closure, phantom sequences, repeats, taxonomic chimeras, false duplication, assembly variants and integrated QC.
 
-## Installation
+## 1. Installation
 
-Linux and Conda/Mamba are supported. One Conda environment installs MAGverify, anvi'o v9 and the command-line tools needed by its modules.
+MAGverify supports Linux with Conda or Mamba. Create the environment from the repository root:
 
 ```bash
 git clone https://github.com/songmj86/MAGverify.git
@@ -15,98 +15,143 @@ MAGverify doctor
 MAGverify list
 ```
 
+The environment includes anvi'o v9 and the command-line tools used by MAGverify. `MAGverify doctor` checks executable availability; it is not a full pipeline test. See [Installation](docs/INSTALL.md) for troubleshooting.
 
+## 2. Input data
 
-## 2. Verify installation
+- **Assemblies** — Original, unbinned assembly FASTA files (`.fa`, `.fasta` or `.fna`). Supply a directory with `--assemblies-dir`, or use repeated `--source-assembly /path/to/file.fa` options when files are in different locations.
+- **MAGs** — One FASTA per MAG in `--mag-dir`. MAG contig IDs must match those in the original assembly FASTAs, and assembly contig IDs must be unique across input files.
+- **Reads** — PacBio HiFi reads (`.fastq` or `.fastq.gz`) supplied with `--reads` when needed.
+- **Output** — Use the same `--output-dir` for every module so that completed results can be reused.
 
-With the environment activated, run:
+Example assembly directory:
 
-```bash
-which MAGverify
-which anvi-profile
-which anvi-script-find-misassemblies
-which anvi-gen-contigs-database
-which anvi-run-hmms
-which anvi-script-reformat-bam
-which anvi-export-table
-MAGverify doctor
-MAGverify list
-gtdbtk --version
-python -c 'import anvio; print(anvio.__version__)'
+```text
+/path/to/assemblies/
+├── hifiasm_meta.fa
+├── metaFlye.fa
+└── metaMDBG.fa
 ```
 
-`MAGverify doctor` lists available executables, but does not replace a functional test. 
-Confirm that any prerequisite programs not found on PATH are installed before processing data.
-The `anvi-self-test --suite mini --no-interactive` command can be used for a separate anvi'o functional test.
+**Keep assembler FASTAs separate.** MAGverify maps reads to each original assembly separately to avoid competing alignments between similar contigs from different assemblers. Do not merge these files into one mapping reference. Any combined FASTA needed downstream is prepared internally.
 
-Start a new shell session using only:
+## 3. Database preparation
+
+Chimera analysis uses an MMseqs2 GTDB protein taxonomy database (`--database`) or an existing compatible gene taxonomy table (`--taxonomy`). MAG-level GTDB classifications (`--mag-taxonomy`) are a separate input used for domain-matched SCG annotation. Prepare these inputs once; the main analysis modules do not download GTDB data.
+
+### 3.1. GTDB R232 MMseqs2 protein taxonomy database
+
+Skip this step if an existing compatible gene taxonomy table will be supplied with `--taxonomy`.
+
+Download the three files from the fixed **GTDB R232 (232.0)** release:
+
+| Download | Content |
+| --- | --- |
+| [`gtdb_proteins_aa_reps_r232.tar.gz`](https://data.gtdb.ecogenomic.org/releases/release232/232.0/genomic_files_reps/gtdb_proteins_aa_reps_r232.tar.gz) | Predicted amino-acid sequences from GTDB representative genomes (~123 GB compressed) |
+| [`bac120_taxonomy_r232.tsv`](https://data.gtdb.ecogenomic.org/releases/release232/232.0/bac120_taxonomy_r232.tsv) | Bacterial genome accession → full GTDB lineage |
+| [`ar53_taxonomy_r232.tsv`](https://data.gtdb.ecogenomic.org/releases/release232/232.0/ar53_taxonomy_r232.tsv) | Archaeal genome accession → full GTDB lineage |
+
+**Download with aria2c** (the commands only download the files):
 
 ```bash
-conda activate MAGverify
+GTDB_DIR=/path/to/GTDB_R232_files
+BASE=https://data.gtdb.ecogenomic.org/releases/release232/232.0
+mkdir -p "$GTDB_DIR"
+
+aria2c -c -x 4 -s 4 -d "$GTDB_DIR" "$BASE/genomic_files_reps/gtdb_proteins_aa_reps_r232.tar.gz"
+aria2c -c -d "$GTDB_DIR" "$BASE/bac120_taxonomy_r232.tsv"
+aria2c -c -d "$GTDB_DIR" "$BASE/ar53_taxonomy_r232.tsv"
 ```
 
-
-
-
-
-## Database preparation
-
-Prepare external inputs once under `/path/to/MAGverify_output/0_prep/`. Full fixed-release download links, required source files, preparation scripts, taxonomy TSV format and GTDB-Tk workflow appear in [PROTOCOL.md](PROTOCOL.md#database-preparation-once-before-analysis).
-
-**A. GTDB R232 MMseqs2 protein taxonomy DB** 
-The GTDB R232 protein taxonomy database is needed for chimera detection unless --taxonomy FILE is supplied. Download the representative protein archive (~123 GB) and bacterial and archaeal taxonomy files from the official GTDB R232 release using aria2c:
-
-mkdir -p /path/to/GTDB_R232
-cd /path/to/database/GTDB_R232
-
-aria2c -c -x 8 -s 8 https://data.gtdb.ecogenomic.org/releases/release232/232.0/genomic_files_reps/gtdb_proteins_aa_reps_r232.tar.gz
-aria2c -c https://data.gtdb.ecogenomic.org/releases/release232/232.0/bac120_taxonomy_r232.tsv
-aria2c -c https://data.gtdb.ecogenomic.org/releases/release232/232.0/ar53_taxonomy_r232.tsv
+**Build the MMseqs2 taxonomy database** from the downloaded files:
 
 ```bash
-conda activate MAGverify
+DB=/path/to/databases/GTDB_R232
+mkdir -p "$(dirname "$DB")"
+
 MAGverify prep-chimera \
-  --gtdb-dir /path/to/database/GTDB_R232 \
-  --database-prefix `/path/to/database/GTDB_R232 \
+  --gtdb-dir "$GTDB_DIR" \
+  --database-prefix "$DB" \
   --output-dir /path/to/MAGverify_output \
   --threads 100
+
+ls -lh "${DB}.dbtype" "${DB}_mapping" "${DB}_taxonomy"
 ```
 
-The `--database-prefix` option controls where the DB is created; if omitted, it defaults to `OUTPUT_DIR/0_prep/GTDB_R232`. Supply the same prefix to `MAGverify chimera --database`.
+`--gtdb-dir` points to the three downloaded files. `--database-prefix` specifies the full MMseqs2 database prefix, **not a directory**; omit it to use `/path/to/MAGverify_output/0_prep/GTDB_R232`. The build uses `OUTPUT_DIR/0_prep/` for intermediate files and needs substantially more disk space than the compressed archive alone. Supply the chosen prefix to `MAGverify chimera --database`.
 
-**B. MAG taxonomy TSV:** Prepare `$PREP/MAG_taxonomy.tsv` with `ID`, `GTDB_Domain`, `GTDB_Phylum`, `GTDB_Class`, `GTDB_Order`. Use an existing table or convert existing GTDB-Tk `classify_wf` summary TSVs without rerunning classification:
+### 3.2. MAG taxonomy TSV
+
+For domain-matched SCG annotation, supply a tab-separated MAG taxonomy table with these columns:
+
+```text
+ID	GTDB_Domain	GTDB_Phylum	GTDB_Class	GTDB_Order
+ExampleMAG	d__Bacteria	p__Nitrospirota	c__Nitrospiria	o__Nitrospirales
+```
+
+The example classification illustrates the format only. Each `ID` must match a MAG FASTA filename stem exactly (for example, `ExampleMAG.fa` → `ExampleMAG`), with one row per MAG and no duplicates. GTDB rank prefixes are `d__`, `p__`, `c__` and `o__`; unassigned ranks can use an empty prefix (for example, `o__`).
+
+If a compatible table already exists, use it directly as `--mag-taxonomy FILE`. If existing **GTDB-Tk** output is available, convert its `gtdbtk.bac120.summary.tsv` and `gtdbtk.ar53.summary.tsv` files without rerunning classification. Run the converter from the MAGverify repository root:
 
 ```bash
 PREP=/path/to/MAGverify_output/0_prep
+mkdir -p "$PREP"
 python -m scripts.prep_gtdbtk_summary_to_mag_taxonomy \
-  --gtdbtk-dir /path/to/GTDBTk_results \
+  --gtdbtk-dir /path/to/existing_GTDBTk_results \
   --mag-dir /path/to/MAGs \
   --output "$PREP/MAG_taxonomy.tsv"
 ```
 
-If MAG classification is not yet available, [download the separate GTDB-Tk R232 reference package](https://data.gtdb.ecogenomic.org/releases/release232/232.0/auxillary_files/gtdbtk_package/full_package/gtdbtk_r232_data.tar.gz) and run `gtdbtk classify_wf` as shown in [PROTOCOL.md](PROTOCOL.md#c-gtdb-tk-r232-classification--only-if-mag-taxonomy-is-unavailable). No change to MAGverify analysis options or internal taxonomy parser is needed.
+### 3.3. GTDB-Tk classification (only if MAG taxonomy is unavailable)
 
-## Usage
-
-### Input data
-
-Use paths to existing data. Do not create a special directory tree or prepare `combined.fasta` yourself.
-
-- `--assemblies-dir` — directory with original source-assembly FASTA files (unique contig IDs across files)
-- `--mag-dir` — directory with one `.fa`, `.fasta` or `.fna` file per MAG
-- `--reads` — PacBio HiFi reads (`.fastq` or `.fastq.gz`)
-- `--output-dir` — common results directory, reused across separately executed modules (`--output-directory` remains accepted for compatibility)
-
-Gene-level taxonomy for `chimera` also needs a GTDB MMseqs2 taxonomy database (`--database`) or an existing gene taxonomy table (`--taxonomy`). False closure additionally needs the assembler-reported circularity table (`--assembler-circularity`).
-
-### Run modules individually
-
-Run the ten steps in the order shown in [PROTOCOL.md](PROTOCOL.md). `MAGverify summary` includes final-result validation; no separate `check` module is necessary. Each command is independent and can reuse prior results saved in the same output directory.
-
-**Clipping**
+GTDB-Tk uses a **separate** R232 reference package, not the MMseqs2 protein database. Skip this section if a compatible MAG taxonomy table or existing GTDB-Tk classification is available. The [GTDB-Tk R232 package](https://data.gtdb.ecogenomic.org/releases/release232/232.0/auxillary_files/gtdbtk_package/full_package/gtdbtk_r232_data.tar.gz) is approximately 56.6 GB compressed and 100 GB extracted.
 
 ```bash
-MAGverify clipping \
+PREP=/path/to/MAGverify_output/0_prep
+mkdir -p "$PREP/GTDBTk_R232"
+aria2c -c -x 4 -s 4 -d "$PREP/GTDBTk_R232" \
+  https://data.gtdb.ecogenomic.org/releases/release232/232.0/auxillary_files/gtdbtk_package/full_package/gtdbtk_r232_data.tar.gz
+
+tar -xzf "$PREP/GTDBTk_R232/gtdbtk_r232_data.tar.gz" -C "$PREP/GTDBTk_R232"
+META_DIR=$(find "$PREP/GTDBTk_R232" -maxdepth 3 -type d -name metadata -print -quit)
+test -n "$META_DIR" || { echo 'GTDB-Tk metadata directory not found' >&2; exit 1; }
+export GTDBTK_DATA_PATH="$(dirname "$META_DIR")"
+gtdbtk check_install
+
+gtdbtk classify_wf \
+  --genome_dir /path/to/MAGs \
+  --out_dir "$PREP/GTDBTk_results" \
+  --extension fa \
+  --cpus 100
+
+python -m scripts.prep_gtdbtk_summary_to_mag_taxonomy \
+  --gtdbtk-dir "$PREP/GTDBTk_results" \
+  --mag-dir /path/to/MAGs \
+  --output "$PREP/MAG_taxonomy.tsv"
+```
+
+Change `--extension fa` for `.fna` or `.fasta` inputs. GTDB-Tk bacterial classification may need approximately 140 GB RAM. Set `GTDBTK_DATA_PATH` in any new shell session before using GTDB-Tk. The user-prepared `0_prep/` is distinct from MAGverify's internally generated `00_prep/`.
+
+## 4. Run the analysis modules
+
+Run each command separately in the following order, using the **same `--output-dir`** throughout. The examples use 100 threads; adjust this to the CPU allocation. The mapping manifest created in Step 1 is found and reused automatically by later modules. No `00_config.sh`, separate gene-taxonomy module or separate SCG module is needed.
+
+### 1. Read mapping
+
+```bash
+MAGverify map \
+  --assemblies-dir /path/to/assemblies \
+  --reads /path/to/hifi.fastq.gz \
+  --output-dir /path/to/MAGverify_output \
+  --threads 100
+```
+
+Reads are mapped separately to each assembler FASTA. The module writes `01_mapping/assembler_mapping_outputs.tsv` and links its manifest under `results/mapping_manifest.tsv`. Rerun mapping if the input reads or assemblies change.
+
+### 2. Circularity
+
+```bash
+MAGverify circularity \
   --assemblies-dir /path/to/assemblies \
   --mag-dir /path/to/MAGs \
   --reads /path/to/hifi.fastq.gz \
@@ -114,7 +159,55 @@ MAGverify clipping \
   --threads 100
 ```
 
-**Taxonomic chimera** — generates gene taxonomy internally if a compatible result does not already exist; SCG annotation is also prepared when necessary and when anvi'o is available.
+### 3. Clipping
+
+```bash
+MAGverify clipping \
+  --assemblies-dir /path/to/assemblies \
+  --mag-dir /path/to/MAGs \
+  --output-dir /path/to/MAGverify_output \
+  --threads 100
+```
+
+This and later modules reuse Step 1 mapping from the same output directory. If no mapping exists, supply `--reads` alongside the assemblies so mapping can be prepared.
+
+### 4. False closure
+
+```bash
+MAGverify false-closure \
+  --assemblies-dir /path/to/assemblies \
+  --mag-dir /path/to/MAGs \
+  --assembler-circularity /path/to/assembler_circularity.tsv \
+  --output-dir /path/to/MAGverify_output \
+  --threads 100
+```
+
+`--assembler-circularity` takes the assembler-reported circularity table, not the read-supported circularity result from Step 2.
+
+### 5. Phantom sequences
+
+```bash
+MAGverify phantom \
+  --assemblies-dir /path/to/assemblies \
+  --mag-dir /path/to/MAGs \
+  --reads /path/to/hifi.fastq.gz \
+  --output-dir /path/to/MAGverify_output \
+  --threads 100
+```
+
+### 6. Repeats
+
+```bash
+MAGverify repeats \
+  --assemblies-dir /path/to/assemblies \
+  --mag-dir /path/to/MAGs \
+  --output-dir /path/to/MAGverify_output \
+  --threads 100
+```
+
+Repeat detection and false-duplication testing are separate assessments.
+
+### 7. Taxonomic chimera
 
 ```bash
 MAGverify chimera \
@@ -126,64 +219,67 @@ MAGverify chimera \
   --threads 100
 ```
 
-Chimera classification also uses the validated clipping table from the preceding clipping step. The MMseqs2 taxonomy database is a **database prefix** for which a `.dbtype` file exists. `--mag-taxonomy` supplies genome-level GTDB classification for SCG annotation, not the gene taxonomy database.
+Use the MMseqs2 database prefix from Section 3.1, or replace `--database PREFIX` with `--taxonomy /path/to/gene_taxonomy.tsv` when a compatible gene taxonomy table already exists. `--mag-taxonomy` is a separate MAG-level classification input. Gene taxonomy and SCG processing occur within this module as needed; chimera assessment also uses validated clipping results.
 
-**Show available modules**
+### 8. False duplication
 
 ```bash
-MAGverify list
-MAGverify chimera --help
-MAGverify doctor
+MAGverify false-duplication \
+  --assemblies-dir /path/to/assemblies \
+  --mag-dir /path/to/MAGs \
+  --output-dir /path/to/MAGverify_output \
+  --threads 100
 ```
 
-`MAGverify prepare`, `MAGverify structure`, `MAGverify run` and similar grouped commands are not part of this interface. The preprocessing that is specific to chimera (gene taxonomy, SCG annotation) belongs to that analysis, rather than being separate user-run commands.
+### 9. Assembly variants
 
-The `map` module creates `01_mapping/assembler_mapping_outputs.tsv` and publishes `results/mapping_manifest.tsv` as a symbolic link in `--output-dir`. Later modules automatically reuse the mapping, including when `--reads` is also supplied. `--assemblies-dir` refers to a directory of original FASTA files, not a single merged FASTA. See [PROTOCOL.md](PROTOCOL.md) for command examples.
+```bash
+MAGverify variants \
+  --assemblies-dir /path/to/assemblies \
+  --mag-dir /path/to/MAGs \
+  --reads /path/to/hifi.fastq.gz \
+  --output-dir /path/to/MAGverify_output \
+  --threads 100
+```
 
-## Results
+This step may need substantial RAM; set `--memory-gb` when appropriate.
 
-Final tables are linked under `OUTPUT/results/`. Detailed intermediate files remain in their original module directories for diagnostics and reproducibility.
+### 10. Integrated QC summary
 
-| Analysis | Main output |
+```bash
+MAGverify summary \
+  --assemblies-dir /path/to/assemblies \
+  --mag-dir /path/to/MAGs \
+  --output-dir /path/to/MAGverify_output \
+  --threads 100
+```
+
+The summary combines completed assessments and validates MAG IDs, contig memberships, counts and table consistency. Validation failures return a nonzero exit status. For a partial run, use `--include clipping,chimera` (or the modules completed). The summary does not rerun analysis modules.
+
+## 5. Results
+
+Final tables are linked under `OUTPUT_DIR/results/`; module directories retain the intermediate files.
+
+| Module | Main output files |
 | --- | --- |
-| Mapping | `mapping_manifest.tsv` |
-| Clipping | `clipping_sites.tsv`, `clipping_mag.tsv` |
-| Chimera (including taxonomy and SCG) | `chimera_contig.tsv`, `chimera_mag.tsv`, `gene_taxonomy.tsv`, `scg.tsv` (when generated) |
+| Read mapping | `mapping_manifest.tsv` |
 | Circularity | `circularity_mag.tsv` |
-| False closure | `false_closure_mag.tsv`, `false_closure_contig.tsv` |
-| Assembly variants | `variants_contig.tsv`, `variants_mag.tsv` |
+| Clipping | `clipping_sites.tsv`, `clipping_mag.tsv` |
+| False closure | `false_closure_contig.tsv`, `false_closure_mag.tsv` |
 | Phantom sequences | `phantom_contig.tsv`, `phantom_mag.tsv` |
 | Repeats | `repeats_contig.tsv`, `repeats_mag.tsv` |
+| Taxonomic chimera | `chimera_contig.tsv`, `chimera_mag.tsv` (plus gene taxonomy and SCG outputs when generated) |
 | False duplication | `false_duplication_contig.tsv`, `false_duplication_mag.tsv` |
-| Integrated QC | `summary_contig.tsv`, `summary_mag.tsv` |
+| Assembly variants | `variants_contig.tsv`, `variants_mag.tsv` |
+| Integrated QC summary | `summary_contig.tsv`, `summary_mag.tsv` |
 
-The short filenames are symbolic links to the generated tables, not separate data copies. Keep the results directory and its analysis subdirectories together when moving the output.
+Keep the results directory and its module subdirectories together so the symbolic links remain valid.
 
-To inspect the commands without installing, run `./bin/MAGverify --help` from the repository root.
+## 6. Additional information
 
-## Configuration
-
-**No `00_config.sh` or `config/modules/` setup is needed.** Data locations, output paths and the number of threads are supplied as command-line options. Internal Shell defaults are in `modules/lib_config.sh` and `modules/stage_paths.sh`; users do not edit these files. Summary-table validation is integrated into `MAGverify summary`. It checks the resulting tables without repeating the analysis-stage tool checks. Gene taxonomy preprocessing is integrated into `modules/07_chimera.sh`; `modules/lib_scg.sh` supplies SCG annotations as an internal helper.
-
-All protocol examples request `--threads 100`. Use a smaller allocation when fewer than 100 CPU threads are available.
-
-## Documentation
-
-- [Installation](docs/INSTALL.md)
-- [Step-by-step protocol](PROTOCOL.md)
+- [Installation and environment checks](docs/INSTALL.md)
 - [Module inputs and outputs](docs/MODULES.md)
-- [Project architecture](docs/ARCHITECTURE.md)
 - [Input formats](docs/INPUT_FORMATS.md)
 - [Recorded tool versions](docs/TOOL_VERSIONS.md)
 
-The command-line routing, syntax and selected fixture tests were checked; the full pipeline has **not** been rerun with real HiFi data. Compare results against the original analyses before publishing a scientific benchmark.
-
-## Development and reproducibility
-
-The repository separates the installable `modules/` and `scripts/` directories, validation tests, documentation, and environment definitions. Run `python -m unittest discover -s tests -p "test_*.py"` and the three shell tests before a release. The bundled tests exercise input handling, CLI behavior, and summary consistency with synthetic fixtures. A complete end-to-end verification against real PacBio HiFi datasets is not yet established.
-
-The user-facing command and project name are both **MAGverify**. Python helpers live in the top-level `scripts/` directory and Bash modules in `modules/`. No dataset-specific paths belong in the GitHub repository.
-
-A software license and author-approved citation should be added before describing this repository as openly licensed or publication-ready.
-
-Python helper scripts are grouped by module prefix under `scripts/`; see [Script index](docs/SCRIPT_INDEX.md).
+MAGverify uses command-line options to specify paths and threads; no editable `00_config.sh` is needed. The repository's automated tests cover command routing and selected synthetic fixtures. A complete end-to-end run on real HiFi data is not yet verified.
