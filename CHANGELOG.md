@@ -3,12 +3,17 @@
 - Use `conda env create -f environment.yml` followed by `conda activate MAGverify` once for all modules.
 - Install anvi'o v9 from Bioconda as `anvio-minimal=9` and install the MAGverify CLI through the YAML `pip:` section.
 - Remove the separate anvi'o environment file; no module command needs an anvi'o environment argument.
-- Keep `--contigs-dir`, `--output-dir` and automatic `mapping_manifest.tsv` reuse as the public workflow.
+- Keep `-a` (assembler FASTA directory, formerly `--contigs-dir`), `--output-dir` and automatic `mapping_manifest.tsv` reuse as the public workflow.
 
 # Changelog
 
 ## Unreleased
 
+- Assembler FASTA directory option renamed from `--contigs-dir` to `-a`.
+- `--dry-run`, `--mag-fasta`, `-m` and `-i/--input` removed from the user interface; MAG input is `--mag-dir` only.
+- `map` records the HiFi read file in `mapping_manifest.tsv` (`Reads`); circularity, phantom and variants reuse it when `--reads` is omitted.
+- Clipping writes a contig-level table (`clipping_contig.tsv`).
+- GTDB-Tk conversion writes only the MAGs in `--mag-dir` and ignores other GTDB-Tk genomes.
 - Flattened repository structure: `modules/` for shell analysis stages and `scripts/` for Python helpers, without the old nested `magverify/` directory.
 - Moved the GTDB R232 MMseqs2 preparation script to `modules/00_prep_chimera.sh`. Added `MAGverify prep-chimera --gtdb-dir DIR --output-dir DIR [--database-prefix PREFIX] --threads N` to build the taxonomy database from pre-downloaded GTDB files before chimera analysis. The ten analysis modules are unchanged.
 

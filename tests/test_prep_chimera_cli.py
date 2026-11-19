@@ -54,7 +54,7 @@ class PrepChimeraCLITests(unittest.TestCase):
         self.assertIn('--database-prefix', result.stdout)
         self.assertIn('--output-dir', result.stdout)
         self.assertIn('--threads', result.stdout)
-        self.assertNotIn('--contigs-dir', result.stdout)
+        self.assertNotIn('-a DIR', result.stdout)
         self.assertNotIn('--dry-run', result.stdout)
 
     def test_prep_uses_local_inputs_and_default_database_prefix(self):

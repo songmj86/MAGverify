@@ -28,7 +28,7 @@ public_usage() {
     cat >&2 <<'EOF'
 Usage:
   MMSEQS_TAX_DB=<GTDB_R232_DB_PREFIX> MAG_CONTIG_MAP=<MAP_TSV> \
-    MAGverify chimera --contigs-dir ASSEMBLIES --mag-dir MAGs --database MMSEQS_PREFIX ...
+    MAGverify chimera -a ASSEMBLIES --mag-dir MAGs --database MMSEQS_PREFIX ...
 
   Internal: bash 07_chimera.sh __taxonomy_internal <genome|contig> \
     <ASSEMBLY_FA> <GTDB_R232_DB_PREFIX> <MAG_CONTIG_MAP> <OUT_DIR> [THREADS]

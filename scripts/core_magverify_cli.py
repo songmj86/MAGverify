@@ -182,7 +182,7 @@ def fasta_paths(directory, label):
     parent = dir_input(directory, label)
     paths = sorted(p for p in parent.iterdir() if p.is_file() and p.suffix.lower() in ('.fa', '.fna', '.fasta'))
     if not paths:
-        raise UsageError(f'No FASTA files found in {parent}; check --contigs-dir or --mag-dir')
+        raise UsageError(f'No FASTA files found in {parent}; check -a or --mag-dir')
     return paths
 
 
@@ -218,9 +218,9 @@ def source_inputs(args, output_root):
     if not getattr(args, 'source_assemblies', None):
         return None
     paths = validate_fasta_paths(
-        fasta_paths(args.source_assemblies, '--contigs-dir'), '--contigs-dir'
+        fasta_paths(args.source_assemblies, '-a'), '-a'
     )
-    parent = dir_input(args.source_assemblies, '--contigs-dir')
+    parent = dir_input(args.source_assemblies, '-a')
     names = [p.name for p in paths]
     print(f'Source assemblies ({len(names)}): ' + ', '.join(names), flush=True)
     return parent, ' '.join(names)
@@ -425,7 +425,7 @@ def prepare_map(args, root, env, main_input):
             return file_input(map_file, 'MAG map in output directory')
         raise UsageError('MAG membership is needed: pass --mag-dir DIR or --mag-map TSV')
     if not main_input:
-        raise UsageError('Preparing a MAG map needs --contigs-dir DIR')
+        raise UsageError('Preparing a MAG map needs -a DIR')
     if args.dry_run:
         run(['samtools', 'faidx', str(main_input)], env, True)
         run(['python3', str(SCRIPTS_DIR / 'prep_build_mag_contig_map.py'), '--mag-dir', env['MAG_DIR'],
@@ -465,9 +465,9 @@ def mapping_result(stage, args, root, env, sources):
         run(['bash', str(ROOT / '01_mapping.sh'), env['READS'], str(root / '01_mapping')], env, args.dry_run)
         return generated if args.dry_run else check_manifest(generated)
     if getattr(args, 'reads', None) and not sources and not generated.is_file():
-        raise UsageError('Provide --contigs-dir DIR with --reads, or --mapping-manifest')
+        raise UsageError('Provide -a DIR with --reads, or --mapping-manifest')
     raise UsageError(f'{stage} needs an existing map result in --output-dir, '
-                     'or --reads FASTQ and --contigs-dir DIR.')
+                     'or --reads FASTQ and -a DIR.')
 
 
 def reads_from_manifest(args, root):
@@ -624,9 +624,9 @@ def stage_run(args):
     root, env = defaults_for(stage, args)
     main_input, sources = choose_inputs(args, root, env)
     if stage not in ('map', 'circularity') and not main_input:
-        raise UsageError(f'{stage} needs --contigs-dir DIR or --mapping-manifest TSV')
+        raise UsageError(f'{stage} needs -a DIR or --mapping-manifest TSV')
     if stage in NEEDS_SOURCES and not sources:
-        raise UsageError(f'{stage} needs --contigs-dir DIR (original assembler FASTAs), '
+        raise UsageError(f'{stage} needs -a DIR (original assembler FASTAs), '
                          'or a mapping manifest')
     if stage == 'map' and not args.reads:
         raise UsageError('map needs --reads /path/to/HiFi.fastq.gz')
@@ -722,7 +722,7 @@ def add_stage_parser(subparsers, stage):
         p.add_argument('-r', '--reads', metavar='FASTQ',
                        help='HiFi reads (FASTQ/FASTQ.GZ)' if stage == 'map'
                        else 'HiFi reads (default: reads recorded by map)')
-    p.add_argument('--contigs-dir', dest='source_assemblies', metavar='DIR', help='Assembler FASTA directory')
+    p.add_argument('-a', dest='source_assemblies', metavar='DIR', help='Assembler FASTA directory')
     if handles('clipping','chimera','circularity','false-closure','variants','phantom','repeats','false-duplication','summary'):
         p.add_argument('--mag-dir', metavar='DIR', help='MAG FASTA directory')
         p.add_argument('--mag-map', metavar='TSV', help='MAG-contig table')

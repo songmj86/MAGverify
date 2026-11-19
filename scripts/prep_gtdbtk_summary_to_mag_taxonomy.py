@@ -10,7 +10,19 @@ RANKS = ("d__", "p__", "c__", "o__")
 MAG_EXTENSIONS = (".fa", ".fna", ".fasta")
 
 
+def mag_ids(mag_dir: Path) -> set[str]:
+    if not mag_dir.is_dir():
+        raise ValueError(f"MAG directory not found: {mag_dir}")
+    ids = {p.stem for p in mag_dir.iterdir() if p.is_file() and p.suffix.lower() in MAG_EXTENSIONS}
+    if not ids:
+        raise ValueError(f"No MAG FASTAs with {MAG_EXTENSIONS} found in {mag_dir}")
+    return ids
+
+
 def convert(gtdbtk_dir: Path, output: Path, mag_dir: Path | None = None) -> int:
+    """Write one row per MAG. With mag_dir, only the MAGs in that directory are written;
+    GTDB-Tk rows for other genomes are ignored, and every MAG must be classified."""
+    wanted = mag_ids(mag_dir) if mag_dir is not None else None
     paths = [gtdbtk_dir / f"gtdbtk.{domain}.summary.tsv" for domain in ("bac120", "ar53")]
     existing = [p for p in paths if p.is_file() and p.stat().st_size > 0]
     if not existing:
@@ -24,6 +36,8 @@ def convert(gtdbtk_dir: Path, output: Path, mag_dir: Path | None = None) -> int:
                 raise ValueError(f"{path}: missing columns {sorted(missing)}")
             for n, row in enumerate(reader, start=2):
                 identifier = (row.get("user_genome") or "").strip()
+                if wanted is not None and identifier not in wanted:
+                    continue
                 classification = (row.get("classification") or "").strip()
                 if not identifier or not classification:
                     raise ValueError(f"{path}:{n}: empty genome ID or classification")
@@ -39,17 +53,11 @@ def convert(gtdbtk_dir: Path, output: Path, mag_dir: Path | None = None) -> int:
                 if ranks.get("d__") not in ("d__Bacteria", "d__Archaea"):
                     raise ValueError(f"{path}:{n}: unresolved or invalid domain for {identifier}")
                 data[identifier] = [identifier] + [ranks.get(rank, rank) for rank in RANKS]
-    if mag_dir is not None:
-        if not mag_dir.is_dir():
-            raise ValueError(f"MAG directory not found: {mag_dir}")
-        expected = {p.stem for p in mag_dir.iterdir() if p.is_file() and p.suffix.lower() in MAG_EXTENSIONS}
-        if not expected:
-            raise ValueError(f"No MAG FASTAs with {MAG_EXTENSIONS} found in {mag_dir}")
-        absent = sorted(expected - data.keys())
-        extra = sorted(data.keys() - expected)
-        if absent or extra:
-            raise ValueError(f"MAG ID mismatch: missing in GTDB-Tk = {absent[:10]} (total {len(absent)}); "
-                             f"extra in GTDB-Tk = {extra[:10]} (total {len(extra)})")
+    if wanted is not None:
+        absent = sorted(wanted - data.keys())
+        if absent:
+            raise ValueError(f"MAGs in --mag-dir without a GTDB-Tk classification: {absent[:10]} "
+                             f"(total {len(absent)}). Check that MAG file names match user_genome.")
     output.parent.mkdir(parents=True, exist_ok=True)
     with output.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.writer(handle, delimiter="\t", lineterminator="\n")
@@ -62,7 +70,7 @@ def convert(gtdbtk_dir: Path, output: Path, mag_dir: Path | None = None) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--gtdbtk-dir", required=True, type=Path, help="GTDB-Tk classify_wf output directory")
-    parser.add_argument("--mag-dir", type=Path, help="Optional MAG FASTA directory for exact ID validation")
+    parser.add_argument("--mag-dir", type=Path, help="MAG FASTA directory; only these MAGs are written (others in GTDB-Tk are ignored)")
     parser.add_argument("--output", required=True, type=Path, help="Output MAG_taxonomy.tsv path")
     args = parser.parse_args()
     try:

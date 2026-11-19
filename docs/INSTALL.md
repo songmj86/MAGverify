@@ -58,19 +58,19 @@ A single activation is sufficient for all modules:
 
 ```bash
 MAGverify map \
-  --contigs-dir /data/assemblies \
+  -a /data/assemblies \
   --reads /data/hifi.fastq.gz \
   --output-dir /data/MAGverify_output \
   --threads 100
 
 MAGverify circularity \
-  --contigs-dir /data/assemblies \
+  -a /data/assemblies \
   --mag-dir /data/MAGs \
   --output-dir /data/MAGverify_output \
   --threads 100
 ```
 
-Continue the remaining modules in the order specified in the [README](../README.md). All commands accept `--contigs-dir` for the directory of original assembler FASTA files and `--output-dir` for the common output root. Neither `--anvio-env` nor an explicit `--mapping-manifest` is needed when using the same `--output-dir` for every stage. The manifest is created by `MAGverify map` in `OUTPUT/01_mapping/mapping_manifest.tsv` and linked under `OUTPUT/results/mapping_manifest.tsv`.
+Continue the remaining modules in the order specified in the [README](../README.md). All commands accept `-a` for the directory of original assembler FASTA files and `--output-dir` for the common output root. Neither `--anvio-env` nor an explicit `--mapping-manifest` is needed when using the same `--output-dir` for every stage. The manifest is created by `MAGverify map` in `OUTPUT/01_mapping/mapping_manifest.tsv` and linked under `OUTPUT/results/mapping_manifest.tsv`.
 
 ## 4. Database preparation
 
