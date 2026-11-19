@@ -39,8 +39,13 @@ class PrepChimeraCLITests(unittest.TestCase):
         self.output = Path(self.temp.name) / 'test output'
 
     def run_cli(self, *args):
-        return subprocess.run([str(self.cmd), *map(str, args)],
-                              cwd=self.root, text=True, capture_output=True, env=self.env)
+        args = [str(arg) for arg in args]
+        env = dict(self.env)
+        if '--dry-run' in args:  # internal switch, not a user option
+            args.remove('--dry-run')
+            env['MAGVERIFY_DRY_RUN'] = '1'
+        return subprocess.run([str(self.cmd), *args],
+                              cwd=self.root, text=True, capture_output=True, env=env)
 
     def test_help_shows_standard_options(self):
         result = self.run_cli('prep-chimera', '--help')
@@ -50,15 +55,16 @@ class PrepChimeraCLITests(unittest.TestCase):
         self.assertIn('--output-dir', result.stdout)
         self.assertIn('--threads', result.stdout)
         self.assertNotIn('--contigs-dir', result.stdout)
+        self.assertNotIn('--dry-run', result.stdout)
 
     def test_prep_uses_local_inputs_and_default_database_prefix(self):
         result = self.run_cli('prep-chimera', '--gtdb-dir', self.gtdb,
                               '--output-dir', self.output, '--threads', '1')
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        argv = (self.output / '0_prep/invocation.txt').read_text().splitlines()
-        self.assertEqual(argv, [str(self.output / '0_prep'), '1', str(self.gtdb),
+        argv = (self.output / 'tmp_prep_chimera/invocation.txt').read_text().splitlines()
+        self.assertEqual(argv, [str(self.output / 'tmp_prep_chimera'), '1', str(self.gtdb),
                                 str(self.output / '0_prep/GTDB_R232')])
-        self.assertFalse((self.output / '0_prep/0_prep').exists())
+        self.assertFalse((self.output / 'tmp_prep_chimera/0_prep').exists())
 
     def test_custom_database_prefix(self):
         external_db = Path(self.temp.name) / 'external database' / 'GTDB_R232'
@@ -66,7 +72,8 @@ class PrepChimeraCLITests(unittest.TestCase):
                               '--database-prefix', external_db,
                               '--output-dir', self.output, '--threads', '1')
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        argv = (self.output / '0_prep/invocation.txt').read_text().splitlines()
+        argv = (self.output / 'tmp_prep_chimera/invocation.txt').read_text().splitlines()
+        self.assertEqual(argv[0], str(self.output / 'tmp_prep_chimera'))
         self.assertEqual(argv[3], str(external_db))
 
     def test_dry_run_no_output_mutation(self):

@@ -18,26 +18,24 @@ Supply an existing directory with one FASTA per MAG:
 /data/MAGs/Bin163L.fa
 ```
 
-The filename without `.fa`, `.fna` or `.fasta` becomes the MAG ID. The MAG FASTA contig IDs and sequences must match the original assembler FASTAs. Circularity testing uses the appropriate single-contig MAGs. An alternative for MAG FASTAs located in separate directories is repeated `--mag-fasta FILE`.
+The filename without `.fa`, `.fna` or `.fasta` becomes the MAG ID. The MAG FASTA contig IDs and sequences must match the original assembler FASTAs. Circularity testing uses the appropriate single-contig MAGs.
 
 ## PacBio HiFi reads (`--reads`)
 
-Supply PacBio HiFi reads in FASTQ or FASTQ.GZ format. Use the same reads for the mapping and downstream QC modules. Modules assessing read support cannot infer it from assembly FASTAs alone.
+Supply PacBio HiFi reads in FASTQ or FASTQ.GZ format to `MAGverify map`. The mapping manifest records the read file, and circularity, phantom and variants reuse it when `--reads` is omitted. Modules assessing read support cannot infer it from assembly FASTAs alone.
 
 ## Automatically generated combined assembly
 
 **Do not create or provide `combined.fasta` by hand.** When a module needs the union of source assemblies, the command-line interface builds `00_prep/combined_assembly.fasta` inside the output directory. It preserves the original contig identifiers and rejects duplicates. Source FASTA paths, sizes and modification times are recorded to determine whether this generated file can be reused.
 
-`--input FILE` remains available for a separately prepared combined FASTA. It is an advanced override, not a mandatory input.
-
 ## Mapping manifest (`--mapping-manifest`)
 
-`MAGverify map` produces `01_mapping/assembler_mapping_outputs.tsv`, listing the assembler names, assembler FASTAs and HiFi mapping BAMs. Downstream modules can reuse this file without remapping. The manifest also identifies the source FASTAs from which the combined FASTA can be generated.
+`MAGverify map` produces `01_mapping/mapping_manifest.tsv`, listing the assembler names, assembler FASTAs, HiFi mapping BAMs and the HiFi read file (`Reads`). Downstream modules can reuse this file without remapping. The manifest also identifies the source FASTAs from which the combined FASTA can be generated.
 
 The tab-delimited manifest includes these columns:
 
 ```text
-Assembler    Assembly_FASTA    HiFi_all_BAM    HiFi_primary_BAM    HiFi_secondary_BAM    HiFi_supplementary_BAM    HiFi_primary_supplementary_BAM    Output_directory
+Assembler    Assembly_FASTA    HiFi_all_BAM    HiFi_primary_BAM    HiFi_secondary_BAM    HiFi_supplementary_BAM    HiFi_primary_supplementary_BAM    Output_directory    Reads
 ```
 
 The manifest paths, associated BAMs and `.inputs.sha256` provenance files must remain accessible.

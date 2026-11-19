@@ -38,7 +38,8 @@ def check_inputs(assembly, mag_dir, manifest):
     check_file(manifest, "ASSEMBLER_MAPPING_MANIFEST (run 01_mapping.sh first)")
     with manifest.open(encoding="utf-8-sig", newline="") as handle:
         reader = csv.DictReader(handle, delimiter="\t")
-        if reader.fieldnames != list(FIELDS):
+        # The trailing Reads column is written by current MAGverify map runs.
+        if reader.fieldnames not in (list(FIELDS), [*FIELDS, "Reads"]):
             raise ValueError(
                 "Invalid mapping manifest header. Expected tab-delimited columns: "
                 + ", ".join(FIELDS)

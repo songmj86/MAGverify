@@ -41,7 +41,7 @@ MAGverify prep-chimera \
 ls -lh "${DB}.dbtype" "${DB}_mapping" "${DB}_taxonomy"
 ```
 
-`--gtdb-dir` points to the three downloaded files. `--database-prefix` specifies the full MMseqs2 database prefix, **not a directory**; omit it to use `/path/to/MAGverify_output/0_prep/GTDB_R232`. The build uses `OUTPUT_DIR/0_prep/` for intermediate files and needs substantially more disk space than the compressed archive alone. Supply the chosen prefix to `MAGverify chimera --database`.
+`--gtdb-dir` points to the three downloaded files. `--database-prefix` specifies the full MMseqs2 database prefix, **not a directory**; omit it to use `/path/to/MAGverify_output/0_prep/GTDB_R232`. Temporary MMseqs2 files are written to `OUTPUT_DIR/tmp_prep_chimera/`, which needs substantially more disk space than the compressed archive alone and can be deleted after the database is built. Supply the chosen prefix to `MAGverify chimera --database`.
 
 ## 2. MAG taxonomy TSV
 
@@ -77,7 +77,7 @@ aria2c -c -x 4 -s 4 -d "$PREP/GTDBTk_R232" \
 
 tar -xzf "$PREP/GTDBTk_R232/gtdbtk_r232_data.tar.gz" -C "$PREP/GTDBTk_R232"
 META_DIR=$(find "$PREP/GTDBTk_R232" -maxdepth 3 -type d -name metadata -print -quit)
-test -n "$META_DIR" || { echo 'GTDB-Tk metadata directory not found' >&2; exit 1; }
+echo "GTDB-Tk metadata: ${META_DIR:-NOT FOUND}"
 export GTDBTK_DATA_PATH="$(dirname "$META_DIR")"
 gtdbtk check_install
 

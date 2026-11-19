@@ -115,8 +115,10 @@ if (( PREP_REUSED == 0 )); then
 
     echo
     echo "[3/4] Running anvi-run-hmms"
+    # Only the collections exported below are needed; skip the other installed HMMs.
     anvi-run-hmms \
         -c "$DB" \
+        -I Bacteria_71,Archaea_76 \
         -T "$THREADS" \
         --just-do-it
 

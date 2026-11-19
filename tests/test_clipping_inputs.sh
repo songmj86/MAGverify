@@ -9,7 +9,7 @@ cp "$TMP/combined.fa" "$TMP/MAGs/MAG1.fa"
 cp "$TMP/combined.fa" "$TMP/source/assembler.fa"
 printf 'dummy\n' > "$TMP/01_mapping/all.bam"
 printf 'fingerprint\n' > "$TMP/01_mapping/all.bam.inputs.sha256"
-manifest="$TMP/01_mapping/assembler_mapping_outputs.tsv"
+manifest="$TMP/01_mapping/mapping_manifest.tsv"
 printf 'Assembler\tAssembly_FASTA\tHiFi_all_BAM\tHiFi_primary_BAM\tHiFi_secondary_BAM\tHiFi_supplementary_BAM\tHiFi_primary_supplementary_BAM\tOutput_directory\n' > "$manifest"
 printf 'assembler\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
     "$TMP/source/assembler.fa" "$TMP/01_mapping/all.bam" \

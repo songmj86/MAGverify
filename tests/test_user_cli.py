@@ -34,7 +34,9 @@ class CommandTests(unittest.TestCase):
         self.source_dir.mkdir()
         self.source = self.source_dir / 'assembler_one.fa'
         self.source.write_text('>ctg1\nACGTACGT\n')
-        self.mag = self.home / 'Bin13L.fna'
+        self.mag_dir = self.home / 'mags'
+        self.mag_dir.mkdir()
+        self.mag = self.mag_dir / 'Bin13L.fna'
         self.mag.write_text('>ctg1\nACGTACGT\n')
         self.reads = self.home / 'reads.fq'
         self.reads.write_text('@r1\nACGT\n+\nIIII\n')
@@ -70,9 +72,9 @@ mkdir -p "$2"
 bam="$2/example.bam"
 printf 'BAM' > "$bam"
 printf 'hash' > "$bam.inputs.sha256"
-printf 'Assembler\\tAssembly_FASTA\\tHiFi_all_BAM\\tHiFi_primary_BAM\\tHiFi_secondary_BAM\\tHiFi_supplementary_BAM\\tHiFi_primary_supplementary_BAM\\tOutput_directory\\n' > "$2/assembler_mapping_outputs.tsv"
+printf 'Assembler\\tAssembly_FASTA\\tHiFi_all_BAM\\tHiFi_primary_BAM\\tHiFi_secondary_BAM\\tHiFi_supplementary_BAM\\tHiFi_primary_supplementary_BAM\\tOutput_directory\\tReads\\n' > "$2/mapping_manifest.tsv"
 for name in $ASSEMBLER_FASTAS; do
-  printf 'assembler\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n' "$ASSEMBLER_ASSEMBLY_DIR/$name" "$bam" "$bam" "$bam" "$bam" "$bam" "$2" >> "$2/assembler_mapping_outputs.tsv"
+  printf 'assembler\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n' "$ASSEMBLER_ASSEMBLY_DIR/$name" "$bam" "$bam" "$bam" "$bam" "$bam" "$2" "$1" >> "$2/mapping_manifest.tsv"
 done
 ''')
         (self.repo / 'modules/03_clipping.sh').write_text('''#!/bin/bash
@@ -86,8 +88,13 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
 ''')
 
     def call(self, *options):
-        return subprocess.run([str(self.repo / 'bin/MAGverify'), *map(str, options)],
-                              cwd=self.repo, env=self.env, text=True, capture_output=True)
+        options = [str(option) for option in options]
+        env = dict(self.env)
+        if '--dry-run' in options:  # internal switch, not a user option
+            options = [option for option in options if option != '--dry-run']
+            env['MAGVERIFY_DRY_RUN'] = '1'
+        return subprocess.run([str(self.repo / 'bin/MAGverify'), *options],
+                              cwd=self.repo, env=env, text=True, capture_output=True)
 
     def test_help_for_every_module(self):
         for name in STAGES:
@@ -99,6 +106,10 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
                 self.assertNotIn('--source-assembly', result.stdout)
                 self.assertNotIn('--anvio-env', result.stdout)
                 self.assertIn('--output-directory', result.stdout)  # legacy alias
+                self.assertNotIn('--dry-run', result.stdout)
+                self.assertNotIn('--mag-fasta', result.stdout)
+                self.assertNotIn('--input', result.stdout)
+                self.assertNotIn('-m,', result.stdout)
 
     def test_legacy_output_directory_option(self):
         p = self.call('map', '--contigs-dir', self.source_dir, '--reads', self.reads,
@@ -107,13 +118,14 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
         self.assertTrue((self.output / 'results' / 'mapping_manifest.tsv').is_symlink())
 
     def test_clipping_direct_files_without_study_directory(self):
-        p = self.call('clipping', '-i', self.assembly, '--mag-fasta', self.mag,
+        p = self.call('clipping', '--mag-dir', self.mag_dir,
                       '--reads', self.reads, '--contigs-dir', self.source_dir,
                       '-o', self.output, '-t', '2')
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
-        self.assertTrue((self.output / '01_mapping/assembler_mapping_outputs.tsv').is_file())
-        self.assertEqual((self.output / '00_prep/mag_fasta_links/Bin13L.fna').resolve(), self.mag)
-        self.assertEqual((self.output / '01_mapping/assembler_mapping_outputs.tsv').is_file(), True)
+        self.assertTrue((self.output / '01_mapping/mapping_manifest.tsv').is_file())
+        forwarded = (self.output / '03_clipping/forwarded.txt').read_text().splitlines()
+        self.assertEqual(forwarded[1], str(self.mag_dir))
+        self.assertEqual((self.output / '01_mapping/mapping_manifest.tsv').is_file(), True)
         self.assertTrue((self.output / '03_clipping/forwarded.txt').is_file())
 
     def test_downstream_reuses_mapping_with_reads_automatically(self):
@@ -126,7 +138,7 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
         mapping_script = self.repo / 'modules/01_mapping.sh'
         mapping_script.write_text('#!/bin/bash\nexit 77\n')
         second = self.call('clipping', '--reads', self.reads,
-                           '--contigs-dir', assemblies, '--mag-fasta', self.mag,
+                           '--contigs-dir', assemblies, '--mag-dir', self.mag_dir,
                            '--output-dir', self.output, '--threads', '2')
         self.assertEqual(second.returncode, 0, second.stdout + second.stderr)
         self.assertTrue((self.output / '03_clipping/forwarded.txt').exists())
@@ -137,13 +149,13 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
         p = self.call('map', '--reads', self.reads, '--contigs-dir', self.source_dir,
                       '-o', self.output)
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
-        rows = (self.output / '01_mapping/assembler_mapping_outputs.tsv').read_text().splitlines()
+        rows = (self.output / '01_mapping/mapping_manifest.tsv').read_text().splitlines()
         self.assertEqual(len(rows), 3)
         self.assertIn('assembler_two.fa', rows[2])
 
 
     def test_reuses_an_explicit_manifest(self):
-        p = self.call('clipping', '-i', self.assembly, '--mag-fasta', self.mag,
+        p = self.call('clipping', '--contigs-dir', self.source_dir, '--mag-dir', self.mag_dir,
                       '--mapping-manifest', self.manifest, '-o', self.output)
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         self.assertFalse((self.output / '01_mapping').exists())
@@ -161,7 +173,7 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         combined = self.output / '00_prep/combined_assembly.fasta'
         self.assertEqual(combined.read_text(), self.source.read_text())
-        self.assertTrue((self.output / '01_mapping/assembler_mapping_outputs.tsv').is_file())
+        self.assertTrue((self.output / '01_mapping/mapping_manifest.tsv').is_file())
         forwarded = (self.output / '03_clipping/forwarded.txt').read_text()
         self.assertIn(str(mags), forwarded)
 
@@ -182,7 +194,7 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
         originals.mkdir()
         shutil.copy2(self.source, originals / 'first.fa')
         shutil.copy2(self.source, originals / 'second.fa')
-        p = self.call('clipping', '--contigs-dir', originals, '--mag-fasta', self.mag,
+        p = self.call('clipping', '--contigs-dir', originals, '--mag-dir', self.mag_dir,
                       '--reads', self.reads, '--output-dir', self.output)
         self.assertNotEqual(p.returncode, 0)
         self.assertIn('Duplicate contig ID', p.stderr)
@@ -191,7 +203,7 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
         originals = self.home / 'orig'
         originals.mkdir()
         shutil.copy2(self.source, originals / 'source.fa')
-        base = ('clipping', '--contigs-dir', originals, '--mag-fasta', self.mag,
+        base = ('clipping', '--contigs-dir', originals, '--mag-dir', self.mag_dir,
                 '--reads', self.reads, '--output-dir', self.output)
         first = self.call(*base)
         self.assertEqual(first.returncode, 0, first.stdout + first.stderr)
@@ -204,25 +216,40 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
         self.assertIn('>ctg2', (self.output / '00_prep/combined_assembly.fasta').read_text())
 
     def test_missing_source_input_explained(self):
-        p = self.call('clipping', '-i', self.assembly, '--mag-fasta', self.mag,
+        p = self.call('clipping', '--mag-dir', self.mag_dir,
                       '--reads', self.reads, '-o', self.output)
         self.assertNotEqual(p.returncode, 0)
         self.assertIn('--contigs-dir', p.stderr)
 
-    def test_rejects_study_directory_as_input(self):
-        p = self.call('clipping', '-i', self.data, '--mag-fasta', self.mag,
-                      '-o', self.output)
-        self.assertNotEqual(p.returncode, 0)
-        self.assertIn('--input', p.stderr)
-
     def test_dry_run_does_not_write_directories(self):
-        p = self.call('clipping', '-i', self.assembly, '--mag-fasta', self.mag,
+        p = self.call('clipping', '--mag-dir', self.mag_dir,
                       '--reads', self.reads, '--contigs-dir', self.source_dir,
                       '-o', self.output, '--dry-run')
         self.assertEqual(p.returncode, 0, p.stderr)
         self.assertIn('01_mapping.sh', p.stdout)
         self.assertIn('03_clipping.sh', p.stdout)
         self.assertFalse(self.output.exists())
+
+    def test_reads_are_taken_from_map_result(self):
+        p = self.call('map', '-r', self.reads, '--contigs-dir', self.source_dir,
+                      '-o', self.output, '-t', '2')
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        shared = ['--contigs-dir', self.source_dir, '--mag-dir', self.mag_dir,
+                  '-o', self.output, '--dry-run']
+        for stage in ('circularity', 'phantom', 'variants'):
+            with self.subTest(stage=stage):
+                q = self.call(stage, *shared)
+                self.assertEqual(q.returncode, 0, q.stdout + q.stderr)
+                self.assertIn('(from mapping manifest)', q.stdout)
+                self.assertIn(str(self.reads), q.stdout)
+
+    def test_reads_required_without_map_result(self):
+        for stage in ('circularity', 'phantom', 'variants'):
+            with self.subTest(stage=stage):
+                q = self.call(stage, '--contigs-dir', self.source_dir, '--mag-dir', self.mag_dir,
+                              '-o', self.output, '--dry-run')
+                self.assertNotEqual(q.returncode, 0)
+                self.assertIn('run MAGverify map first', q.stderr)
 
     def test_missing_directory_rejected(self):
         p = self.call('map', '-r', self.reads, '--contigs-dir', self.home / 'missing',
@@ -249,23 +276,23 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
 
 
     def test_each_stage_dry_run(self):
-        base = ['-i', str(self.assembly), '--mag-map', str(self.map_table),
+        base = ['--contigs-dir', str(self.source_dir), '--mag-map', str(self.map_table),
                 '-o', str(self.output), '--dry-run']
         mapped = ['--mapping-manifest', str(self.manifest)]
         cases = {
             'map': ['-r', str(self.reads), '--contigs-dir', str(self.source_dir), '-o', str(self.output)],
-            'clipping': ['-i', str(self.assembly), '--mag-fasta', str(self.mag),
+            'clipping': ['--contigs-dir', str(self.source_dir), '--mag-dir', str(self.mag_dir),
                          '-o', str(self.output)] + mapped,
             'chimera': base + mapped + ['--taxonomy', str(self.generic_tsv),
                                         '--clipping-table', str(self.generic_tsv)],
-            'circularity': ['--mag-fasta', str(self.mag), '--reads', str(self.reads),
+            'circularity': ['--mag-dir', str(self.mag_dir), '--reads', str(self.reads),
                             '--contigs-dir', str(self.source_dir), '-o', str(self.output)],
             'false-closure': base + mapped + ['--clipping-table', str(self.generic_tsv),
                         '--clipping-all-table', str(self.generic_tsv), '--scg-table', str(self.generic_tsv),
                         '--assembler-circularity', str(self.generic_tsv)],
             'variants': base + mapped + ['--reads', str(self.reads)],
             'phantom': base + mapped + ['--reads', str(self.reads)],
-            'repeats': base + ['--contigs-dir', str(self.source_dir)],
+            'repeats': base,
             'false-duplication': base + mapped + ['--clipping-table', str(self.generic_tsv)],
             'summary': base + ['--include', 'repeats', '--repeats-table', str(self.generic_tsv),
                                  '--repeats-mag-table', str(self.generic_tsv)],
@@ -307,7 +334,7 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
                 self.assertIn('.sh', p.stdout)
 
     def test_chimera_accepts_database_without_taxonomy_table(self):
-        args = ('chimera', '--input', self.assembly, '--mag-map', self.map_table,
+        args = ('chimera', '--contigs-dir', self.source_dir, '--mag-map', self.map_table,
                 '--mapping-manifest', self.manifest,
                 '--database', self.prefix, '--clipping-table', self.generic_tsv,
                 '-o', self.output, '--threads', '2', '--dry-run')
@@ -316,7 +343,7 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
         self.assertIn('07_chimera.sh', p.stdout)
 
     def test_chimera_explains_missing_taxonomy_database(self):
-        p = self.call('chimera', '-i', self.assembly, '--mag-map', self.map_table,
+        p = self.call('chimera', '--contigs-dir', self.source_dir, '--mag-map', self.map_table,
                       '--mapping-manifest', self.manifest,
                       '--clipping-table', self.generic_tsv,
                       '-o', self.output, '--dry-run')
@@ -332,7 +359,7 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
                 self.assertIn('invalid choice', p.stderr)
 
     def test_missing_stage_specific_table_explained(self):
-        p = self.call('false-closure', '-i', self.assembly,
+        p = self.call('false-closure', '--contigs-dir', self.source_dir,
                       '--mag-map', self.map_table, '--mapping-manifest', self.manifest,
                       '-o', self.output, '--dry-run')
         self.assertNotEqual(p.returncode, 0)

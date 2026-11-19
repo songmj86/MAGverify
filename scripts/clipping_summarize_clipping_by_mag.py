@@ -57,6 +57,18 @@ SUMMARY_HEADER = (
     "Stringent_candidate",
 )
 
+# Contig-level table: same calls and counts as the MAG summary, computed per
+# contig. MAG_ID is NA for contigs that are not assigned to any MAG.
+CONTIG_DROPPED = {
+    "MAG_ID", "n_contigs", "total_length_bp",
+    "n_contigs_with_candidate", "n_contigs_with_stringent_candidate",
+    "n_contigs_with_clipping", "n_contigs_with_stringent_clipping",
+    "candidate_contigs", "stringent_candidate_contigs",
+    "clipping_contigs", "stringent_clipping_contigs",
+}
+CONTIG_HEADER = ("contig", "MAG_ID", "length_bp",
+                 *(field for field in SUMMARY_HEADER if field not in CONTIG_DROPPED))
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
@@ -68,6 +80,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mag-positive-site-output", required=True)
     parser.add_argument("--summary-output", required=True)
     parser.add_argument("--positive-summary-output", required=True)
+    parser.add_argument("--contig-summary-output", required=True,
+                        help="One row per assembly contig (all contigs in the FAI)")
     return parser.parse_args()
 
 
@@ -378,6 +392,24 @@ def summary_rows(
     return result
 
 
+def contig_rows(
+    lengths: Mapping[str, int], contig_to_mag: Mapping[str, str],
+    records: Sequence[Mapping[str, str]],
+) -> List[List[object]]:
+    """Reuse the MAG summary logic with each contig as its own group."""
+    by_contig: Dict[str, List[Mapping[str, str]]] = defaultdict(list)
+    for row in records:
+        by_contig[row["contig"]].append(row)
+    singletons = {contig: [contig] for contig in lengths}
+    keep = [index for index, field in enumerate(SUMMARY_HEADER) if field not in CONTIG_DROPPED]
+    result: List[List[object]] = []
+    for row in summary_rows(lengths, singletons, by_contig):
+        contig = row[0]
+        result.append([contig, contig_to_mag.get(contig, "NA"), lengths[contig],
+                       *(row[index] for index in keep)])
+    return result
+
+
 def main() -> None:
     args = parse_args()
     for path, label in (
@@ -409,8 +441,11 @@ def main() -> None:
     atomic_write(args.summary_output, SUMMARY_HEADER, summaries)
     clipping_index = SUMMARY_HEADER.index("Clipping")
     atomic_write(args.positive_summary_output, SUMMARY_HEADER, (row for row in summaries if row[clipping_index] == "Y"))
+    contigs = contig_rows(lengths, contig_to_mag, records)
+    atomic_write(args.contig_summary_output, CONTIG_HEADER, contigs)
 
     print(f"MAG summary rows: {len(summaries)}")
+    print(f"Contig summary rows: {len(contigs)}")
     print(f"All-assembly Clipping=Y sites: {len(positives)}")
     print(f"MAG-associated Clipping=Y sites: {len(mapped_positive)}")
     print(f"MAGs with Clipping_ge1=Y: {sum(row[SUMMARY_HEADER.index('Clipping_ge1')] == 'Y' for row in summaries)}")

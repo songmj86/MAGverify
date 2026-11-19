@@ -215,7 +215,9 @@ if [[ "$RUN_PER_ASSEMBLER_MAPPING" == "Y" ]]; then
     manifest_tmp="${PER_ASSEMBLER_MANIFEST}.tmp.$$"
     TMP_PER_ASSEMBLER_FILES+=("$manifest_tmp")
     mkdir -p "$(dirname "$PER_ASSEMBLER_MANIFEST")"
-    printf '%s\n' $'Assembler\tAssembly_FASTA\tHiFi_all_BAM\tHiFi_primary_BAM\tHiFi_secondary_BAM\tHiFi_supplementary_BAM\tHiFi_primary_supplementary_BAM\tOutput_directory' \
+    # Downstream modules take the HiFi reads from this column when --reads is omitted.
+    READS_REALPATH="$(cd "$(dirname "$READS")" && pwd)/$(basename "$READS")"
+    printf '%s\n' $'Assembler\tAssembly_FASTA\tHiFi_all_BAM\tHiFi_primary_BAM\tHiFi_secondary_BAM\tHiFi_supplementary_BAM\tHiFi_primary_supplementary_BAM\tOutput_directory\tReads' \
         > "$manifest_tmp"
 
     echo
@@ -317,10 +319,10 @@ if [[ "$RUN_PER_ASSEMBLER_MAPPING" == "Y" ]]; then
         fi
 
 
-        printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+        printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
             "$assembler" "$assembly" "$hifi_all" "$hifi_primary" \
             "$hifi_secondary" "$hifi_supplementary" \
-            "$hifi_primary_supplementary" "$assembler_dir" \
+            "$hifi_primary_supplementary" "$assembler_dir" "$READS_REALPATH" \
             >> "$manifest_tmp"
 
         echo "    HiFi mapped BAM: $hifi_all"

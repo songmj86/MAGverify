@@ -8,7 +8,8 @@ if [[ $# -ne 4 ]]; then
     exit 2
 fi
 
-PREP=$(mkdir -p "$1" && cd "$1" && pwd)
+# $1 is the temporary work directory (OUTPUT_DIR/tmp_prep_chimera from the CLI).
+TMP=$(mkdir -p "$1" && cd "$1" && pwd)
 THREADS="$2"
 [[ "$THREADS" =~ ^[1-9][0-9]*$ ]] || { echo 'threads must be a positive integer' >&2; exit 2; }
 [[ -d "$3" ]] || { echo "GTDB input directory not found: $3" >&2; exit 2; }
@@ -22,7 +23,6 @@ for executable in mmseqs awk sed; do
     command -v "$executable" >/dev/null 2>&1 || { echo "Missing command: $executable" >&2; exit 1; }
 done
 
-TMP="$PREP/mmseqs_tmp"
 mkdir -p "$TMP/taxonomy"
 
 # These files must be downloaded by the user before running this command.
@@ -34,6 +34,7 @@ for file in "$PROTEINS" "$BAC" "$ARC"; do
 done
 printf 'Using GTDB R232 inputs from: %s\n' "$GTDB_DIR"
 printf 'MMseqs2 taxonomy database prefix: %s\n' "$DB"
+printf 'Temporary MMseqs2 directory: %s\n' "$TMP"
 
 # Each nested *_protein.faa.gz is ingested and its genome accession
 # becomes the identifier needed for mapping GTDB taxonomy to sequences.

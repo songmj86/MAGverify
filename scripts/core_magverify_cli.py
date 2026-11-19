@@ -52,7 +52,7 @@ FILE_OPTIONS = {
 RESULTS = {
     'taxonomy': '00_prep/gene_taxonomy/GTDB_R232/gene_taxonomy.mmseqs2.GTDB_R232.all_contigs.tsv',
     'mag_map': '00_prep/MAG_contig_map.tsv',
-    'mapping_manifest': '01_mapping/assembler_mapping_outputs.tsv',
+    'mapping_manifest': '01_mapping/mapping_manifest.tsv',
     'clipping_table': '03_clipping/clipping.filtered.tsv',
     'clipping_all_table': '03_clipping/clipping.all_regions.filtered.tsv',
     'scg_table': '00_prep/SCG/SCG_from_anvio.original_contig.tsv',
@@ -73,11 +73,12 @@ RESULTS = {
 # remain unchanged to preserve inputs and provenance across modules.
 PUBLIC_RESULTS = {
     'map': {
-        'mapping_manifest.tsv': '01_mapping/assembler_mapping_outputs.tsv',
+        'mapping_manifest.tsv': '01_mapping/mapping_manifest.tsv',
     },
     'clipping': {
         'clipping_sites.tsv': '03_clipping/clipping.filtered.tsv',
         'clipping_mag.tsv': '03_clipping/MAG_clipping.final.tsv',
+        'clipping_contig.tsv': '03_clipping/contig_clipping.final.tsv',
     },
     'chimera': {
         'gene_taxonomy.tsv': '00_prep/gene_taxonomy/GTDB_R232/gene_taxonomy.mmseqs2.GTDB_R232.all_contigs.tsv',
@@ -226,12 +227,7 @@ def source_inputs(args, output_root):
 
 
 def mag_inputs(args, output_root):
-    if getattr(args, 'mag_fasta', None) and getattr(args, 'mag_dir', None):
-        raise UsageError('Choose repeated --mag-fasta FILE options OR --mag-dir DIR, not both')
-    if getattr(args, 'mag_fasta', None):
-        paths = validate_fasta_paths(args.mag_fasta, '--mag-fasta')
-        parent = link_inputs([(path.name, path) for path in paths], output_root / '00_prep' / 'mag_fasta_links', args.dry_run)
-    elif getattr(args, 'mag_dir', None):
+    if getattr(args, 'mag_dir', None):
         paths = validate_fasta_paths(fasta_paths(args.mag_dir, '--mag-dir'), '--mag-dir')
         parent = dir_input(args.mag_dir, '--mag-dir')
     else:
@@ -427,9 +423,9 @@ def prepare_map(args, root, env, main_input):
     if 'MAG_DIR' not in env:
         if map_file.is_file():
             return file_input(map_file, 'MAG map in output directory')
-        raise UsageError('MAG membership is needed: pass --mag-fasta FILE (repeatable), --mag-dir DIR, or --mag-map TSV')
+        raise UsageError('MAG membership is needed: pass --mag-dir DIR or --mag-map TSV')
     if not main_input:
-        raise UsageError('Preparing a MAG map needs --input assembly FASTA')
+        raise UsageError('Preparing a MAG map needs --contigs-dir DIR')
     if args.dry_run:
         run(['samtools', 'faidx', str(main_input)], env, True)
         run(['python3', str(SCRIPTS_DIR / 'prep_build_mag_contig_map.py'), '--mag-dir', env['MAG_DIR'],
@@ -474,6 +470,24 @@ def mapping_result(stage, args, root, env, sources):
                      'or --reads FASTQ and --contigs-dir DIR.')
 
 
+def reads_from_manifest(args, root):
+    """HiFi reads recorded by MAGverify map (Reads column), if available."""
+    manifest = getattr(args, 'mapping_manifest', None)
+    path = Path(manifest).expanduser() if manifest else root / RESULTS['mapping_manifest']
+    if not path.is_file():
+        return None
+    with path.open(encoding='utf-8-sig', newline='') as handle:
+        rows = list(csv.DictReader(handle, delimiter='\t'))
+    values = {(row.get('Reads') or '').strip() for row in rows} - {''}
+    if not values:
+        return None
+    if len(values) > 1:
+        raise UsageError(f'Mapping manifest lists more than one read file: {path}')
+    reads = file_input(values.pop(), f'Reads in mapping manifest {path}')
+    print(f'HiFi reads: {reads} (from mapping manifest)', flush=True)
+    return reads
+
+
 def choose_inputs(args, root, env):
     stage = args.module
     main_input = None
@@ -482,6 +496,10 @@ def choose_inputs(args, root, env):
         env['ASSEMBLY_FA'] = str(main_input)
     if getattr(args, 'reads', None):
         env['READS'] = str(file_input(args.reads, '--reads'))
+    elif stage != 'map':
+        recorded = reads_from_manifest(args, root)
+        if recorded:
+            env['READS'] = str(recorded)
     sources = source_inputs(args, root)
     if not sources and stage != 'map':
         sources = source_links_from_manifest(args, root)
@@ -572,33 +590,33 @@ def prep_chimera_run(args):
         file_input(gtdb_dir / name, f'GTDB R232 input in --gtdb-dir ({name})')
     if not args.dry_run:
         check_programs('prep-chimera', env=env)
-    prep = root / '0_prep'
+    # MMseqs2 intermediate files (tar2db, taxonomy dump) go to OUTPUT_DIR/tmp_prep_chimera.
+    work = root / 'tmp_prep_chimera'
     db = (Path(args.database_prefix).expanduser().resolve()
-          if args.database_prefix else prep / 'GTDB_R232')
+          if args.database_prefix else root / '0_prep' / 'GTDB_R232')
     if db.is_dir():
         raise UsageError(f'--database-prefix must name an MMseqs2 prefix, not a directory: {db}')
     print('GTDB R232 input directory: ' + str(gtdb_dir), flush=True)
     print('GTDB R232 database prefix: ' + str(db), flush=True)
-    run(['bash', str(script), str(prep), env['THREADS'], str(gtdb_dir), str(db)],
+    print('Temporary MMseqs2 directory: ' + str(work), flush=True)
+    run(['bash', str(script), str(work), env['THREADS'], str(gtdb_dir), str(db)],
         env, args.dry_run)
 
 
 def add_prep_parser(subparsers):
     """A setup command, separate from the ten analysis stages."""
     p = subparsers.add_parser('prep-chimera',
-        help='Build the MMseqs2 GTDB R232 database from locally downloaded files',
-        description='Build the fixed-release GTDB R232 MMseqs2 protein taxonomy database without downloading data')
+        help='Build the GTDB R232 MMseqs2 database',
+        description='Build the GTDB R232 MMseqs2 database')
     p.add_argument('-o', '--output-dir', '--output-directory', dest='output_directory',
                    required=True, metavar='DIR',
-                   help='Shared MAGverify results directory; preparation work files go to DIR/0_prep')
+                   help='Output directory')
     p.add_argument('--gtdb-dir', required=True, metavar='DIR',
-                   help='Directory with the three manually downloaded GTDB R232 source files')
+                   help='GTDB R232 file directory')
     p.add_argument('--database-prefix', metavar='PREFIX',
-                   help='Where to create the MMseqs2 taxonomy DB (default OUTPUT_DIR/0_prep/GTDB_R232)')
+                   help='MMseqs2 database prefix (default: DIR/0_prep/GTDB_R232)')
     p.add_argument('-t', '--threads', type=int, metavar='N',
-                   help='CPU threads (default up to 100, limited by detected CPUs)')
-    p.add_argument('--dry-run', action='store_true',
-                   help='Print preparation command without creating database or work files')
+                   help='CPU threads (default: up to 100)')
     return p
 
 def stage_run(args):
@@ -606,17 +624,18 @@ def stage_run(args):
     root, env = defaults_for(stage, args)
     main_input, sources = choose_inputs(args, root, env)
     if stage not in ('map', 'circularity') and not main_input:
-        raise UsageError(f'{stage} needs --contigs-dir DIR (to build its assembly FASTA automatically), '
-                         '--mapping-manifest TSV, or an existing --input FASTA')
+        raise UsageError(f'{stage} needs --contigs-dir DIR or --mapping-manifest TSV')
     if stage in NEEDS_SOURCES and not sources:
         raise UsageError(f'{stage} needs --contigs-dir DIR (original assembler FASTAs), '
                          'or a mapping manifest')
     if stage == 'map' and not args.reads:
         raise UsageError('map needs --reads /path/to/HiFi.fastq.gz')
-    if stage == 'circularity' and ('MAG_DIR' not in env or not args.reads):
-        raise UsageError('circularity needs --reads plus --mag-fasta FILE(s) or --mag-dir DIR')
+    if stage == 'circularity' and 'MAG_DIR' not in env:
+        raise UsageError('circularity needs --mag-dir DIR')
+    if stage in ('circularity', 'variants', 'phantom') and 'READS' not in env:
+        raise UsageError(f'{stage} needs HiFi reads: run MAGverify map first in this --output-dir, or pass --reads FASTQ')
     if stage == 'clipping' and 'MAG_DIR' not in env:
-        raise UsageError('clipping needs --mag-dir DIR (one FASTA per MAG); --mag-fasta is also supported')
+        raise UsageError('clipping needs --mag-dir DIR (one FASTA per MAG)')
     # Check stage-specific input tables before starting an expensive mapping run.
     if stage == 'chimera':
         # Chimera generates gene taxonomy itself when it is not already available.
@@ -636,8 +655,6 @@ def stage_run(args):
             need_result(table, args, root, env, stage)
     if stage == 'false-duplication':
         need_result('clipping_table', args, root, env, stage)
-    if stage in ('variants', 'phantom') and not args.reads:
-        raise UsageError(f'{stage} needs --reads FASTQ and the source mapping evidence')
     if getattr(args, 'mag_map', None) and stage == 'clipping':
         env['MAG_CONTIG_MAP'] = str(file_input(args.mag_map, '--mag-map'))
     if stage in NEEDS_MAG_MAP:
@@ -657,12 +674,8 @@ def stage_run(args):
                 need_result(name, args, root, env, stage)
             cmd = ['bash', str(ROOT / '04_false_closure.sh'), str(main_input), str(root / '04_false_closure')]
         elif stage == 'variants':
-            if not args.reads:
-                raise UsageError('variants needs --reads FASTQ as well as a mapping manifest')
             cmd = ['bash', str(ROOT / '09_assembly_variants.sh'), str(main_input), str(root / '09_assembly_variants')]
         elif stage == 'phantom':
-            if not args.reads:
-                raise UsageError('phantom needs --reads FASTQ as well as a mapping manifest')
             cmd = ['bash', str(ROOT / '05_phantom.sh'), str(main_input), str(root / '05_phantom')]
         elif stage == 'repeats':
             cmd = ['bash', str(ROOT / '06_repeats.sh'), str(main_input), str(root / '06_repeats')]
@@ -703,32 +716,30 @@ def add_stage_parser(subparsers, stage):
     p = subparsers.add_parser(stage, description=description, help=description)
     def handles(*names):
         return bool(members.intersection(names))
-    if stage not in ('map', 'circularity'):
-        p.add_argument('-i', '--input', metavar='FASTA', help='Optional: existing combined assembly FASTA (otherwise generated automatically)')
-    p.add_argument('-o', '--output-dir', '--output-directory', dest='output_directory', required=True, metavar='DIR', help='Output directory (reuse the same path across modules)')
-    p.add_argument('-t', '--threads', type=int, metavar='N', help='CPU threads (100 recommended; default up to 100, limited by detected CPUs)')
-    p.add_argument('--dry-run', action='store_true', help='Print the analysis command without running it')
+    p.add_argument('-o', '--output-dir', '--output-directory', dest='output_directory', required=True, metavar='DIR', help='Output directory')
+    p.add_argument('-t', '--threads', type=int, metavar='N', help='CPU threads (default: up to 100)')
     if handles('map', 'clipping', 'chimera', 'circularity', 'false-closure', 'variants', 'phantom', 'false-duplication'):
-        p.add_argument('-r', '--reads', metavar='FASTQ', help='Original PacBio HiFi reads (FASTQ or FASTQ.GZ)')
-    p.add_argument('--contigs-dir', dest='source_assemblies', metavar='DIR', help='Directory of original, unbinned assembler FASTA files')
+        p.add_argument('-r', '--reads', metavar='FASTQ',
+                       help='HiFi reads (FASTQ/FASTQ.GZ)' if stage == 'map'
+                       else 'HiFi reads (default: reads recorded by map)')
+    p.add_argument('--contigs-dir', dest='source_assemblies', metavar='DIR', help='Assembler FASTA directory')
     if handles('clipping','chimera','circularity','false-closure','variants','phantom','repeats','false-duplication','summary'):
-        p.add_argument('--mag-fasta', action='append', metavar='FASTA', help='Alternative to --mag-dir: repeat for individual MAG FASTAs')
-        p.add_argument('-m', '--mag-dir', metavar='DIR', help='Directory with one FASTA per MAG')
-        p.add_argument('--mag-map', metavar='TSV', help='Existing MAG/contig table; otherwise generated')
+        p.add_argument('--mag-dir', metavar='DIR', help='MAG FASTA directory')
+        p.add_argument('--mag-map', metavar='TSV', help='MAG-contig table')
     if handles('map','clipping','chimera','circularity','false-closure','variants','phantom','repeats','false-duplication','summary'):
-        p.add_argument('--mapping-manifest', metavar='TSV', help='Reuse an existing mapping manifest')
+        p.add_argument('--mapping-manifest', metavar='TSV', help='Mapping manifest TSV')
     if handles('chimera','summary'):
         p.add_argument('--taxonomy', metavar='TSV', help='Gene taxonomy TSV')
     if handles('chimera','false-closure','summary'):
-        p.add_argument('--scg-table', metavar='TSV', help='Single-copy marker gene table')
+        p.add_argument('--scg-table', metavar='TSV', help='SCG table')
     if handles('chimera'):
-        p.add_argument('--mag-taxonomy', metavar='TSV', help='MAG GTDB classification table')
+        p.add_argument('--mag-taxonomy', metavar='TSV', help='MAG taxonomy TSV')
     if handles('chimera','false-closure','false-duplication','summary'):
-        p.add_argument('--clipping-table', metavar='TSV', help='Clipping classification TSV')
+        p.add_argument('--clipping-table', metavar='TSV', help='Clipping TSV')
     if handles('false-closure','summary'):
-        p.add_argument('--clipping-all-table', metavar='TSV', help='All-region clipping classification TSV')
+        p.add_argument('--clipping-all-table', metavar='TSV', help='All-region clipping TSV')
     if handles('false-closure','circularity','summary'):
-        p.add_argument('--assembler-circularity', metavar='TSV', help='Assembler-reported circularity TSV (necessary for false closure)')
+        p.add_argument('--assembler-circularity', metavar='TSV', help='Assembler circularity TSV')
     if handles('summary'):
         for flag, message in [
             ('--circularity-table','Circularity final TSV'),('--circularity-audit','Circularity audit TSV'),
@@ -739,12 +750,12 @@ def add_stage_parser(subparsers, stage):
             ('--duplication-clipping-table','False duplication clipping contig TSV'),
             ('--duplication-clipping-mag-table','False duplication clipping MAG TSV')]:
             p.add_argument(flag, metavar='TSV', help=message)
-        p.add_argument('--include', metavar='MODULES', help='Comma-separated completed assessments for summary and validation')
+        p.add_argument('--include', metavar='MODULES', help='Completed modules (comma-separated)')
     if stage == 'chimera':
-        p.add_argument('--database', metavar='PREFIX', help='MMseqs2 gene taxonomy database prefix; omit if using --taxonomy TSV or a previous result')
+        p.add_argument('--database', metavar='PREFIX', help='MMseqs2 database prefix')
     if handles('variants'):
-        p.add_argument('--memory-gb', type=int, metavar='GB', help='Memory budget for assembly-variant profiling')
-        p.add_argument('--memory-reserve-gb', type=int, metavar='GB', help='Reserve free memory (default 64 GiB)')
+        p.add_argument('--memory-gb', type=int, metavar='GB', help='Memory budget (GB)')
+        p.add_argument('--memory-reserve-gb', type=int, metavar='GB', help='Reserved free memory (GB, default: 64)')
     return p
 
 
@@ -757,6 +768,8 @@ def main(argv=None):
     sub.add_parser('list', help='List available modules')
     sub.add_parser('doctor', help='List core bioinformatics commands available on PATH')
     args = parser.parse_args(argv)
+    # Internal/test use only: print commands without running them.
+    args.dry_run = os.environ.get('MAGVERIFY_DRY_RUN') == '1'
     if args.module == 'list':
         print('Preparation (run once):')
         print('  prep-chimera       Build MMseqs2 taxonomy database from local GTDB R232 files')
@@ -765,6 +778,15 @@ def main(argv=None):
             print(f'  {name:18s} {desc}')
         return 0
     if args.module == 'doctor':
+        # Show which checkout this command runs from: an editable install
+        # keeps pointing at the directory where `pip install -e .` was run.
+        try:
+            from importlib.metadata import version
+            installed = version('MAGverify')
+        except Exception:
+            installed = 'not installed (running from source)'
+        print(f'{"MAGverify version":34s} {installed}')
+        print(f'{"MAGverify source":34s} {ROOT.parent}')
         for cmd in ['bash', 'python3', 'minimap2', 'samtools', 'mmseqs', 'anvi-profile',
                     'anvi-script-find-misassemblies', 'blastn', 'makeblastdb', 'meryl', 'bedtools']:
             print(f'{cmd:34s} {shutil.which(cmd) or "not found"}')

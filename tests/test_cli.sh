@@ -36,7 +36,7 @@ QC_STAGE=03_clipping bash -c '
 QC_STAGE=01_mapping bash -c '
   config="$1"; set -- /inputs/reads.fastq.gz /outputs/mapping
   source "$config/lib_config.sh"
-  [[ "$ASSEMBLER_MAPPING_MANIFEST" == /outputs/mapping/assembler_mapping_outputs.tsv ]]
+  [[ "$ASSEMBLER_MAPPING_MANIFEST" == /outputs/mapping/mapping_manifest.tsv ]]
 ' _ "$HERE"
 QC_STAGE=07_chimera bash -c '
   config="$1"; set -- /inputs/taxonomy.tsv /outputs/chimera

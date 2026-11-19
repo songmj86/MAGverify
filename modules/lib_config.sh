@@ -16,7 +16,7 @@ if [[ "$QC_STAGE" == "01_mapping" ||
     if [[ "$QC_STAGE" != "02_circularity" || "${1:-}" != -* ]]; then
         if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
             case "$QC_STAGE" in
-                01_mapping) description='Map PacBio HiFi reads to each original source assembly'; input='HiFi FASTQ or FASTQ.GZ'; extras='ASSEMBLER_ASSEMBLY_DIR, ASSEMBLER_FASTAS'; output='OUTPUT_DIR/assembler_mapping_outputs.tsv' ;;
+                01_mapping) description='Map PacBio HiFi reads to each original source assembly'; input='HiFi FASTQ or FASTQ.GZ'; extras='ASSEMBLER_ASSEMBLY_DIR, ASSEMBLER_FASTAS'; output='OUTPUT_DIR/mapping_manifest.tsv' ;;
             03_clipping) description='Identify clipping and validate read support'; input='Combined assembly FASTA'; extras='MAG_DIR, ASSEMBLER_MAPPING_MANIFEST with source-specific HiFi BAMs from 01_mapping; MAG map generated automatically'; output='OUTPUT_DIR/clipping.all_regions.filtered.tsv' ;;
             07_chimera) description='Assess genome-wide GTDB taxonomic transitions'; input='GTDB R232 gene-taxonomy TSV'; extras='ASSEMBLY_FA, MAG_CONTIG_MAP, mapping manifest, 03_clipping result'; output='OUTPUT_DIR/GTDB_R232/clipping_defined/' ;;
             02_circularity) description='Validate end-to-start closure of single-contig MAGs'; input='Directory of MAG FASTA files'; extras='READS, ASSEMBLER_ASSEMBLY_DIR, ASSEMBLER_FASTAS'; output='OUTPUT_DIR/MAG_circularity.final.tsv' ;;
@@ -386,7 +386,7 @@ FORCE_RERUN_REPEAT="N"
 # direct/inverted arrangements are recorded; inter-contig structural analysis
 # is restricted to contig pairs assigned to the same MAG.
 FORCE_RERUN_FALSE_DUPLICATION="N"
-FALSE_DUP_MAPPING_MANIFEST="${FALSE_DUP_MAPPING_MANIFEST:-${ASSEMBLER_MAPPING_MANIFEST:-$MAPPING_DIR/assembler_mapping_outputs.tsv}}"
+FALSE_DUP_MAPPING_MANIFEST="${FALSE_DUP_MAPPING_MANIFEST:-${ASSEMBLER_MAPPING_MANIFEST:-$MAPPING_DIR/mapping_manifest.tsv}}"
 FALSE_DUP_MIN_COPY_BP="${FALSE_DUP_MIN_COPY_BP:-1000}"
 FALSE_DUP_MIN_PIDENT="${FALSE_DUP_MIN_PIDENT:-95}"
 # Final false-duplication boundary anchor is fixed at 500 bp.
@@ -397,13 +397,13 @@ FALSE_DUP_HIFI_MIN_REACHING_READS="${FALSE_DUP_HIFI_MIN_REACHING_READS:-2}"
 
 # Derived paths
 
-# Read evidence is routed through assembler_mapping_outputs.tsv to the complete
+# Read evidence is routed through mapping_manifest.tsv to the complete
 # co-assembly produced by the assembler that generated each evaluated contig.
 # The concatenated ASSEMBLY_FA remains available for catalogue/sequence analyses
 # that need the union of contigs, but it is not a read-mapping reference.
 
 # Clipping candidate discovery and read-level validation use source-assembler
-# HiFi_all_BAM files from assembler_mapping_outputs.tsv, retaining all mapped
+# HiFi_all_BAM files from mapping_manifest.tsv, retaining all mapped
 # primary, secondary and supplementary alignment records.
 
 if [[ -z "${ANVIO_FIND_MISASSEMBLIES:-}" ]]; then
@@ -424,6 +424,7 @@ CLIP_MAG_SITE="${CLIP_MAG_SITE:-${CLIPPING_DIR}/MAG_clipping_sites.final.tsv}"
 CLIP_MAG_POSITIVE_SITE="${CLIP_MAG_POSITIVE_SITE:-${CLIPPING_DIR}/MAG_clipping_sites.Y.tsv}"
 CLIP_MAG_SUMMARY="${CLIP_MAG_SUMMARY:-${CLIPPING_DIR}/MAG_clipping.final.tsv}"
 CLIP_MAG_POSITIVE="${CLIP_MAG_POSITIVE:-${CLIPPING_DIR}/MAG_clipping.Y.tsv}"
+CLIP_CONTIG_SUMMARY="${CLIP_CONTIG_SUMMARY:-${CLIPPING_DIR}/contig_clipping.final.tsv}"
 CLIP_FINAL_CACHE_META="${CLIP_FINAL_CACHE_META:-${CLIP_FINAL}.inputs.sha256}"
 CLIP_CRITERIA="${CLIP_CRITERIA:-${CLIPPING_DIR}/clipping.criteria.tsv}"
 
@@ -433,7 +434,7 @@ CLIP_MAG_SUMMARIZER_SCRIPT="${CLIP_MAG_SUMMARIZER_SCRIPT:-$CONFIG_DIR/scripts/cl
 CLIP_REGION_CLASSIFIER_SCRIPT="${CLIP_REGION_CLASSIFIER_SCRIPT:-$CONFIG_DIR/scripts/clipping_classify_clipping_regions.py}"
 CLIP_REGION_SUMMARIZER_SCRIPT="${CLIP_REGION_SUMMARIZER_SCRIPT:-$CONFIG_DIR/scripts/clipping_summarize_clipping_regions.py}"
 MAG_MAP_BUILDER="${MAG_MAP_BUILDER:-$CONFIG_DIR/scripts/prep_build_mag_contig_map.py}"
-ASSEMBLER_MAPPING_MANIFEST="${ASSEMBLER_MAPPING_MANIFEST:-${MAPPING_DIR}/assembler_mapping_outputs.tsv}"
+ASSEMBLER_MAPPING_MANIFEST="${ASSEMBLER_MAPPING_MANIFEST:-${MAPPING_DIR}/mapping_manifest.tsv}"
 VALIDATION_VIEW_EXPORTER="${VALIDATION_VIEW_EXPORTER:-$CONFIG_DIR/scripts/common_export_validation_view.py}"
 
 # Gene-taxonomy generation remains a separate utility. The chimera module itself

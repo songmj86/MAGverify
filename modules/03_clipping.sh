@@ -108,7 +108,8 @@ write_mag_outputs() {
         --mag-site-output "$CLIP_MAG_SITE" \
         --mag-positive-site-output "$CLIP_MAG_POSITIVE_SITE" \
         --summary-output "$CLIP_MAG_SUMMARY" \
-        --positive-summary-output "$CLIP_MAG_POSITIVE"
+        --positive-summary-output "$CLIP_MAG_POSITIVE" \
+        --contig-summary-output "$CLIP_CONTIG_SUMMARY"
 }
 
 print_outputs() {
@@ -123,7 +124,7 @@ print_outputs() {
         "$CLIP_REGION_SUMMARY" "$CLIP_REGION_RATIO" \
         "$CLIP_DEFAULT" "$CLIP_STRINGENT" "$CLIP_FINAL" "$CLIP_POSITIVE" \
         "$CLIP_MAG_SITE" "$CLIP_MAG_POSITIVE_SITE" \
-        "$CLIP_MAG_SUMMARY" "$CLIP_MAG_POSITIVE" "$CLIP_CRITERIA"; do
+        "$CLIP_MAG_SUMMARY" "$CLIP_MAG_POSITIVE" "$CLIP_CONTIG_SUMMARY" "$CLIP_CRITERIA"; do
         echo "  $path"
     done
 }
