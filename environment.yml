@@ -22,8 +22,6 @@ dependencies:
   - meryl=1.4.1
   - hmmer=3.4
 
-  # MAG taxonomy preparation (GTDB R232)
-  - gtdbtk=2.8.0
   - wget
 
   # Install MAGverify from this checkout

@@ -35,8 +35,8 @@ mkdir -p "$(dirname "$DB")"
 MAGverify prep-chimera \
   --gtdb-dir "$GTDB_DIR" \
   --database-prefix "$DB" \
-  --output-dir /path/to/MAGverify_output \
-  --threads 100
+  -o /path/to/MAGverify_output \
+  -t 100
 
 ls -lh "${DB}.dbtype" "${DB}_mapping" "${DB}_taxonomy"
 ```
@@ -65,35 +65,8 @@ python -m scripts.prep_gtdbtk_summary_to_mag_taxonomy \
   --output "$PREP/MAG_taxonomy.tsv"
 ```
 
-## 3. GTDB-Tk classification (only if MAG taxonomy is unavailable)
+If no GTDB-Tk result is available, classify the MAGs first with `gtdbtk classify_wf`, then convert its summary files as above. GTDB-Tk is not installed with MAGverify; see [GTDB-Tk](https://github.com/ecogenomics/gtdbtk) for installation, reference data and options.
 
-GTDB-Tk uses a **separate** R232 reference package, not the MMseqs2 protein database. Skip this section if a compatible MAG taxonomy table or existing GTDB-Tk classification is available. The [GTDB-Tk R232 package](https://data.gtdb.ecogenomic.org/releases/release232/232.0/auxillary_files/gtdbtk_package/full_package/gtdbtk_r232_data.tar.gz) is approximately 56.6 GB compressed and 100 GB extracted.
-
-```bash
-PREP=/path/to/MAGverify_output/0_prep
-mkdir -p "$PREP/GTDBTk_R232"
-aria2c -c -x 4 -s 4 -d "$PREP/GTDBTk_R232" \
-  https://data.gtdb.ecogenomic.org/releases/release232/232.0/auxillary_files/gtdbtk_package/full_package/gtdbtk_r232_data.tar.gz
-
-tar -xzf "$PREP/GTDBTk_R232/gtdbtk_r232_data.tar.gz" -C "$PREP/GTDBTk_R232"
-META_DIR=$(find "$PREP/GTDBTk_R232" -maxdepth 3 -type d -name metadata -print -quit)
-echo "GTDB-Tk metadata: ${META_DIR:-NOT FOUND}"
-export GTDBTK_DATA_PATH="$(dirname "$META_DIR")"
-gtdbtk check_install
-
-gtdbtk classify_wf \
-  --genome_dir /path/to/MAGs \
-  --out_dir "$PREP/GTDBTk_results" \
-  --extension fa \
-  --cpus 100
-
-python -m scripts.prep_gtdbtk_summary_to_mag_taxonomy \
-  --gtdbtk-dir "$PREP/GTDBTk_results" \
-  -m /path/to/MAGs \
-  --output "$PREP/MAG_taxonomy.tsv"
-```
-
-Change `--extension fa` for `.fna` or `.fasta` inputs. GTDB-Tk bacterial classification may need approximately 140 GB RAM. Set `GTDBTK_DATA_PATH` in any new shell session before using GTDB-Tk. 
 ## Using the prepared database
 
 Supply the MMseqs2 DB prefix to `MAGverify chimera --database` and the MAG-level taxonomy table to `--mag-taxonomy`, when available. If a compatible gene taxonomy TSV already exists, use `--taxonomy FILE` in place of `--database PREFIX`. The user-prepared `0_prep/` is separate from MAGverify's internal `00_prep/`.

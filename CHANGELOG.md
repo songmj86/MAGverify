@@ -9,6 +9,8 @@
 
 ## Unreleased
 
+- GTDB-Tk removed from `environment.yml`; MAGverify only converts existing GTDB-Tk summaries. The GTDB-Tk classification section was removed from `docs/DATABASE_PREPARATION.md`.
+- Short options only for common inputs: `-o` (output), `-t` (threads), `-r` (HiFi read directory), `-a`, `-m`. `--output-dir`, `--output-directory`, `--threads` and `--reads` were removed. `map` no longer lists `--mapping-manifest`.
 - Mapping BAMs are written directly to `01_mapping/` (no `long_read/` subfolder).
 - Assembler FASTA directory option renamed from `--contigs-dir` to `-a`.
 - `--dry-run`, `--mag-fasta`, `-m` and `-i/--input` removed from the user interface; MAG input is `-m` only (formerly `--mag-dir`).

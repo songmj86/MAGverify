@@ -178,6 +178,47 @@ def assembly_fasta(value):
     return path
 
 
+READ_SUFFIXES = ('.fastq', '.fq', '.fastq.gz', '.fq.gz')
+
+
+def reads_input(directory, root, dry_run):
+    """HiFi reads from a directory. One FASTQ file is used as is; several files
+    (all gzipped or all plain) are joined once into OUTPUT/00_prep/hifi_reads.fastq[.gz]."""
+    parent = dir_input(directory, '-r')
+    files = sorted(p for p in parent.iterdir()
+                   if p.is_file() and p.name.lower().endswith(READ_SUFFIXES) and p.stat().st_size)
+    if not files:
+        raise UsageError(f'No HiFi FASTQ files ({", ".join(READ_SUFFIXES)}) found in -r {parent}')
+    print(f'HiFi read files ({len(files)}): ' + ', '.join(p.name for p in files), flush=True)
+    if len(files) == 1:
+        return files[0]
+    gzipped = {p.name.lower().endswith('.gz') for p in files}
+    if len(gzipped) > 1:
+        raise UsageError(f'-r {parent} mixes gzipped and uncompressed FASTQ files; use one format')
+    output = root / '00_prep' / ('hifi_reads.fastq.gz' if gzipped.pop() else 'hifi_reads.fastq')
+    fingerprint = [dict(path=str(p), size=p.stat().st_size, mtime_ns=p.stat().st_mtime_ns) for p in files]
+    metadata = output.with_name(output.name + '.sources.json')
+    if output.is_file() and metadata.is_file():
+        try:
+            if json.loads(metadata.read_text(encoding='utf-8')) == fingerprint:
+                print(f'Combined HiFi reads: {output} (reused)', flush=True)
+                return output
+        except (ValueError, OSError):
+            pass
+    print(f'Combined HiFi reads: {output}', flush=True)
+    if dry_run:
+        return output
+    output.parent.mkdir(parents=True, exist_ok=True)
+    temp = output.with_name('.' + output.name + '.tmp')
+    with temp.open('wb') as dest:
+        for source in files:  # gzip members can be concatenated
+            with source.open('rb') as stream:
+                shutil.copyfileobj(stream, dest, 16 * 1024 * 1024)
+    os.replace(temp, output)
+    metadata.write_text(json.dumps(fingerprint), encoding='utf-8')
+    return output
+
+
 def fasta_paths(directory, label):
     parent = dir_input(directory, label)
     paths = sorted(p for p in parent.iterdir() if p.is_file() and p.suffix.lower() in ('.fa', '.fna', '.fasta'))
@@ -391,9 +432,9 @@ def defaults_for(stage, args):
     cpus = len(os.sched_getaffinity(0)) if hasattr(os, 'sched_getaffinity') else (os.cpu_count() or 1)
     threads = args.threads if args.threads is not None else min(100, cpus)
     if threads < 1:
-        raise UsageError('--threads must be a positive integer')
+        raise UsageError('-t must be a positive integer')
     if threads > cpus:
-        raise UsageError(f'--threads={threads} exceeds the available CPUs ({cpus})')
+        raise UsageError(f'-t {threads} exceeds the available CPUs ({cpus})')
     root = Path(args.output_directory).expanduser().resolve()
     env = os.environ.copy()
     # No inherited project configuration or stale dataset-specific variables.
@@ -455,19 +496,19 @@ def mapping_result(stage, args, root, env, sources):
             recorded = {p.resolve() for p in source_fastas_from_manifest(manifest)}
             if requested != recorded:
                 raise UsageError('Source assemblies differ from the existing mapping manifest. '
-                                 'Rerun MAGverify map with the new inputs or use another --output-dir.')
+                                 'Rerun MAGverify map with the new inputs or use another -o DIR.')
         return manifest
     if sources and 'READS' not in env:
-        raise UsageError('Run MAGverify map with --reads first, or supply --reads to map automatically')
+        raise UsageError('Run MAGverify map with -r first, or supply -r DIR to map automatically')
     if 'READS' in env and sources:
         if not args.dry_run:
             check_programs('map', env=env)
         run(['bash', str(ROOT / '01_mapping.sh'), env['READS'], str(root / '01_mapping')], env, args.dry_run)
         return generated if args.dry_run else check_manifest(generated)
     if getattr(args, 'reads', None) and not sources and not generated.is_file():
-        raise UsageError('Provide -a DIR with --reads, or --mapping-manifest')
-    raise UsageError(f'{stage} needs an existing map result in --output-dir, '
-                     'or --reads FASTQ and -a DIR.')
+        raise UsageError('Provide -a DIR with -r DIR, or --mapping-manifest')
+    raise UsageError(f'{stage} needs an existing map result in -o DIR, '
+                     'or -r DIR and -a DIR.')
 
 
 def reads_from_manifest(args, root):
@@ -495,7 +536,7 @@ def choose_inputs(args, root, env):
         main_input = assembly_fasta(args.input)
         env['ASSEMBLY_FA'] = str(main_input)
     if getattr(args, 'reads', None):
-        env['READS'] = str(file_input(args.reads, '--reads'))
+        env['READS'] = str(reads_input(args.reads, root, args.dry_run))
     elif stage != 'map':
         recorded = reads_from_manifest(args, root)
         if recorded:
@@ -608,15 +649,13 @@ def add_prep_parser(subparsers):
     p = subparsers.add_parser('prep-chimera',
         help='Build the GTDB R232 MMseqs2 database',
         description='Build the GTDB R232 MMseqs2 database')
-    p.add_argument('-o', '--output-dir', '--output-directory', dest='output_directory',
-                   required=True, metavar='DIR',
+    p.add_argument('-o', dest='output_directory', required=True, metavar='DIR',
                    help='Output directory')
     p.add_argument('--gtdb-dir', required=True, metavar='DIR',
                    help='GTDB R232 file directory')
     p.add_argument('--database-prefix', metavar='PREFIX',
                    help='MMseqs2 database prefix (default: DIR/0_prep/GTDB_R232)')
-    p.add_argument('-t', '--threads', type=int, metavar='N',
-                   help='CPU threads (default: up to 100)')
+    p.add_argument('-t', dest='threads', type=int, metavar='N', help='CPU threads')
     return p
 
 def stage_run(args):
@@ -629,11 +668,11 @@ def stage_run(args):
         raise UsageError(f'{stage} needs -a DIR (original assembler FASTAs), '
                          'or a mapping manifest')
     if stage == 'map' and not args.reads:
-        raise UsageError('map needs --reads /path/to/HiFi.fastq.gz')
+        raise UsageError('map needs -r DIR (HiFi FASTQ/FASTQ.GZ files)')
     if stage == 'circularity' and 'MAG_DIR' not in env:
         raise UsageError('circularity needs -m DIR')
     if stage in ('circularity', 'variants', 'phantom') and 'READS' not in env:
-        raise UsageError(f'{stage} needs HiFi reads: run MAGverify map first in this --output-dir, or pass --reads FASTQ')
+        raise UsageError(f'{stage} needs HiFi reads: run MAGverify map first in this -o DIR, or pass -r DIR')
     if stage == 'clipping' and 'MAG_DIR' not in env:
         raise UsageError('clipping needs -m DIR (one FASTA per MAG)')
     # Check stage-specific input tables before starting an expensive mapping run.
@@ -716,17 +755,17 @@ def add_stage_parser(subparsers, stage):
     p = subparsers.add_parser(stage, description=description, help=description)
     def handles(*names):
         return bool(members.intersection(names))
-    p.add_argument('-o', '--output-dir', '--output-directory', dest='output_directory', required=True, metavar='DIR', help='Output directory')
-    p.add_argument('-t', '--threads', type=int, metavar='N', help='CPU threads (default: up to 100)')
+    p.add_argument('-o', dest='output_directory', required=True, metavar='DIR', help='Output directory')
+    p.add_argument('-t', dest='threads', type=int, metavar='N', help='CPU threads')
     if handles('map', 'clipping', 'chimera', 'circularity', 'false-closure', 'variants', 'phantom', 'false-duplication'):
-        p.add_argument('-r', '--reads', metavar='FASTQ',
-                       help='HiFi reads (FASTQ/FASTQ.GZ)' if stage == 'map'
-                       else 'HiFi reads (default: reads recorded by map)')
+        p.add_argument('-r', dest='reads', metavar='DIR',
+                       help='HiFi read directory (FASTQ/FASTQ.GZ)' if stage == 'map'
+                       else 'HiFi read directory (default: reads recorded by map)')
     p.add_argument('-a', dest='source_assemblies', metavar='DIR', help='Assembler FASTA directory')
     if handles('clipping','chimera','circularity','false-closure','variants','phantom','repeats','false-duplication','summary'):
         p.add_argument('-m', dest='mag_dir', metavar='DIR', help='MAG FASTA directory')
         p.add_argument('--mag-map', metavar='TSV', help='MAG-contig table')
-    if handles('map','clipping','chimera','circularity','false-closure','variants','phantom','repeats','false-duplication','summary'):
+    if handles('clipping','chimera','circularity','false-closure','variants','phantom','repeats','false-duplication','summary'):
         p.add_argument('--mapping-manifest', metavar='TSV', help='Mapping manifest TSV')
     if handles('chimera','summary'):
         p.add_argument('--taxonomy', metavar='TSV', help='Gene taxonomy TSV')

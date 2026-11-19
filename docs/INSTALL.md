@@ -11,7 +11,7 @@ conda env create -f environment.yml
 conda activate MAGverify
 ```
 
-This one creation command installs the tools declared in `environment.yml` and the local MAGverify package itself. The file includes `anvio-minimal=9` and `gtdbtk=2.8.0` from Bioconda, together with minimap2, samtools, bedtools, BLAST+, MMseqs2, Prodigal, Meryl and HMMER. GTDB-Tk is used only when MAG-level taxonomy needs to be generated. Anvi'o's Python dependencies are resolved through its Conda recipe. `pip:` inside `environment.yml` installs the MAGverify CLI automatically; there is **no additional manual installation command**. You may use `mamba env create -f environment.yml` as an alternative to Conda.
+This one creation command installs the tools declared in `environment.yml` and the local MAGverify package itself. The file includes `anvio-minimal=9` from Bioconda, together with minimap2, samtools, bedtools, BLAST+, MMseqs2, Prodigal, Meryl and HMMER. Anvi'o's Python dependencies are resolved through its Conda recipe. `pip:` inside `environment.yml` installs the MAGverify CLI automatically; there is **no additional manual installation command**. You may use `mamba env create -f environment.yml` as an alternative to Conda.
 
 **Important:** change to the repository root (`cd MAGverify`) before invoking `conda env create`, since the YAML includes a local editable package (`-e .`). Keep this repository directory after installation, since the editable installation uses its Python files and shell modules.
 
@@ -29,7 +29,6 @@ which anvi-script-reformat-bam
 which anvi-export-table
 MAGverify doctor
 MAGverify list
-gtdbtk --version
 python -c 'import anvio; print(anvio.__version__)'
 ```
 
@@ -59,22 +58,22 @@ A single activation is sufficient for all modules:
 ```bash
 MAGverify map \
   -a /data/assemblies \
-  --reads /data/hifi.fastq.gz \
-  --output-dir /data/MAGverify_output \
-  --threads 100
+  -r /data/hifi_reads \
+  -o /data/MAGverify_output \
+  -t 100
 
 MAGverify circularity \
   -a /data/assemblies \
   -m /data/MAGs \
-  --output-dir /data/MAGverify_output \
-  --threads 100
+  -o /data/MAGverify_output \
+  -t 100
 ```
 
-Continue the remaining modules in the order specified in the [README](../README.md). All commands accept `-a` for the directory of original assembler FASTA files and `--output-dir` for the common output root. Neither `--anvio-env` nor an explicit `--mapping-manifest` is needed when using the same `--output-dir` for every stage. The manifest is created by `MAGverify map` in `OUTPUT/01_mapping/mapping_manifest.tsv` and linked under `OUTPUT/results/mapping_manifest.tsv`.
+Continue the remaining modules in the order specified in the [README](../README.md). All commands accept `-a` for the directory of original assembler FASTA files and `-o` for the common output root. Neither `--anvio-env` nor an explicit `--mapping-manifest` is needed when using the same `-o` for every stage. The manifest is created by `MAGverify map` in `OUTPUT/01_mapping/mapping_manifest.tsv` and linked under `OUTPUT/results/mapping_manifest.tsv`.
 
 ## 4. Database preparation
 
-The environment includes GTDB-related software but not the large GTDB datasets. Follow [Database preparation](DATABASE_PREPARATION.md) to download fixed GTDB R232 files, build the MMseqs2 protein taxonomy database, and optionally run GTDB-Tk when MAG taxonomy is unavailable.
+The environment does not include the large GTDB datasets or GTDB-Tk. Follow [Database preparation](DATABASE_PREPARATION.md) to download fixed GTDB R232 files, build the MMseqs2 protein taxonomy database and prepare the MAG taxonomy table.
 
 ## 5. Validation and reproducibility
 

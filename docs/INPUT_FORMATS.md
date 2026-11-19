@@ -20,9 +20,9 @@ Supply an existing directory with one FASTA per MAG:
 
 The filename without `.fa`, `.fna` or `.fasta` becomes the MAG ID. The MAG FASTA contig IDs and sequences must match the original assembler FASTAs. Circularity testing uses the appropriate single-contig MAGs.
 
-## PacBio HiFi reads (`--reads`)
+## PacBio HiFi reads (`-r`)
 
-Supply PacBio HiFi reads in FASTQ or FASTQ.GZ format to `MAGverify map`. The mapping manifest records the read file, and circularity, phantom and variants reuse it when `--reads` is omitted. Modules assessing read support cannot infer it from assembly FASTAs alone.
+Supply a directory of PacBio HiFi reads in FASTQ or FASTQ.GZ format to `MAGverify map`. A single file is used directly; several files (all gzipped or all uncompressed) are joined once into `OUTPUT/00_prep/hifi_reads.fastq[.gz]` and reused while the source files are unchanged. The mapping manifest records the read file, and circularity, phantom and variants reuse it when `-r` is omitted. Modules assessing read support cannot infer it from assembly FASTAs alone.
 
 ## Automatically generated combined assembly
 
