@@ -9,6 +9,8 @@
 
 ## Unreleased
 
+- `repeats`: INTRA BLAST compares each contig only with itself, and INTER BLAST compares each contig only with the other contigs of its MAG. Comparisons whose hits were discarded are no longer computed; results are unchanged. Longest contigs and largest MAGs start first, and BLAST runs as `-t` single-thread jobs.
+- The MAG-contig map is rewritten only when its content changes, so completed module results are reused on reruns.
 - MAG folder option renamed from `-m` to `-g` (also in `prep_gtdbtk_summary_to_mag_taxonomy.py`); `-m` is now the memory limit.
 - New `MAGverify prep-scg -a DIR -o DIR -t N` builds the anvi'o SCG annotation (`00_prep/SCG/`) before the analysis modules. `false-closure` and `chimera` no longer run anvi'o for SCGs; `false-closure` stops if the table is missing and `chimera` continues without SCG annotation.
 - "Database preparation" renamed to "Input preparation" (`docs/INPUT_PREPARATION.md`); README sections renumbered.

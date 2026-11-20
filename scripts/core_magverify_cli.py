@@ -473,11 +473,18 @@ def prepare_map(args, root, env, main_input):
         return map_file
     if not shutil.which('samtools'):
         raise UsageError('samtools is necessary to index the assembly and prepare MAG membership')
-    run(['samtools', 'faidx', str(main_input)], env, False)
+    fai = Path(str(main_input) + '.fai')
+    if not fai.is_file() or fai.stat().st_mtime_ns < Path(main_input).stat().st_mtime_ns:
+        run(['samtools', 'faidx', str(main_input)], env, False)
     map_file.parent.mkdir(parents=True, exist_ok=True)
+    candidate = map_file.with_name(map_file.name + '.new')
     run(['python3', str(SCRIPTS_DIR / 'prep_build_mag_contig_map.py'), '--mag-dir', env['MAG_DIR'],
-         '--extensions', 'fa fasta fna', '--assembly-fai', str(main_input) + '.fai',
-         '--output', str(map_file)], env, False)
+         '--extensions', 'fa fasta fna', '--assembly-fai', str(fai),
+         '--output', str(candidate)], env, False)
+    if map_file.is_file() and map_file.read_bytes() == candidate.read_bytes():
+        candidate.unlink()
+    else:
+        os.replace(candidate, map_file)
     return file_input(map_file, 'generated MAG map')
 
 

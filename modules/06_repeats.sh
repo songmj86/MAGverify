@@ -29,17 +29,14 @@ REPEAT_CONTIG_HIGH="${REPEAT_CONTIG_HIGH:-${REPEAT_HIGH:-0.70}}"
 REPEAT_GENOME_HIGH="${REPEAT_GENOME_HIGH:-${REPEAT_HIGH:-0.70}}"
 
 REPEAT_CHUNK_BP="${REPEAT_CHUNK_BP:-10000000}"
-REPEAT_BLAST_THREADS_PER_JOB="${REPEAT_BLAST_THREADS_PER_JOB:-2}"
+REPEAT_BLAST_THREADS_PER_JOB=1
 REPEAT_JOBS="${REPEAT_JOBS:-$(( THREADS / REPEAT_BLAST_THREADS_PER_JOB ))}"
 (( REPEAT_JOBS >= 1 )) || REPEAT_JOBS=1
 REPEAT_SORT_THREADS="${REPEAT_SORT_THREADS:-$THREADS}"
 REPEAT_SORT_MEMORY="${REPEAT_SORT_MEMORY:-50%}"
 REPEAT_MIN_CONTIG_LEN="${REPEAT_MIN_CONTIG_LEN:-0}"
 
-if (( REPEAT_JOBS * REPEAT_BLAST_THREADS_PER_JOB > THREADS )); then
-    echo "ERROR: REPEAT_JOBS * REPEAT_BLAST_THREADS_PER_JOB exceeds THREADS"
-    exit 1
-fi
+(( REPEAT_JOBS > THREADS )) && REPEAT_JOBS="$THREADS"
 
 export OMP_NUM_THREADS=1
 export OPENBLAS_NUM_THREADS=1
@@ -80,12 +77,11 @@ echo "MAG total repeat breadth   : union(INTRA, INTER); overlap counted once"
 echo "Final contig call          : EXCESSIVE_REPEAT_CONTIG=Y when INTRA repeat fraction >= contig threshold"
 echo "MAG excessive-contig flag  : HAS_EXCESSIVE_INTRA_REPEAT_CONTIG=Y when >=1 member contig is INTRA-excessive"
 echo "Final MAG call             : EXCESSIVE_REPEAT_MAG=Y when MAG-wide total repeat fraction >= genome threshold"
-echo "REPEAT_JOBS                : $REPEAT_JOBS"
-echo "REPEAT_BLAST_THREADS/JOB   : $REPEAT_BLAST_THREADS_PER_JOB"
+echo "Parallel BLAST jobs        : $REPEAT_JOBS (1 thread each)"
 echo "FORCE_RERUN_REPEAT         : $FORCE_RERUN_REPEAT"
 echo
 
-for tool in samtools makeblastdb blastn bedtools python3 sort xargs; do
+for tool in samtools blastn bedtools python3 sort xargs; do
     command -v "$tool" >/dev/null 2>&1 || {
         echo "ERROR: required tool not found in PATH: $tool"
         exit 1
@@ -250,7 +246,7 @@ if (( NEED_REPEAT_ANALYSIS == 1 )); then
     : > "$TMP_INTRA_RAW_BED"
     : > "$TMP_INTER_RAW_BED"
 
-    echo "[60A] Preparing intact-contig chunks for INTRA repeat BLAST"
+    echo "[60A] Grouping contigs for INTRA repeat BLAST"
     INTRA_CHUNK_DIR="$TMP_ROOT/intra_chunks"
     INTRA_DB_DIR="$TMP_ROOT/intra_dbs"
     INTRA_OUT_DIR="$TMP_ROOT/intra_results"
@@ -262,51 +258,37 @@ if (( NEED_REPEAT_ANALYSIS == 1 )); then
         EFFECTIVE_MIN_CONTIG_LEN=$(( REPEAT_MIN_ALIGN_PAPER + 1 ))
     fi
 
-    python3 - "$REPEAT_FASTA" "$INTRA_CHUNK_DIR" "$INTRA_MANIFEST" \
-        "$REPEAT_CHUNK_BP" "$EFFECTIVE_MIN_CONTIG_LEN" <<'PY_SPLIT'
+    python3 - "${REPEAT_FASTA}.fai" "$INTRA_CHUNK_DIR" "$INTRA_MANIFEST" \
+        "$REPEAT_CHUNK_BP" "$EFFECTIVE_MIN_CONTIG_LEN" "$REPEAT_JOBS" <<'PY_SPLIT'
 import sys
 from pathlib import Path
-fasta, out_dir, manifest, target_bp, min_len = sys.argv[1:]
+fai, out_dir, manifest, max_bp, min_len, jobs = sys.argv[1:]
 out_dir = Path(out_dir)
-target_bp, min_len = int(target_bp), int(min_len)
-idx, chunk_bp, out = 0, 0, None
-paths = []
-def open_chunk():
-    global idx, chunk_bp, out
-    idx += 1
-    path = out_dir / f'chunk_{idx:06d}.fa'
-    out = path.open('w')
-    paths.append(path)
-    chunk_bp = 0
-def emit(header, seq):
-    global chunk_bp, out
-    if len(seq) < min_len:
-        return
-    if out is None or (chunk_bp > 0 and chunk_bp + len(seq) > target_bp):
-        if out is not None:
-            out.close()
-        open_chunk()
-    out.write(header if header.endswith('\n') else header + '\n')
-    for i in range(0, len(seq), 80):
-        out.write(seq[i:i+80] + '\n')
-    chunk_bp += len(seq)
-header, parts = None, []
-with open(fasta) as handle:
+max_bp, min_len, jobs = int(max_bp), int(min_len), int(jobs)
+contigs = []
+with open(fai) as handle:
     for line in handle:
-        if line.startswith('>'):
-            if header is not None:
-                emit(header, ''.join(parts))
-            header, parts = line, []
-        else:
-            parts.append(line.strip())
-if header is not None:
-    emit(header, ''.join(parts))
-if out is not None:
-    out.close()
+        name, length = line.split('\t')[:2]
+        if int(length) >= min_len:
+            contigs.append((int(length), name))
+contigs.sort(key=lambda item: (-item[0], item[1]))
+total = sum(length for length, _ in contigs)
+target = max(1_000_000, min(max_bp, total // max(1, jobs * 4)))
+chunks, current, current_bp = [], [], 0
+for length, name in contigs:
+    if current and current_bp + length > target:
+        chunks.append(current)
+        current, current_bp = [], 0
+    current.append(name)
+    current_bp += length
+if current:
+    chunks.append(current)
 with open(manifest, 'w') as handle:
-    for path in paths:
+    for idx, names in enumerate(chunks, 1):
+        path = out_dir / f'chunk_{idx:06d}.list'
+        path.write_text('\n'.join(names) + '\n')
         handle.write(str(path) + '\n')
-print(f'Eligible contigs written to {len(paths)} chunks.')
+print(f'Eligible contigs: {len(contigs)} in {len(chunks)} chunks (longest first).')
 PY_SPLIT
 
     INTRA_FILTER="$TMP_ROOT/filter_intra.py"
@@ -344,24 +326,27 @@ PY_INTRA_FILTER
     cat > "$INTRA_WORKER" <<'SH_INTRA'
 #!/usr/bin/env bash
 set -euo pipefail
-filter_py="$1"; db_root="$2"; out_root="$3"; threads="$4"; min_align="$5"; min_pident="$6"; chunk="$7"
-base="$(basename "$chunk" .fa)"
-db="$db_root/$base/db"
-mkdir -p "$(dirname "$db")"
-makeblastdb -in "$chunk" -dbtype nucl -out "$db" > "$out_root/$base.makeblastdb.log" 2>&1
-blastn -task blastn -query "$chunk" -db "$db" \
-    -outfmt '6 qseqid sseqid pident length qstart qend sstart send qlen slen' \
-    -num_threads "$threads" 2> "$out_root/$base.blastn.stderr.log" \
+fasta="$1"; filter_py="$2"; work_root="$3"; out_root="$4"; min_align="$5"; min_pident="$6"; chunk="$7"
+base="$(basename "$chunk" .list)"
+work="$work_root/$base"
+mkdir -p "$work"
+while IFS= read -r contig; do
+    [[ -n "$contig" ]] || continue
+    samtools faidx "$fasta" "$contig" > "$work/contig.fa"
+    blastn -task blastn -query "$work/contig.fa" -subject "$work/contig.fa" \
+        -outfmt '6 qseqid sseqid pident length qstart qend sstart send qlen slen' \
+        2>> "$out_root/$base.blastn.stderr.log"
+done < "$chunk" \
     | python3 "$filter_py" "$out_root/$base.hsp.tsv" "$out_root/$base.bed" "$min_align" "$min_pident"
+rm -rf "$work"
 SH_INTRA
     chmod +x "$INTRA_WORKER"
 
-    echo "[60B] Running INTRA repeat BLAST: ${REPEAT_JOBS} jobs x ${REPEAT_BLAST_THREADS_PER_JOB} threads"
+    echo "[60B] Running INTRA repeat BLAST (each contig against itself): ${REPEAT_JOBS} parallel jobs"
     if [[ -s "$INTRA_MANIFEST" ]]; then
         xargs -r -n 1 -P "$REPEAT_JOBS" \
-            "$INTRA_WORKER" "$INTRA_FILTER" "$INTRA_DB_DIR" "$INTRA_OUT_DIR" \
-            "$REPEAT_BLAST_THREADS_PER_JOB" "$REPEAT_MIN_ALIGN_PAPER" \
-            "$REPEAT_PIDENT_PAPER" < "$INTRA_MANIFEST"
+            "$INTRA_WORKER" "$REPEAT_FASTA" "$INTRA_FILTER" "$INTRA_DB_DIR" "$INTRA_OUT_DIR" \
+            "$REPEAT_MIN_ALIGN_PAPER" "$REPEAT_PIDENT_PAPER" < "$INTRA_MANIFEST"
         while IFS= read -r f; do cat "$f" >> "$TMP_INTRA_HSP"; done \
             < <(find "$INTRA_OUT_DIR" -name '*.hsp.tsv' -type f | LC_ALL=C sort)
         while IFS= read -r f; do cat "$f" >> "$TMP_INTRA_RAW_BED"; done \
@@ -377,13 +362,18 @@ SH_INTRA
     INTER_MANIFEST="$TMP_ROOT/inter_bundles.list"
     mkdir -p "$INTER_BUNDLE_ROOT" "$INTER_OUT_DIR"
 
-    python3 - "$REPEAT_MAG_MAP" "$INTER_BUNDLE_ROOT" "$INTER_MANIFEST" <<'PY_MAG_BUNDLES'
+    python3 - "$REPEAT_MAG_MAP" "$INTER_BUNDLE_ROOT" "$INTER_MANIFEST" "${REPEAT_FASTA}.fai" <<'PY_MAG_BUNDLES'
 import csv
 import sys
 from collections import defaultdict
 from pathlib import Path
-map_path, root, manifest = sys.argv[1:]
+map_path, root, manifest, fai = sys.argv[1:]
 root = Path(root)
+lengths = {}
+with open(fai) as handle:
+    for line in handle:
+        name, length = line.split('\t')[:2]
+        lengths[name] = int(length)
 with open(map_path, newline='') as handle:
     rows = list(csv.reader(handle, delimiter='\t'))
 if rows and len(rows[0]) >= 2 and rows[0][0].strip().lower() in {'mag_id','mag','id'}:
@@ -392,7 +382,7 @@ mags = defaultdict(list)
 for row in rows:
     if len(row) >= 2 and row[0].strip() and row[1].strip():
         mags[row[0].strip()].append(row[1].strip())
-paths = []
+bundles = []
 for i, mag in enumerate(sorted(mags), 1):
     members = mags[mag]
     if len(members) <= 1:
@@ -401,7 +391,8 @@ for i, mag in enumerate(sorted(mags), 1):
     bundle.mkdir(parents=True, exist_ok=True)
     (bundle / 'MAG_ID.txt').write_text(mag + '\n')
     (bundle / 'contigs.txt').write_text('\n'.join(members) + '\n')
-    paths.append(bundle)
+    bundles.append((sum(lengths.get(c, 0) for c in members) * len(members), bundle))
+paths = [bundle for _, bundle in sorted(bundles, key=lambda item: -item[0])]
 with open(manifest, 'w') as out:
     for p in paths:
         out.write(str(p) + '\n')
@@ -464,29 +455,31 @@ PY_INTER_FILTER
     cat > "$INTER_WORKER" <<'SH_INTER'
 #!/usr/bin/env bash
 set -euo pipefail
-fasta="$1"; filter_py="$2"; out_root="$3"; threads="$4"; min_align="$5"; min_pident="$6"; bundle="$7"
+fasta="$1"; filter_py="$2"; out_root="$3"; min_align="$4"; min_pident="$5"; bundle="$6"
 base="$(basename "$bundle")"
 mag_id="$(<"$bundle/MAG_ID.txt")"
 mapfile -t contigs < "$bundle/contigs.txt"
 (( ${#contigs[@]} > 1 )) || exit 0
 mag_fa="$bundle/MAG.fa"
-db="$bundle/db/MAG"
-mkdir -p "$(dirname "$db")"
 samtools faidx "$fasta" "${contigs[@]}" > "$mag_fa"
-makeblastdb -in "$mag_fa" -dbtype nucl -out "$db" > "$out_root/$base.makeblastdb.log" 2>&1
-blastn -task blastn -query "$mag_fa" -db "$db" \
-    -outfmt '6 qseqid sseqid pident length qstart qend sstart send qlen slen' \
-    -num_threads "$threads" 2> "$out_root/$base.blastn.stderr.log" \
-    | python3 "$filter_py" "$mag_id" "$out_root/$base.hsp.tsv" "$out_root/$base.bed" "$min_align" "$min_pident"
+samtools faidx "$mag_fa"
+for i in "${!contigs[@]}"; do
+    others=("${contigs[@]:0:i}" "${contigs[@]:i+1}")
+    samtools faidx "$mag_fa" "${contigs[i]}" > "$bundle/query.fa"
+    samtools faidx "$mag_fa" "${others[@]}" > "$bundle/others.fa"
+    blastn -task blastn -query "$bundle/query.fa" -subject "$bundle/others.fa" \
+        -outfmt '6 qseqid sseqid pident length qstart qend sstart send qlen slen' \
+        2>> "$out_root/$base.blastn.stderr.log"
+done | python3 "$filter_py" "$mag_id" "$out_root/$base.hsp.tsv" "$out_root/$base.bed" "$min_align" "$min_pident"
+rm -f "$bundle/query.fa" "$bundle/others.fa" "$mag_fa" "$mag_fa.fai"
 SH_INTER
     chmod +x "$INTER_WORKER"
 
-    echo "[60E] Running same-MAG INTER repeat BLAST: ${REPEAT_JOBS} jobs x ${REPEAT_BLAST_THREADS_PER_JOB} threads"
+    echo "[60E] Running same-MAG INTER repeat BLAST (each contig against the other contigs of its MAG): ${REPEAT_JOBS} parallel jobs"
     if [[ -s "$INTER_MANIFEST" ]]; then
         xargs -r -n 1 -P "$REPEAT_JOBS" \
             "$INTER_WORKER" "$REPEAT_FASTA" "$INTER_FILTER" "$INTER_OUT_DIR" \
-            "$REPEAT_BLAST_THREADS_PER_JOB" "$REPEAT_MIN_ALIGN_PAPER" \
-            "$REPEAT_PIDENT_PAPER" < "$INTER_MANIFEST"
+            "$REPEAT_MIN_ALIGN_PAPER" "$REPEAT_PIDENT_PAPER" < "$INTER_MANIFEST"
         while IFS= read -r f; do cat "$f" >> "$TMP_INTER_HSP"; done \
             < <(find "$INTER_OUT_DIR" -name '*.hsp.tsv' -type f | LC_ALL=C sort)
         while IFS= read -r f; do cat "$f" >> "$TMP_INTER_RAW_BED"; done \
