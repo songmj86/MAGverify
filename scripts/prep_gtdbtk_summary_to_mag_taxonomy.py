@@ -74,9 +74,9 @@ def main() -> int:
                         help="GTDB-Tk classify_wf output directory "
                              "(gtdbtk.bac120.summary.tsv, gtdbtk.ar53.summary.tsv)")
     parser.add_argument("-g", dest="mag_dir", required=True, type=Path, metavar="DIR",
-                        help="Folder of MAGs (.fa)")
+                        help="Folder of MAGs (*.fa)")
     parser.add_argument("-o", dest="output_dir", required=True, type=Path, metavar="DIR",
-                        help="Output folder (table: DIR/MAG_taxonomy.tsv)")
+                        help="Folder of base output (table: DIR/MAG_taxonomy.tsv)")
     args = parser.parse_args()
     output = args.output_dir / "MAG_taxonomy.tsv"
     try:

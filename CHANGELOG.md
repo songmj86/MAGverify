@@ -9,6 +9,7 @@
 
 ## Unreleased
 
+- Help text: file types shown as `(*.fa)` and `(*.fastq.gz; *.fq.gz)`; `--assembler-circularity` described as `(prep-circularity output)`.
 - Help output no longer lists `-h`; memory options show `N` (GB) as their value.
 - New `MAGverify prep-circularity -c FILE ... -g DIR -o DIR` builds `00_prep/assembler_circularity.MAG.tsv` and `assembler_circularity.contig.tsv` (with assembler names) from hifiasm-meta GFA/FASTA, metaMDBG FASTA and metaFlye `assembly_info.txt`. `circularity` and `false-closure` use it automatically; `--assembler-circularity` still overrides it.
 - `circularity` without `--assembler-circularity`: `Circular` now reports the read-supported call; `High_confidence_circular` and `Additional_circular_candidate` are `NA`. Previously every MAG was `N`.

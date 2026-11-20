@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Dict, Iterator, List, Tuple
 
 HIFIASM_NAME = re.compile(r"ctg\d+([cl])$")
-MAG_SUFFIXES = (".fa", ".fna", ".fasta", ".fa.gz", ".fna.gz", ".fasta.gz")
+MAG_SUFFIXES = (".fa", ".fna", ".fasta")
 
 
 def fail(message: str) -> None:
@@ -157,8 +157,8 @@ def main() -> None:
     parser.add_argument("-h", action="help", help=argparse.SUPPRESS)
     parser.add_argument("-c", dest="sources", action="append", required=True, type=Path, metavar="FILE",
                         help="Assembler circularity file (repeat per assembler)")
-    parser.add_argument("-g", dest="mag_dir", required=True, type=Path, metavar="DIR", help="Folder of MAGs (.fa)")
-    parser.add_argument("-o", dest="output", required=True, type=Path, metavar="DIR", help="Output folder")
+    parser.add_argument("-g", dest="mag_dir", required=True, type=Path, metavar="DIR", help="Folder of MAGs (*.fa)")
+    parser.add_argument("-o", dest="output", required=True, type=Path, metavar="DIR", help="Folder of base output")
     args = parser.parse_args()
 
     for path in args.sources:

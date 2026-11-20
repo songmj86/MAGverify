@@ -12,6 +12,12 @@ import subprocess
 import sys
 import tempfile
 
+
+def help_formatter(prog):
+    """Keep each option and its description on one line."""
+    width = max(100, shutil.get_terminal_size((120, 24)).columns)
+    return argparse.HelpFormatter(prog, max_help_position=40, width=width)
+
 ROOT = Path(__file__).resolve().parent.parent / "modules"
 SCRIPTS_DIR = Path(__file__).resolve().parent
 STAGES = {
@@ -218,18 +224,21 @@ def reads_input(directory, root, dry_run):
     return output
 
 
+FASTA_SUFFIXES = ('.fa', '.fna', '.fasta')
+
+
 def fasta_paths(directory, label):
     parent = dir_input(directory, label)
-    paths = sorted(p for p in parent.iterdir() if p.is_file() and p.suffix.lower() in ('.fa', '.fna', '.fasta'))
+    paths = sorted(p for p in parent.iterdir() if p.is_file() and p.suffix.lower() in FASTA_SUFFIXES)
     if not paths:
-        raise UsageError(f'No FASTA files found in {parent}; check -a or -m')
+        raise UsageError(f'No FASTA files (*.fa) found in {parent}; check {label}')
     return paths
 
 
 def validate_fasta_paths(paths, option):
     resolved = [file_input(p, option) for p in paths]
-    if any(p.suffix.lower() not in ('.fa', '.fna', '.fasta') for p in resolved):
-        raise UsageError(f'{option} accepts .fa, .fasta and .fna files')
+    if any(p.suffix.lower() not in FASTA_SUFFIXES for p in resolved):
+        raise UsageError(f'{option} accepts *.fa, *.fasta and *.fna files')
     basenames = [p.name for p in resolved]
     stems = [p.stem for p in resolved]
     if len(set(basenames)) != len(paths) or len(set(stems)) != len(paths):
@@ -689,7 +698,7 @@ def prep_scg_run(args):
 
 def add_prep_parser(subparsers):
     """A setup command, separate from the ten analysis stages."""
-    p = subparsers.add_parser('prep-chimera',
+    p = subparsers.add_parser('prep-chimera', formatter_class=help_formatter,
         help='Build the GTDB R232 MMseqs2 database',
         description='Build the GTDB R232 MMseqs2 database', add_help=False)
     p.add_argument('-h', action='help', help=argparse.SUPPRESS)
@@ -698,8 +707,8 @@ def add_prep_parser(subparsers):
                         'bac120_taxonomy_r232.tsv, ar53_taxonomy_r232.tsv)')
     p.add_argument('-t', dest='threads', type=int, metavar='N', help='Threads')
     p.add_argument('-o', dest='output_directory', required=True, metavar='DIR',
-                   help='Output folder (database: DIR/GTDB_R232)')
-    p = subparsers.add_parser('prep-circularity',
+                   help='Folder of base output (database: DIR/GTDB_R232)')
+    p = subparsers.add_parser('prep-circularity', formatter_class=help_formatter,
         help='Build the assembler circularity table',
         description='Build the assembler-reported circularity table (used by circularity and false-closure)',
         add_help=False)
@@ -707,20 +716,20 @@ def add_prep_parser(subparsers):
     p.add_argument('-c', dest='sources', action='append', required=True, metavar='FILE',
                    help='Assembler circularity file; repeat for each assembler '
                         '(hifiasm-meta p_ctg.gfa, metaMDBG contigs.fasta.gz, metaFlye assembly_info.txt)')
-    p.add_argument('-g', dest='mag_dir', required=True, metavar='DIR', help='Folder of MAGs (.fa)')
+    p.add_argument('-g', dest='mag_dir', required=True, metavar='DIR', help='Folder of MAGs (*.fa)')
     p.add_argument('-o', dest='output_directory', required=True, metavar='DIR',
-                   help='Output folder, the same -o as the analysis modules '
+                   help='Folder of base output, the same -o as the analysis modules '
                         '(table: DIR/00_prep/assembler_circularity.MAG.tsv)')
-    p = subparsers.add_parser('prep-scg',
+    p = subparsers.add_parser('prep-scg', formatter_class=help_formatter,
         help="Annotate single-copy genes with anvi'o",
         description="Annotate single-copy genes on all assemblies with anvi'o "
                     "(used by false-closure and chimera)", add_help=False)
     p.add_argument('-h', action='help', help=argparse.SUPPRESS)
     p.add_argument('-a', dest='source_assemblies', required=True, metavar='DIR',
-                   help='Folder of assembled contigs (.fa)')
+                   help='Folder of assembled contigs (*.fa)')
     p.add_argument('-t', dest='threads', type=int, metavar='N', help='Threads')
     p.add_argument('-o', dest='output_directory', required=True, metavar='DIR',
-                   help='Output folder, the same -o as the analysis modules '
+                   help='Folder of base output, the same -o as the analysis modules '
                         '(table: DIR/00_prep/SCG/SCG_from_anvio.original_contig.tsv)')
     return p
 
@@ -820,21 +829,22 @@ def stage_run(args):
 def add_stage_parser(subparsers, stage):
     description = STAGES[stage][2]
     members = {stage}
-    p = subparsers.add_parser(stage, description=description, help=description, add_help=False)
+    p = subparsers.add_parser(stage, description=description, help=description, add_help=False,
+                              formatter_class=help_formatter)
     p.add_argument('-h', action='help', help=argparse.SUPPRESS)
     def handles(*names):
         return bool(members.intersection(names))
     if handles('map', 'clipping', 'chimera', 'circularity', 'false-closure', 'variants', 'phantom', 'false-duplication'):
         p.add_argument('-r', dest='reads', metavar='DIR',
-                       help='Folder of HiFi reads (.fastq.gz, .fq.gz)')
+                       help='Folder of HiFi reads (*.fastq.gz; *.fq.gz)')
     p.add_argument('-a', dest='source_assemblies', metavar='DIR',
-                   help='Folder of assembled contigs (.fa)')
+                   help='Folder of assembled contigs (*.fa)')
     mag_stage = handles('clipping','chimera','circularity','false-closure','variants','phantom','repeats','false-duplication','summary')
     if mag_stage:
         p.add_argument('-g', dest='mag_dir', metavar='DIR',
-                       help='Folder of MAGs (.fa)')
+                       help='Folder of MAGs (*.fa)')
     p.add_argument('-t', dest='threads', type=int, metavar='N', help='Threads')
-    p.add_argument('-o', dest='output_directory', required=True, metavar='DIR', help='Output folder')
+    p.add_argument('-o', dest='output_directory', required=True, metavar='DIR', help='Folder of base output')
     if mag_stage and stage != 'circularity':
         p.add_argument('--mag-map', metavar='TSV', help='MAG-contig table')
     if handles('clipping','chimera','false-closure','variants','phantom','repeats','false-duplication','summary'):
@@ -851,7 +861,7 @@ def add_stage_parser(subparsers, stage):
         p.add_argument('--clipping-all-table', metavar='TSV', help='All-region clipping TSV')
     if handles('false-closure','circularity','summary'):
         p.add_argument('--assembler-circularity', metavar='TSV',
-                       help='Assembler circularity TSV (default: prep-circularity output)')
+                       help='Assembler circularity TSV (prep-circularity output)')
     if handles('summary'):
         for flag, message in [
             ('--circularity-table','Circularity final TSV'),('--circularity-audit','Circularity audit TSV'),
@@ -874,6 +884,7 @@ def add_stage_parser(subparsers, stage):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(prog='MAGverify', description='PacBio HiFi MAG assembly quality control',
+                                     formatter_class=help_formatter,
                                      add_help=False)
     parser.add_argument('-h', action='help', help=argparse.SUPPRESS)
     sub = parser.add_subparsers(dest='module', required=True)

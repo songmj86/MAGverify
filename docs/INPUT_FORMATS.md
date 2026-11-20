@@ -2,7 +2,7 @@
 
 ## Original assembler FASTAs (`-a`)
 
-Supply an existing directory with the original, unbinned assembler FASTA files in `.fa`, `.fasta` or `.fna` format. All FASTA files directly inside that directory are used. They should be original assemblies, **not** individual MAG FASTAs. Place the original assembler FASTAs together in one directory.
+Supply an existing directory with the original, unbinned assembler FASTA files in `.fa`, `.fasta` or `.fna` format (uncompressed). All FASTA files directly inside that directory are used. They should be original assemblies, **not** individual MAG FASTAs. Place the original assembler FASTAs together in one directory.
 
 Clipping maps the original PacBio HiFi reads separately against these assemblies. This preserves the alignments to unbinned contigs, which would be lost if the reads were mapped only against the recovered MAGs.
 
