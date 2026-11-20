@@ -26,8 +26,9 @@ Run these steps once before the analysis modules.
 | GTDB R232 MMseqs2 database | `MAGverify prep-chimera --gtdb-dir DIR -o DB_DIR -t N` | `chimera --database` |
 | MAG taxonomy table | `prep_gtdbtk_summary_to_mag_taxonomy.py --gtdbtk-dir DIR -g DIR -o DB_DIR` | `chimera --mag-taxonomy` |
 | Single-copy gene annotation (anvi'o) | `MAGverify prep-scg -a DIR -o OUTPUT -t N` | `false-closure`, `chimera` |
+| Assembler circularity table | `MAGverify prep-circularity -c FILE [-c FILE ...] -g DIR -o OUTPUT` | `circularity` (optional), `false-closure` |
 
-`prep-scg` uses the same `-o` as the analysis modules, so its output is found automatically. The MMseqs2 database uses three files from **GTDB R232**:
+`prep-scg` and `prep-circularity` use the same `-o` as the analysis modules, so their outputs are found automatically. The MMseqs2 database uses three files from **GTDB R232**:
 
 | Download | Content |
 | --- | --- |
@@ -41,7 +42,7 @@ Download commands, database construction, the MAG taxonomy format and SCG annota
 
 Run each command separately in the following order, using the **same `-o`** throughout. The examples use 100 threads; adjust this to the CPU allocation. The mapping manifest created in Step 1 is reused automatically by later modules. No `00_config.sh` or separate gene-taxonomy module is needed; complete [Input preparation](#2-input-preparation) first. Detailed module prerequisites and outputs are described in [Module inputs and outputs](docs/MODULES.md).
 
-Read mapping (`map`, `circularity`) and anvi'o profiling (`variants`) process one assembler at a time with all `-t` threads, because these steps already use many threads and much memory. In `map`, the alignment-class BAMs of one assembler are built while the next assembler is mapped. `clipping`, `phantom` and `false-duplication` process assemblers in parallel and divide `-t` between them; set `PARALLEL_JOBS=N` before the command to run fewer at once. Use `-m GB` with `map`, `circularity` or `variants` to keep memory within a limit.
+Read mapping (`map`, `circularity`) and anvi'o profiling (`variants`) process one assembler at a time with all `-t` threads, because these steps already use many threads and much memory. In `map`, the alignment-class BAMs of one assembler are built while the next assembler is mapped. `clipping`, `phantom` and `false-duplication` process assemblers in parallel and divide `-t` between them; set `PARALLEL_JOBS=N` before the command to run fewer at once. Use `-m N` (GB) with `map`, `circularity`, `repeats` or `variants` to keep memory within a limit.
 
 
 
@@ -80,7 +81,7 @@ MAGverify circularity \
   -t 100
 ```
 
-Evaluates read support for circular junctions to assess whether assembled contigs are circular. Add `--assembler-circularity TSV` (assembler-reported circularity per MAG) to also report `High_confidence_circular` and `Additional_circular_candidate`; without it these are `N` and the assembler call is `NA`.
+Evaluates read support for circular junctions to assess whether assembled contigs are circular. The assembler circularity table from `prep-circularity` is optional. Without it, `Circular` is the read-supported call. With the assembler-reported circularity per MAG, `Circular` is Y only when the assembler and the reads agree (`High_confidence_circular`), and MAGs the reads support but the assembler did not call circular are listed as `Additional_circular_candidate`.
 
 ### 3. Clipping
 
@@ -100,12 +101,11 @@ Detects clipping events and evaluates their support from HiFi read alignments. T
 MAGverify false-closure \
   -a /path/to/assemblies \
   -g /path/to/MAGs \
-  --assembler-circularity /path/to/assembler_circularity.tsv \
   -o /path/to/MAGverify_output \
   -t 100
 ```
 
-Identifies potential false circular closures by evaluating assembler circularity calls against read and clipping evidence. `--assembler-circularity` takes the assembler-reported circularity table, not the read-supported circularity result from Step 2. Requires `MAGverify prep-scg` with the same `-o`.
+Identifies potential false circular closures by evaluating assembler circularity calls against read and clipping evidence. Requires `MAGverify prep-scg` and `MAGverify prep-circularity` with the same `-o`; another assembler circularity table can be given with `--assembler-circularity TSV`.
 
 ### 5. Phantom sequences
 
@@ -167,7 +167,7 @@ MAGverify variants \
   -t 100
 ```
 
-Identifies assembly variants and evaluates read-level support for alternative alleles. This step may need substantial RAM; set `-m GB` when appropriate.
+Identifies assembly variants and evaluates read-level support for alternative alleles. This step may need substantial RAM; set `-m N` (GB) when appropriate.
 
 ### 10. Integrated QC summary
 

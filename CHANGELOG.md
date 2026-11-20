@@ -9,6 +9,11 @@
 
 ## Unreleased
 
+- Help output no longer lists `-h`; memory options show `N` (GB) as their value.
+- New `MAGverify prep-circularity -c FILE ... -g DIR -o DIR` builds `00_prep/assembler_circularity.MAG.tsv` and `assembler_circularity.contig.tsv` (with assembler names) from hifiasm-meta GFA/FASTA, metaMDBG FASTA and metaFlye `assembly_info.txt`. `circularity` and `false-closure` use it automatically; `--assembler-circularity` still overrides it.
+- `circularity` without `--assembler-circularity`: `Circular` now reports the read-supported call; `High_confidence_circular` and `Additional_circular_candidate` are `NA`. Previously every MAG was `N`.
+- `00_prep/combined_assembly.fasta` renamed to `00_prep/all_assemblies.fasta` (the file concatenates the assembler FASTAs; it is not a co-assembly). Existing files are renamed automatically.
+- `repeats` accepts `-m GB`: half goes to sorting, and parallel BLAST jobs are limited to about 2 GB each.
 - `repeats`: INTRA BLAST compares each contig only with itself, and INTER BLAST compares each contig only with the other contigs of its MAG. Comparisons whose hits were discarded are no longer computed; results are unchanged. Longest contigs and largest MAGs start first, and BLAST runs as `-t` single-thread jobs.
 - The MAG-contig map is rewritten only when its content changes, so completed module results are reused on reruns.
 - MAG folder option renamed from `-m` to `-g` (also in `prep_gtdbtk_summary_to_mag_taxonomy.py`); `-m` is now the memory limit.
@@ -18,7 +23,7 @@
 - `map` no longer builds secondary-only and supplementary-only BAMs, which no module used; they are removed from `mapping_manifest.tsv` and deleted on the next `map` run. Modules read the manifest by column name.
 - `false-closure`: fixed the missing `classify_circularity` import. Ribosomal-protein family counts now come from `scripts/false_closure_scg_utils.py` (families whose HMM name starts with `Ribosom`, counted within Bacteria_71 or Archaea_76, whichever has more); the assembler circularity table is read with the same parser as `circularity`.
 - `map`, `circularity` and `variants` process one assembler at a time with all threads; `map` builds the alignment-class BAMs of one assembler while the next is mapped. `clipping`, `phantom` (zero-depth scan) and `false-duplication` (minimap2 self-alignment) process assemblers in parallel and divide `-t` between them; `PARALLEL_JOBS=N` limits the number of parallel jobs.
-- Memory limit option `-m GB` (formerly `--memory-gb`, `variants` only) for `map`, `circularity` and `variants`; in `map` and `circularity` half of the limit goes to samtools sort.
+- Memory limit option `-m N` (GB; formerly `--memory-gb`, `variants` only) for `map`, `circularity` and `variants`; in `map` and `circularity` half of the limit goes to samtools sort.
 - Help text shortened: `-r` Folder of HiFi reads, `-a` Folder of assembled contigs, `-g` Folder of MAGs, `-t` Threads, `-o` Output folder. All previously accepted file extensions are still accepted.
 - Removed explanatory comments from modules and scripts.
 - `circularity`: `--assembler-circularity` is optional (assembler calls become `NA`; previously the final step failed without it). `--mag-map` and `--mapping-manifest` removed from `circularity`, where they had no effect.

@@ -78,7 +78,7 @@ done < <(qc_manifest_columns "$ASSEMBLER_MAPPING_MANIFEST" Assembler Assembly_FA
 python3 - "$ASSEMBLER_MAPPING_MANIFEST" "${ASSEMBLY_FA}.fai" <<'PY_SOURCE_UNION'
 import csv
 import sys
-manifest, combined_fai = sys.argv[1:]
+manifest, assemblies_fai = sys.argv[1:]
 
 def load_fai(path):
     result = {}
@@ -93,7 +93,7 @@ def load_fai(path):
             result[name] = length
     return result
 
-combined = load_fai(combined_fai)
+combined = load_fai(assemblies_fai)
 union = {}
 with open(manifest, encoding='utf-8-sig', newline='') as handle:
     reader = csv.DictReader(handle, delimiter='\t')
@@ -134,7 +134,7 @@ import hashlib
 import json
 import os
 import sys
-manifest, combined_fai = sys.argv[1:]
+manifest, assemblies_fai = sys.argv[1:]
 
 def file_stat(path):
     st = os.stat(path)
@@ -161,7 +161,7 @@ with open(manifest, encoding='utf-8-sig', newline='') as handle:
         })
 payload = {
     'design': 'source_assembler_specific_all_mapped_zero_depth_v1',
-    'combined_fai_sha256': digest(combined_fai),
+    'assemblies_fai_sha256': digest(assemblies_fai),
     'manifest_sha256': digest(manifest),
     'sources': rows,
 }

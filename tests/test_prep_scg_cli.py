@@ -48,10 +48,10 @@ class PrepScgCLITests(unittest.TestCase):
         for option in ('-a DIR', '-t N', '-o DIR', '00_prep/SCG'):
             self.assertIn(option, result.stdout)
 
-    def test_builds_combined_assembly_and_scg_table(self):
+    def test_builds_all_assemblies_and_scg_table(self):
         result = self.run_cli('prep-scg', '-a', self.assemblies, '-o', self.output, '-t', '1')
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        combined = self.output / '00_prep/combined_assembly.fasta'
+        combined = self.output / '00_prep/all_assemblies.fasta'
         self.assertIn('>a1', combined.read_text())
         self.assertIn('>b1', combined.read_text())
         invocation = (self.output / '00_prep/SCG/invocation.txt').read_text().split()

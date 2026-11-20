@@ -18,7 +18,7 @@ def fail(message: str) -> None:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--mapping-manifest", required=True)
-    parser.add_argument("--combined-fai", required=True)
+    parser.add_argument("--assemblies-fai", required=True)
     parser.add_argument("--terminal-window", type=int, default=100)
     parser.add_argument("--input", action="append", required=True,
                         help="assembler=TSV; may be supplied repeatedly")
@@ -118,8 +118,8 @@ def main() -> None:
         fail("terminal-window must be >=1")
     if not os.path.isfile(args.mapping_manifest) or os.path.getsize(args.mapping_manifest) == 0:
         fail(f"mapping manifest missing: {args.mapping_manifest}")
-    if not os.path.isfile(args.combined_fai) or os.path.getsize(args.combined_fai) == 0:
-        fail(f"combined FAI missing: {args.combined_fai}")
+    if not os.path.isfile(args.assemblies_fai) or os.path.getsize(args.assemblies_fai) == 0:
+        fail(f"all-assemblies FAI missing: {args.assemblies_fai}")
 
     assembler_to_fasta, source_lengths = load_sources(args.mapping_manifest)
     inputs = parse_inputs(args.input)
@@ -128,7 +128,7 @@ def main() -> None:
         extra = sorted(set(inputs) - set(assembler_to_fasta))
         fail(f"input assemblers do not match mapping manifest; missing={missing}, extra={extra}")
 
-    combined = load_fai(args.combined_fai)
+    combined = load_fai(args.assemblies_fai)
     union: Dict[str, Tuple[str, int]] = {}
     for assembler, lengths in source_lengths.items():
         for contig, length in lengths.items():

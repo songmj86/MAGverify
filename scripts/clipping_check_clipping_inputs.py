@@ -22,9 +22,9 @@ def check_file(path, label):
 
 
 def check_inputs(assembly, mag_dir, manifest):
-    check_file(assembly, "Combined assembly FASTA (In)")
+    check_file(assembly, "All-assemblies FASTA (In)")
     if assembly.suffix.lower() == ".gz":
-        raise ValueError("Combined assembly FASTA must be uncompressed for samtools faidx")
+        raise ValueError("All-assemblies FASTA must be uncompressed for samtools faidx")
     if not mag_dir or not mag_dir.is_dir():
         raise ValueError(
             f"MAG_DIR missing: {mag_dir or '<unset>'}. "

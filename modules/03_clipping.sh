@@ -212,7 +212,7 @@ done < <(qc_manifest_columns "$ASSEMBLER_MAPPING_MANIFEST" Assembler Assembly_FA
 python3 - "$ASSEMBLER_MAPPING_MANIFEST" "${ASSEMBLY_FA}.fai" <<'PY_SOURCE_UNION'
 import csv
 import sys
-manifest, combined_fai = sys.argv[1:]
+manifest, assemblies_fai = sys.argv[1:]
 
 def fai(path):
     out = {}
@@ -227,7 +227,7 @@ def fai(path):
             out[name] = length
     return out
 
-combined = fai(combined_fai)
+combined = fai(assemblies_fai)
 union = {}
 with open(manifest, encoding='utf-8-sig', newline='') as handle:
     reader = csv.DictReader(handle, delimiter='\t')
@@ -408,7 +408,7 @@ combine_tsvs "$ANVIO_ZERO_RAW" "${RAW_ZERO_FILES[@]}"
 CLASSIFY_CMD=(
     python3 "$CLIP_REGION_CLASSIFIER_SCRIPT"
     --mapping-manifest "$ASSEMBLER_MAPPING_MANIFEST"
-    --combined-fai "${ASSEMBLY_FA}.fai"
+    --assemblies-fai "${ASSEMBLY_FA}.fai"
     --terminal-window "$TERMINAL_CLIPPING_WINDOW_BP"
 )
 CMD=("${CLASSIFY_CMD[@]}")

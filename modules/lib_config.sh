@@ -15,15 +15,15 @@ if [[ "$QC_STAGE" == "01_mapping" ||
         if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
             case "$QC_STAGE" in
                 01_mapping) description='Map PacBio HiFi reads to each original source assembly'; input='HiFi FASTQ or FASTQ.GZ'; extras='ASSEMBLER_ASSEMBLY_DIR, ASSEMBLER_FASTAS'; output='OUTPUT_DIR/mapping_manifest.tsv' ;;
-            03_clipping) description='Identify clipping and validate read support'; input='Combined assembly FASTA'; extras='MAG_DIR, ASSEMBLER_MAPPING_MANIFEST with source-specific HiFi BAMs from 01_mapping; MAG map generated automatically'; output='OUTPUT_DIR/clipping.all_regions.filtered.tsv' ;;
+            03_clipping) description='Identify clipping and validate read support'; input='All-assemblies FASTA'; extras='MAG_DIR, ASSEMBLER_MAPPING_MANIFEST with source-specific HiFi BAMs from 01_mapping; MAG map generated automatically'; output='OUTPUT_DIR/clipping.all_regions.filtered.tsv' ;;
             07_chimera) description='Assess genome-wide GTDB taxonomic transitions'; input='GTDB R232 gene-taxonomy TSV'; extras='ASSEMBLY_FA, MAG_CONTIG_MAP, mapping manifest, 03_clipping result'; output='OUTPUT_DIR/GTDB_R232/clipping_defined/' ;;
             02_circularity) description='Validate end-to-start closure of single-contig MAGs'; input='Directory of MAG FASTA files'; extras='READS, ASSEMBLER_ASSEMBLY_DIR, ASSEMBLER_FASTAS'; output='OUTPUT_DIR/MAG_circularity.final.tsv' ;;
-            04_false_closure) description='Evaluate false-closure candidates'; input='Combined assembly FASTA'; extras='READS, MAG_CONTIG_MAP, mapping, clipping, circularity results'; output='OUTPUT_DIR/MAG_false_closure.final.tsv' ;;
-            09_assembly_variants) description='Quantify assembly allele support using anvi-o'; input='Combined assembly FASTA'; extras='READS, MAG_CONTIG_MAP, mapping manifest, active MAGverify Conda environment'; output='OUTPUT_DIR/contig_assembly_allele_support.final.tsv' ;;
-            05_phantom) description='Assess zero-coverage sequences and read k-mer evidence'; input='Combined assembly FASTA'; extras='READS must be four-line FASTQ(.GZ), MAG_CONTIG_MAP, mapping manifest'; output='OUTPUT_DIR/phantom_sequences.final.tsv' ;;
-            06_repeats) description='Quantify intra- and inter-contig repeats'; input='Combined assembly FASTA'; extras='MAG_CONTIG_MAP, source assembler FASTAs'; output='OUTPUT_DIR/contig_repeat_breadth.final.tsv' ;;
-            08_false_duplication) description='Assess candidate false duplications'; input='Combined assembly FASTA'; extras='MAG_CONTIG_MAP, mapping manifest, clipping result'; output='OUTPUT_DIR/false_duplication.by_contig.tsv' ;;
-            10_summary) description='Integrate and validate enabled QC results'; input='Combined assembly FASTA'; extras='MAG_CONTIG_MAP and outputs from all enabled analyses'; output='OUTPUT_DIR/integrated_QC_summary.by_MAG.tsv' ;;
+            04_false_closure) description='Evaluate false-closure candidates'; input='All-assemblies FASTA'; extras='READS, MAG_CONTIG_MAP, mapping, clipping, circularity results'; output='OUTPUT_DIR/MAG_false_closure.final.tsv' ;;
+            09_assembly_variants) description='Quantify assembly allele support using anvi-o'; input='All-assemblies FASTA'; extras='READS, MAG_CONTIG_MAP, mapping manifest, active MAGverify Conda environment'; output='OUTPUT_DIR/contig_assembly_allele_support.final.tsv' ;;
+            05_phantom) description='Assess zero-coverage sequences and read k-mer evidence'; input='All-assemblies FASTA'; extras='READS must be four-line FASTQ(.GZ), MAG_CONTIG_MAP, mapping manifest'; output='OUTPUT_DIR/phantom_sequences.final.tsv' ;;
+            06_repeats) description='Quantify intra- and inter-contig repeats'; input='All-assemblies FASTA'; extras='MAG_CONTIG_MAP, source assembler FASTAs'; output='OUTPUT_DIR/contig_repeat_breadth.final.tsv' ;;
+            08_false_duplication) description='Assess candidate false duplications'; input='All-assemblies FASTA'; extras='MAG_CONTIG_MAP, mapping manifest, clipping result'; output='OUTPUT_DIR/false_duplication.by_contig.tsv' ;;
+            10_summary) description='Integrate and validate enabled QC results'; input='All-assemblies FASTA'; extras='MAG_CONTIG_MAP and outputs from all enabled analyses'; output='OUTPUT_DIR/integrated_QC_summary.by_MAG.tsv' ;;
             esac
             printf 'Usage: bash %s INPUT OUTPUT_DIR\n\n%s\nInput: %s\nAdditional inputs/settings: %s\nMain output: %s\n\n' \
                 "$QC_STAGE.sh" "$description" "$input" "$extras" "$output"

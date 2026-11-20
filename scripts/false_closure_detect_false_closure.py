@@ -168,8 +168,8 @@ def load_fai_lengths(path: str) -> Dict[str, int]:
     return lengths
 
 
-def load_mag_info(map_path: str, combined_fai: str) -> List[MagInfo]:
-    lengths = load_fai_lengths(combined_fai)
+def load_mag_info(map_path: str, assemblies_fai: str) -> List[MagInfo]:
+    lengths = load_fai_lengths(assemblies_fai)
     grouped: Dict[str, List[str]] = defaultdict(list)
     seen_contigs: Dict[str, str] = {}
     with open(map_path, encoding="utf-8-sig", newline="") as handle:
@@ -186,7 +186,7 @@ def load_mag_info(map_path: str, combined_fai: str) -> List[MagInfo]:
             if not mag_id or not contig:
                 fail(f"blank MAG/contig in MAG contig map line {line_number}")
             if contig not in lengths:
-                fail(f"MAG contig absent from combined assembly FAI: {contig}")
+                fail(f"MAG contig absent from all-assemblies FAI: {contig}")
             previous = seen_contigs.get(contig)
             if previous is not None and previous != mag_id:
                 fail(f"contig assigned to multiple MAGs: {contig}")
@@ -484,9 +484,9 @@ def region_call(records: Iterable[Tuple[Breakpoint, bool, Dict[str, Set[str]], D
 
 
 def run(args: argparse.Namespace) -> None:
-    mag_info = load_mag_info(args.mag_contig_map, args.combined_fai)
+    mag_info = load_mag_info(args.mag_contig_map, args.assemblies_fai)
     mag_by_id = {row.mag_id: row for row in mag_info}
-    combined_lengths = load_fai_lengths(args.combined_fai)
+    combined_lengths = load_fai_lengths(args.assemblies_fai)
     ribosomal_families = load_ribosomal_families(args.scg_tsv)
     contig_to_mag = load_contig_to_mag(args.mag_contig_map)
     mappings = load_mapping_manifest(args.mapping_manifest)
@@ -860,7 +860,7 @@ def run(args: argparse.Namespace) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--combined-fai", required=True)
+    parser.add_argument("--assemblies-fai", required=True)
     parser.add_argument("--mapping-manifest", required=True)
     parser.add_argument("--clipping-all-final-tsv", required=True)
     parser.add_argument("--contig-circularity", required=True)

@@ -7,8 +7,9 @@ Activate the `MAGverify` Conda environment before running the preparation steps.
 | 1 | `MAGverify prep-chimera` | `DB_DIR/GTDB_R232*` | `chimera --database` |
 | 2 | `prep_gtdbtk_summary_to_mag_taxonomy.py` | `DB_DIR/MAG_taxonomy.tsv` | `chimera --mag-taxonomy` |
 | 3 | `MAGverify prep-scg` | `OUTPUT/00_prep/SCG/` | `false-closure`, `chimera` (found automatically) |
+| 4 | `MAGverify prep-circularity` | `OUTPUT/00_prep/assembler_circularity.MAG.tsv` | `circularity` (optional), `false-closure` (found automatically) |
 
-Steps 1 and 2 write to a database directory (`DB_DIR`) that can be reused across projects. Step 3 writes to the analysis output directory (`OUTPUT`, the same `-o` as the analysis modules).
+Steps 1 and 2 write to a database directory (`DB_DIR`) that can be reused across projects. Steps 3 and 4 write to the analysis output directory (`OUTPUT`, the same `-o` as the analysis modules).
 
 ## 1. GTDB R232 MMseqs2 protein taxonomy database
 
@@ -91,7 +92,7 @@ $DB_OUT/MAG_taxonomy.tsv      -> MAGverify chimera --mag-taxonomy $DB_OUT/MAG_ta
 
 ## 3. Single-copy gene annotation (anvi'o)
 
-`false-closure` and `chimera` use single-copy gene (SCG) hits on the combined assembly. Build them once per project with anvi'o, using the same `-o` as the analysis modules:
+`false-closure` and `chimera` use single-copy gene (SCG) hits on all assemblies. Build them once per project with anvi'o, using the same `-o` as the analysis modules:
 
 ```bash
 MAGverify prep-scg \
@@ -103,6 +104,33 @@ MAGverify prep-scg \
 | Option | Input or output |
 | --- | --- |
 | `-a DIR` | Directory of the original assembler FASTA files (`.fa`, `.fna`, `.fasta`) |
-| `-o DIR` | Analysis output directory. The combined assembly is written to `DIR/00_prep/combined_assembly.fasta` and the SCG table to `DIR/00_prep/SCG/SCG_from_anvio.original_contig.tsv` |
+| `-o DIR` | Analysis output directory. All assemblies are written to `DIR/00_prep/all_assemblies.fasta` and the SCG table to `DIR/00_prep/SCG/SCG_from_anvio.original_contig.tsv` |
 
 The command builds an anvi'o contigs database and runs `anvi-run-hmms` with the Bacteria_71 and Archaea_76 collections. `false-closure` stops if the table is missing; `chimera` runs without SCG annotation and prints a warning. A completed table is reused when the assemblies have not changed.
+
+## 4. Assembler circularity table
+
+`false-closure` compares the circularity reported by each assembler with read evidence, and `circularity` uses it to separate high-confidence circular MAGs. Build the table from the assemblers' own outputs, giving one `-c` per assembler:
+
+```bash
+MAGverify prep-circularity \
+  -c /path/to/hifiasm_meta/Read.p_ctg.gfa \
+  -c /path/to/metaMDBG/contigs.fasta.gz \
+  -c /path/to/metaflye/assembly_info.txt \
+  -g /path/to/MAGs \
+  -o /path/to/MAGverify_output
+```
+
+| Assembler | File for `-c` | Circularity field |
+| --- | --- | --- |
+| hifiasm-meta | `*.p_ctg.gfa` (or its contig FASTA) | Contig name ends in `c` (circular) or `l` (linear) |
+| metaMDBG | `contigs.fasta.gz` | Header `circular=yes` / `circular=no` |
+| metaFlye | `assembly_info.txt` | `circ.` column (`Y`/`N`) |
+
+The format and assembler are detected from the file content, gzip-compressed files are accepted, and the files are read in parallel. Give the complete files: every contig of every MAG must be listed, otherwise the command stops and names the missing contigs. Outputs in `DIR/00_prep/`:
+
+| File | Content |
+| --- | --- |
+| `assembler_circularity.MAG.tsv` | `MAG_ID`, `Assembler`, `Assembler_circularity` (`Y` when the MAG is one contig that its assembler reported as circular), `Number_of_contigs`, `Contig` |
+| `assembler_circularity.contig.tsv` | `Contig`, `Assembler`, `Assembler_circularity`, `Source_file` for every contig in the given files |
+

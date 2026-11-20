@@ -24,13 +24,13 @@ The filename without `.fa`, `.fna` or `.fasta` becomes the MAG ID. The MAG FASTA
 
 Supply a directory of PacBio HiFi reads in FASTQ or FASTQ.GZ format to `MAGverify map`. A single file is used directly; several files (all gzipped or all uncompressed) are joined once into `OUTPUT/00_prep/hifi_reads.fastq[.gz]` and reused while the source files are unchanged. The mapping manifest records the read file, and circularity, phantom and variants reuse it when `-r` is omitted. Modules assessing read support cannot infer it from assembly FASTAs alone.
 
-## Automatically generated combined assembly
+## Automatically generated all-assemblies FASTA
 
-**Do not create or provide `combined.fasta` by hand.** When a module needs the union of source assemblies, the command-line interface builds `00_prep/combined_assembly.fasta` inside the output directory. It preserves the original contig identifiers and rejects duplicates. Source FASTA paths, sizes and modification times are recorded to determine whether this generated file can be reused.
+**Do not create or provide `all_assemblies.fasta` by hand.** When a module needs the union of source assemblies, the command-line interface builds `00_prep/all_assemblies.fasta` inside the output directory. It preserves the original contig identifiers and rejects duplicates. Source FASTA paths, sizes and modification times are recorded to determine whether this generated file can be reused.
 
 ## Mapping manifest (`--mapping-manifest`)
 
-`MAGverify map` produces `01_mapping/mapping_manifest.tsv`, listing the assembler names, assembler FASTAs, HiFi mapping BAMs and the HiFi read file (`Reads`). Downstream modules can reuse this file without remapping. The manifest also identifies the source FASTAs from which the combined FASTA can be generated.
+`MAGverify map` produces `01_mapping/mapping_manifest.tsv`, listing the assembler names, assembler FASTAs, HiFi mapping BAMs and the HiFi read file (`Reads`). Downstream modules can reuse this file without remapping. The manifest also identifies the source FASTAs from which the all-assemblies FASTA can be generated.
 
 The tab-delimited manifest includes these columns:
 
@@ -42,16 +42,16 @@ The manifest paths, the BAMs with their `.csi` indexes and the cache files in `0
 
 ## Sequence identity and consistency
 
-The combined FASTA represents the union of the original source assemblies. A MAG FASTA must match its source contig IDs and sequence lengths. Do not rename contigs between assembly, binning and QC. Do not substitute MAG FASTAs for the original assembler FASTAs, as this changes the mapping reference and the interpretation of read support.
+The all-assemblies FASTA represents the union of the original source assemblies. A MAG FASTA must match its source contig IDs and sequence lengths. Do not rename contigs between assembly, binning and QC. Do not substitute MAG FASTAs for the original assembler FASTAs, as this changes the mapping reference and the interpretation of read support.
 
 ## Assembler circularity (`--assembler-circularity`)
 
-The false-closure module expects a tab-delimited table with a MAG identifier and assembler-reported circularity call. A minimal example is:
+`MAGverify prep-circularity` builds this table from the assemblers' own outputs (see [Input preparation](INPUT_PREPARATION.md)). A table made in another way can be given with `--assembler-circularity`; it is tab-delimited with a MAG identifier and the assembler-reported circularity call. A minimal example is:
 
 ```text
-MAG_ID\tcircularity
+MAG_ID\tAssembler_circularity
 Bin13L\tY
 Bin23L\tN
 ```
 
-The accepted MAG identifier columns include `MAG_ID` and `ID`. The accepted circularity columns include `circularity`, `circular` and `assembler_circularity`. `Y` indicates an assembler-reported circular MAG and `N` indicates no such call. This input represents assembler metadata and is different from the HiFi junction-support result produced by `MAGverify circularity`.
+The accepted MAG identifier columns include `MAG_ID` and `ID`. The accepted circularity columns include `Assembler_circularity`, `circularity` and `circular` (case-insensitive). `Y` indicates an assembler-reported circular MAG and `N` indicates no such call. This input represents assembler metadata and is different from the HiFi junction-support result produced by `MAGverify circularity`.

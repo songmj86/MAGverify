@@ -56,6 +56,7 @@ RESULTS = {
     'clipping_table': '03_clipping/clipping.filtered.tsv',
     'clipping_all_table': '03_clipping/clipping.all_regions.filtered.tsv',
     'scg_table': '00_prep/SCG/SCG_from_anvio.original_contig.tsv',
+    'assembler_circularity': '00_prep/assembler_circularity.MAG.tsv',
     'circularity_table': '02_circularity/MAG_circularity.final.tsv',
     'circularity_audit': '02_circularity/MAG_circularity.audit.tsv',
     'false_closure_table': '04_false_closure/MAG_false_closure.final.tsv',
@@ -199,11 +200,11 @@ def reads_input(directory, root, dry_run):
     if output.is_file() and metadata.is_file():
         try:
             if json.loads(metadata.read_text(encoding='utf-8')) == fingerprint:
-                print(f'Combined HiFi reads: {output} (reused)', flush=True)
+                print(f'Joined HiFi reads: {output} (reused)', flush=True)
                 return output
         except (ValueError, OSError):
             pass
-    print(f'Combined HiFi reads: {output}', flush=True)
+    print(f'Joined HiFi reads: {output}', flush=True)
     if dry_run:
         return output
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -326,22 +327,34 @@ def check_manifest(value):
     return path
 
 
+def all_assemblies_path(root):
+    """Path of the concatenated assembler FASTAs; moves files with the former name."""
+    output = root / '00_prep' / 'all_assemblies.fasta'
+    legacy = root / '00_prep' / 'combined_assembly.fasta'
+    if legacy.is_file() and not output.exists():
+        for suffix in ('', '.fai', '.sources.json'):
+            old = Path(str(legacy) + suffix)
+            if old.exists():
+                os.replace(old, Path(str(output) + suffix))
+    return output
+
+
 def assemble_combined(paths, output, dry_run):
     """Build a FASTA spanning the original source assemblies, retaining contig IDs."""
     sources = [file_input(p, 'assembler FASTA') for p in paths]
     if not sources:
-        raise UsageError('No assembler FASTAs available to build the combined assembly')
+        raise UsageError('No assembler FASTAs available to build the all-assemblies FASTA')
     fingerprint = [dict(path=str(p.resolve()), size=p.stat().st_size,
                         mtime_ns=p.stat().st_mtime_ns) for p in sources]
     metadata = output.with_suffix(output.suffix + '.sources.json')
     if output.is_file() and output.stat().st_size and metadata.is_file():
         try:
             if json.loads(metadata.read_text(encoding='utf-8')) == fingerprint:
-                print(f'Combined assembly: {output} (reused)', flush=True)
+                print(f'All assemblies: {output} (reused)', flush=True)
                 return output
         except (ValueError, OSError):
             pass
-    print(f'Combined assembly: {output} ({len(sources)} source FASTA(s))', flush=True)
+    print(f'All assemblies: {output} ({len(sources)} source FASTA(s))', flush=True)
     if dry_run:
         return output
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -429,7 +442,8 @@ def source_links_from_manifest(args, root):
 
 def defaults_for(stage, args):
     cpus = len(os.sched_getaffinity(0)) if hasattr(os, 'sched_getaffinity') else (os.cpu_count() or 1)
-    threads = args.threads if args.threads is not None else min(100, cpus)
+    threads = getattr(args, 'threads', None)
+    threads = threads if threads is not None else min(100, cpus)
     if threads < 1:
         raise UsageError('-t must be a positive integer')
     if threads > cpus:
@@ -552,12 +566,12 @@ def choose_inputs(args, root, env):
     if stage not in ('map', 'circularity') and not main_input:
         if sources:
             main_input = assemble_combined(source_paths(sources),
-                                           root / '00_prep' / 'combined_assembly.fasta', args.dry_run)
+                                           all_assemblies_path(root), args.dry_run)
         else:
-            stored = root / '00_prep' / 'combined_assembly.fasta'
+            stored = all_assemblies_path(root)
             if stored.is_file() and stored.stat().st_size:
                 main_input = stored
-                print(f'Combined assembly: {stored} (existing)', flush=True)
+                print(f'All assemblies: {stored} (existing)', flush=True)
         if main_input:
             env['ASSEMBLY_FA'] = str(main_input)
     mags = mag_inputs(args, root)
@@ -619,7 +633,8 @@ def need_result(name, args, root, env, stage, optional=False):
         return fallback
     if optional:
         return None
-    raise UsageError(f'{stage} needs {flag} FILE or an existing result at {fallback}')
+    hint = ' (run MAGverify prep-circularity first)' if name == 'assembler_circularity' else ''
+    raise UsageError(f'{stage} needs {flag} FILE or an existing result at {fallback}{hint}')
 
 
 def prep_chimera_run(args):
@@ -646,14 +661,24 @@ def prep_chimera_run(args):
         env, args.dry_run)
 
 
+def prep_circularity_run(args):
+    """Build the assembler-reported circularity table from native assembler outputs."""
+    root, env = defaults_for('prep-circularity', args)
+    mags = dir_input(args.mag_dir, '-g')
+    cmd = ['python3', str(SCRIPTS_DIR / 'prep_assembler_circularity.py')]
+    for source in args.sources:
+        cmd += ['-c', str(file_input(source, '-c'))]
+    run(cmd + ['-g', str(mags), '-o', str(root)], env, args.dry_run)
+
+
 def prep_scg_run(args):
-    """Annotate single-copy genes on the combined assembly with anvi'o."""
+    """Annotate single-copy genes on all assemblies with anvi'o."""
     root, env = defaults_for('prep-scg', args)
     sources = source_inputs(args, root)
     if not sources:
         raise UsageError('prep-scg needs -a DIR')
     assembly = assemble_combined(source_paths(sources),
-                                 root / '00_prep' / 'combined_assembly.fasta', args.dry_run)
+                                 all_assemblies_path(root), args.dry_run)
     if not args.dry_run:
         check_programs('prep-scg', env=env)
     out = root / '00_prep' / 'SCG'
@@ -667,18 +692,30 @@ def add_prep_parser(subparsers):
     p = subparsers.add_parser('prep-chimera',
         help='Build the GTDB R232 MMseqs2 database',
         description='Build the GTDB R232 MMseqs2 database', add_help=False)
-    p.add_argument('-h', action='help', help='Show this help message and exit')
+    p.add_argument('-h', action='help', help=argparse.SUPPRESS)
     p.add_argument('--gtdb-dir', required=True, metavar='DIR',
                    help='GTDB R232 directory (gtdb_proteins_aa_reps_r232.tar.gz, '
                         'bac120_taxonomy_r232.tsv, ar53_taxonomy_r232.tsv)')
     p.add_argument('-t', dest='threads', type=int, metavar='N', help='Threads')
     p.add_argument('-o', dest='output_directory', required=True, metavar='DIR',
                    help='Output folder (database: DIR/GTDB_R232)')
+    p = subparsers.add_parser('prep-circularity',
+        help='Build the assembler circularity table',
+        description='Build the assembler-reported circularity table (used by circularity and false-closure)',
+        add_help=False)
+    p.add_argument('-h', action='help', help=argparse.SUPPRESS)
+    p.add_argument('-c', dest='sources', action='append', required=True, metavar='FILE',
+                   help='Assembler circularity file; repeat for each assembler '
+                        '(hifiasm-meta p_ctg.gfa, metaMDBG contigs.fasta.gz, metaFlye assembly_info.txt)')
+    p.add_argument('-g', dest='mag_dir', required=True, metavar='DIR', help='Folder of MAGs (.fa)')
+    p.add_argument('-o', dest='output_directory', required=True, metavar='DIR',
+                   help='Output folder, the same -o as the analysis modules '
+                        '(table: DIR/00_prep/assembler_circularity.MAG.tsv)')
     p = subparsers.add_parser('prep-scg',
         help="Annotate single-copy genes with anvi'o",
-        description="Annotate single-copy genes on the combined assembly with anvi'o "
+        description="Annotate single-copy genes on all assemblies with anvi'o "
                     "(used by false-closure and chimera)", add_help=False)
-    p.add_argument('-h', action='help', help='Show this help message and exit')
+    p.add_argument('-h', action='help', help=argparse.SUPPRESS)
     p.add_argument('-a', dest='source_assemblies', required=True, metavar='DIR',
                    help='Folder of assembled contigs (.fa)')
     p.add_argument('-t', dest='threads', type=int, metavar='N', help='Threads')
@@ -719,6 +756,10 @@ def stage_run(args):
     if stage == 'false-closure':
         for table in ('clipping_table', 'clipping_all_table', 'assembler_circularity'):
             need_result(table, args, root, env, stage)
+    if stage == 'circularity':
+        table = need_result('assembler_circularity', args, root, env, stage, optional=True)
+        print(f'Assembler circularity: {table}' if table else
+              'Assembler circularity: none (Circular = read-supported call)', flush=True)
     if stage == 'false-duplication':
         need_result('clipping_table', args, root, env, stage)
     if getattr(args, 'mag_map', None) and stage == 'clipping':
@@ -780,7 +821,7 @@ def add_stage_parser(subparsers, stage):
     description = STAGES[stage][2]
     members = {stage}
     p = subparsers.add_parser(stage, description=description, help=description, add_help=False)
-    p.add_argument('-h', action='help', help='Show this help message and exit')
+    p.add_argument('-h', action='help', help=argparse.SUPPRESS)
     def handles(*names):
         return bool(members.intersection(names))
     if handles('map', 'clipping', 'chimera', 'circularity', 'false-closure', 'variants', 'phantom', 'false-duplication'):
@@ -810,7 +851,7 @@ def add_stage_parser(subparsers, stage):
         p.add_argument('--clipping-all-table', metavar='TSV', help='All-region clipping TSV')
     if handles('false-closure','circularity','summary'):
         p.add_argument('--assembler-circularity', metavar='TSV',
-                       help='Assembler circularity TSV' + (' (optional)' if stage == 'circularity' else ''))
+                       help='Assembler circularity TSV (default: prep-circularity output)')
     if handles('summary'):
         for flag, message in [
             ('--circularity-table','Circularity final TSV'),('--circularity-audit','Circularity audit TSV'),
@@ -824,17 +865,17 @@ def add_stage_parser(subparsers, stage):
         p.add_argument('--include', metavar='MODULES', help='Completed modules (comma-separated)')
     if stage == 'chimera':
         p.add_argument('--database', metavar='PREFIX', help='MMseqs2 database prefix from prep-chimera (DIR/GTDB_R232)')
-    if handles('map', 'circularity', 'variants'):
-        p.add_argument('-m', dest='memory_gb', type=int, metavar='GB', help='Memory limit (GB)')
+    if handles('map', 'circularity', 'repeats', 'variants'):
+        p.add_argument('-m', dest='memory_gb', type=int, metavar='N', help='Memory limit (GB)')
     if handles('variants'):
-        p.add_argument('--memory-reserve-gb', type=int, metavar='GB', help='Reserved free memory (GB, default: 64)')
+        p.add_argument('--memory-reserve-gb', type=int, metavar='N', help='Reserved free memory (GB, default: 64)')
     return p
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(prog='MAGverify', description='PacBio HiFi MAG assembly quality control',
                                      add_help=False)
-    parser.add_argument('-h', action='help', help='Show this help message and exit')
+    parser.add_argument('-h', action='help', help=argparse.SUPPRESS)
     sub = parser.add_subparsers(dest='module', required=True)
     add_prep_parser(sub)
     for stage in STAGES:
@@ -846,6 +887,7 @@ def main(argv=None):
     if args.module == 'list':
         print('Preparation (run once):')
         print('  prep-chimera       Build MMseqs2 taxonomy database from local GTDB R232 files')
+        print('  prep-circularity   Build the assembler circularity table')
         print("  prep-scg           Annotate single-copy genes with anvi'o")
         print('Analysis modules (run separately):')
         for name, (_, _, desc) in STAGES.items():
@@ -866,6 +908,8 @@ def main(argv=None):
     try:
         if args.module == 'prep-chimera':
             prep_chimera_run(args)
+        elif args.module == 'prep-circularity':
+            prep_circularity_run(args)
         elif args.module == 'prep-scg':
             prep_scg_run(args)
         else:

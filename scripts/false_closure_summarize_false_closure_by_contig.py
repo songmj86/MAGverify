@@ -181,7 +181,7 @@ def atomic_write(path: str, header: List[str], rows: List[List[object]]) -> None
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--mag-contig-map", required=True)
-    parser.add_argument("--combined-fai", required=True)
+    parser.add_argument("--assemblies-fai", required=True)
     parser.add_argument("--contig-circularity", required=True)
     parser.add_argument("--clipping-all-final-tsv", required=True)
     parser.add_argument("--details-tsv", required=True)
@@ -195,12 +195,12 @@ def main() -> None:
         fail("premature-circularization thresholds must be positive")
 
     contig_to_mag, mag_counts = load_mag_map(args.mag_contig_map)
-    lengths = load_fai(args.combined_fai)
+    lengths = load_fai(args.assemblies_fai)
     circularity = load_circularity(args.contig_circularity)
     if set(circularity) != set(lengths):
         missing = sorted(set(lengths) - set(circularity))[:10]
         extra = sorted(set(circularity) - set(lengths))[:10]
-        fail(f"circularity/combined-FAI contig mismatch: missing={missing}, extra={extra}")
+        fail(f"circularity/all-assemblies FAI contig mismatch: missing={missing}, extra={extra}")
     validated_clipping, unresolved_clipping = load_clipping_state(args.clipping_all_final_tsv)
     details = load_details(args.details_tsv)
     ribosomal_families = load_ribosomal_families(args.scg_tsv)

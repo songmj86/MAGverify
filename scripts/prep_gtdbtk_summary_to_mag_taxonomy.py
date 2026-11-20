@@ -69,7 +69,7 @@ def convert(gtdbtk_dir: Path, output: Path, mag_dir: Path | None = None) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, add_help=False)
-    parser.add_argument("-h", action="help", help="Show this help message and exit")
+    parser.add_argument("-h", action="help", help=argparse.SUPPRESS)
     parser.add_argument("--gtdbtk-dir", required=True, type=Path, metavar="DIR",
                         help="GTDB-Tk classify_wf output directory "
                              "(gtdbtk.bac120.summary.tsv, gtdbtk.ar53.summary.tsv)")

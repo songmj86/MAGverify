@@ -3,7 +3,7 @@ import os
 import sys
 from collections import Counter, defaultdict
 
-combined_fai, contig_path, mag_path, dataset_path, *source_fastas = sys.argv[1:]
+assemblies_fai, contig_path, mag_path, dataset_path, *source_fastas = sys.argv[1:]
 
 if not source_fastas:
     raise SystemExit('ERROR: no source assembler FASTAs supplied')
@@ -31,7 +31,7 @@ def assembler_label(path):
     return os.path.splitext(name)[0]
 
 
-combined = read_fai(combined_fai)
+combined = read_fai(assemblies_fai)
 contig_source = {}
 assembler_order = []
 for fasta in source_fastas:

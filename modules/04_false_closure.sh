@@ -198,7 +198,7 @@ python3 "$RESOLVE_CONTIG_CIRCULARITY" \
     --output "$FALSE_CLOSURE_CONTIG_CIRCULARITY_TSV"
 
 python3 "$DETECTOR" \
-    --combined-fai "${ASSEMBLY_FA}.fai" \
+    --assemblies-fai "${ASSEMBLY_FA}.fai" \
     --mapping-manifest "$ASSEMBLER_MAPPING_MANIFEST" \
     --clipping-all-final-tsv "$CLIP_ALL_FINAL" \
     --contig-circularity "$FALSE_CLOSURE_CONTIG_CIRCULARITY_TSV" \
@@ -225,7 +225,7 @@ python3 "$SUMMARIZER" \
 
 python3 "$CONTIG_SUMMARIZER" \
     --mag-contig-map "$MAG_CONTIG_MAP" \
-    --combined-fai "${ASSEMBLY_FA}.fai" \
+    --assemblies-fai "${ASSEMBLY_FA}.fai" \
     --contig-circularity "$FALSE_CLOSURE_CONTIG_CIRCULARITY_TSV" \
     --clipping-all-final-tsv "$CLIP_ALL_FINAL" \
     --details-tsv "$FALSE_CLOSURE_BREAKPOINTS_TSV" \

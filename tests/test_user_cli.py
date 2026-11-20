@@ -194,7 +194,7 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
                       '-r', self.reads_dir, '-o', self.output,
                       '-t', '2')
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
-        combined = self.output / '00_prep/combined_assembly.fasta'
+        combined = self.output / '00_prep/all_assemblies.fasta'
         self.assertEqual(combined.read_text(), self.source.read_text())
         self.assertTrue((self.output / '01_mapping/mapping_manifest.tsv').is_file())
         forwarded = (self.output / '03_clipping/forwarded.txt').read_text()
@@ -208,7 +208,7 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
                       '--mapping-manifest', self.manifest,
                       '-o', self.output)
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
-        self.assertEqual((self.output / '00_prep/combined_assembly.fasta').read_text(),
+        self.assertEqual((self.output / '00_prep/all_assemblies.fasta').read_text(),
                          self.source.read_text())
         self.assertFalse((self.output / '01_mapping').exists())
 
@@ -222,7 +222,7 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
         self.assertNotEqual(p.returncode, 0)
         self.assertIn('Duplicate contig ID', p.stderr)
 
-    def test_combined_assembly_recreated_after_source_change(self):
+    def test_all_assemblies_recreated_after_source_change(self):
         originals = self.home / 'orig'
         originals.mkdir()
         shutil.copy2(self.source, originals / 'source.fa')
@@ -236,7 +236,7 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
         (originals / 'source.fa').write_text('>ctg1\nACGTACGT\n>ctg2\nAAAA\n')
         third = self.call(*base)
         self.assertEqual(third.returncode, 0, third.stdout + third.stderr)
-        self.assertIn('>ctg2', (self.output / '00_prep/combined_assembly.fasta').read_text())
+        self.assertIn('>ctg2', (self.output / '00_prep/all_assemblies.fasta').read_text())
 
     def test_missing_source_input_explained(self):
         p = self.call('clipping', '-g', self.mag_dir,

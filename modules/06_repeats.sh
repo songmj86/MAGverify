@@ -37,6 +37,12 @@ REPEAT_SORT_MEMORY="${REPEAT_SORT_MEMORY:-50%}"
 REPEAT_MIN_CONTIG_LEN="${REPEAT_MIN_CONTIG_LEN:-0}"
 
 (( REPEAT_JOBS > THREADS )) && REPEAT_JOBS="$THREADS"
+if [[ -n "${MEMORY_GB:-}" ]]; then
+    sort_gb=$(( MEMORY_GB / 2 )); (( sort_gb < 1 )) && sort_gb=1
+    REPEAT_SORT_MEMORY="${sort_gb}G"
+    memory_jobs=$(( (MEMORY_GB - sort_gb) / 2 )); (( memory_jobs < 1 )) && memory_jobs=1
+    (( REPEAT_JOBS > memory_jobs )) && REPEAT_JOBS="$memory_jobs"
+fi
 
 export OMP_NUM_THREADS=1
 export OPENBLAS_NUM_THREADS=1

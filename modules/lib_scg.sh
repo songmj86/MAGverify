@@ -4,7 +4,7 @@ set -euo pipefail
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
     cat <<'HELP'
 Usage: bash lib_scg.sh ASSEMBLY_FASTA OUTPUT_DIR [THREADS]
-Input: combined assembly FASTA.
+Input: all-assemblies FASTA.
 Additional software: anvi'o (anvi-script-reformat-fasta, anvi-gen-contigs-database, anvi-run-hmms).
 Output: OUTPUT_DIR/SCG_from_anvio.original_contig.tsv
 HELP
