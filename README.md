@@ -183,19 +183,23 @@ Integrates results from completed modules into a genome integrity summary and va
 
 ## 4. Results
 
-Final tables are linked under `OUTPUT_DIR/results/`; module directories retain the intermediate files.
+Final tables are written to `OUTPUT_DIR/results/` as `MODULE.LEVEL.tsv`; module directories retain the intermediate files.
 
-| Module | Main output files |
+| Level | Rows | Leading columns |
+| --- | --- | --- |
+| `MAG` | One per MAG | `MAG_ID`, `Assembler` |
+| `contig` | One per contig of all assemblies (`MAG_ID` is `NA` for contigs outside the MAGs) | `Contig`, `MAG_ID`, `Assembler` |
+| `site`, `region`, `gene` | One per clipping site, phantom region or gene | `Contig`, `MAG_ID`, `Assembler` |
+
+| Module | Final tables |
 | --- | --- |
 | Read mapping | `mapping_manifest.tsv` |
-| Circularity | `circularity_mag.tsv` |
-| Clipping | `clipping_sites.tsv`, `clipping_contig.tsv`, `clipping_mag.tsv` |
-| False closure | `false_closure_contig.tsv`, `false_closure_mag.tsv` |
-| Phantom sequences | `phantom_contig.tsv`, `phantom_mag.tsv` |
-| Repeats | `repeats_contig.tsv`, `repeats_mag.tsv` |
-| Taxonomic chimera | `chimera_contig.tsv`, `chimera_mag.tsv` (plus gene taxonomy outputs) |
-| False duplication | `false_duplication_contig.tsv`, `false_duplication_mag.tsv` |
-| Assembly variants | `variants_contig.tsv`, `variants_mag.tsv` |
-| Integrated QC summary | `summary_contig.tsv`, `summary_mag.tsv` |
-
-Keep the results directory and its module subdirectories together so the symbolic links remain valid.
+| Circularity | `circularity.MAG.tsv` |
+| Clipping | `clipping.site.tsv`, `clipping.contig.tsv`, `clipping.MAG.tsv` |
+| False closure | `false_closure.contig.tsv`, `false_closure.MAG.tsv` |
+| Phantom sequences | `phantom.region.tsv`, `phantom.MAG.tsv` |
+| Repeats | `repeats.contig.tsv`, `repeats.MAG.tsv` |
+| Taxonomic chimera | `chimera.contig.tsv`, `chimera.MAG.tsv`, `gene_taxonomy.gene.tsv`, `scg.gene.tsv` |
+| False duplication | `false_duplication.contig.tsv`, `false_duplication.MAG.tsv` |
+| Assembly variants | `variants.contig.tsv`, `variants.MAG.tsv` |
+| Integrated QC summary | `summary.contig.tsv` (MAG contigs), `summary.MAG.tsv` |

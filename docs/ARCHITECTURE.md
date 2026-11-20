@@ -15,7 +15,7 @@ MAGverify separates the public command-line interface from the existing research
 
 ## Input and output contract
 
-All inputs should be provided as command-line arguments. The same `-o` is reused across modules. Intermediate files stay in numbered analysis directories. Final public tables are placed (as links to their original results) in `OUTPUT/results/`; the summary produces `summary_mag.tsv` and `summary_contig.tsv`.
+All inputs should be provided as command-line arguments. The same `-o` is reused across modules. Intermediate files stay in numbered analysis directories. Final public tables are written to `OUTPUT/results/` as `MODULE.LEVEL.tsv` (`MAG`, `contig`, `site`, `region`, `gene`) with the same leading ID columns; the summary produces `summary.MAG.tsv` and `summary.contig.tsv`.
 
 Output names and internal paths are managed by the CLI, not by a user-edited module configuration. The CLI may prepare the all-assemblies FASTA and MAG-contig membership table as internal processing prerequisites. Chimera computes gene taxonomy internally; SCG annotation is built beforehand by `prep-scg`. Summary validates completed outputs without rerunning analyses.
 

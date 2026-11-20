@@ -39,7 +39,7 @@ Important interpretation
   counted as closure evidence. The newly introduced linear reference break is
   never evaluated as an assembly error in this workflow.
 
-  With no arguments, the script finds each eligible MAG contig by exact sequence
+  With no arguments, the script finds each single-contig MAG contig by exact sequence
   matching against hifiasm_meta.fa, metaflye.fa, and metaMDBG.fa. It then runs
   each assembler-specific group sequentially and merges the final results.
 
@@ -152,21 +152,8 @@ fi
 MINIMAP2_VERSION="$($MINIMAP2_CMD --version 2>/dev/null | head -n 1 || true)"
 [[ -n "$MINIMAP2_VERSION" ]] || MINIMAP2_VERSION="unknown"
 
-MINIMAP2_SECONDARY_SEQ_ARGS=()
-MINIMAP2_HELP_TEXT="$("$MINIMAP2_CMD" 2>&1 || true)"
-if grep -q -- '--secondary-seq' <<< "$MINIMAP2_HELP_TEXT"; then
-    MINIMAP2_SECONDARY_SEQ_ARGS=(--secondary-seq)
-    MINIMAP2_SECONDARY_SEQ_STATUS="Y"
-else
-    MINIMAP2_SECONDARY_SEQ_STATUS="N"
-fi
-unset MINIMAP2_HELP_TEXT
-
 echo "[$SCRIPT_NAME] minimap2 executable: $MINIMAP2_CMD"
 echo "[$SCRIPT_NAME] minimap2 version: $MINIMAP2_VERSION"
-if [[ "$MINIMAP2_SECONDARY_SEQ_STATUS" == "N" ]]; then
-    echo "[$SCRIPT_NAME] NOTE: --secondary-seq is unavailable; omitting it because secondary SEQ is not required for circularity validation."
-fi
 
 run_automatic_source_matched_mode() {
     local plan_dir="$OUTDIR/00_source_plan"
@@ -204,7 +191,7 @@ run_automatic_source_matched_mode() {
     else
         rm -rf "$plan_dir"
         mkdir -p "$plan_dir" "$grouped_mag_root"
-        echo "[$SCRIPT_NAME] Matching each eligible MAG to its exact source-assembly contig."
+        echo "[$SCRIPT_NAME] Matching each single-contig MAG to its contig in the assembler FASTAs."
 
         python3 "$SCRIPT_DIR/../scripts/circularity_select_circularity_sources.py" "$ASSEMBLER_ASSEMBLY_DIR" "$ASSEMBLER_FASTAS" "$MAG_DIR" \
             "$grouped_mag_root" "$source_plan" "$source_groups" \
@@ -304,8 +291,7 @@ run_automatic_source_matched_mode() {
         echo "Minimum_junction_spanning_HiFi_reads: $MIN_HIFI_READS"
         echo "HiFi_main_alignment_classes: primary_plus_supplementary"
         echo "HiFi_sensitivity_alignment_classes: all_mapped_primary_secondary_supplementary"
-        echo "HiFi_minimap2_secondary_policy: --secondary=yes_-p_1_-N_${MINIMAP2_MAX_SECONDARY}"
-        echo "HiFi_minimap2_secondary_sequence_payload_requested: $MINIMAP2_SECONDARY_SEQ_STATUS"
+        echo "HiFi_minimap2_secondary_policy: --secondary=yes_-p_1_-N_${MINIMAP2_MAX_SECONDARY}_--secondary-seq"
         echo "HiFi_minimap2_executable: $MINIMAP2_CMD"
         echo "HiFi_minimap2_version: $MINIMAP2_VERSION"
         echo "HiFi_MAPQ_cutoff_used: N"
@@ -425,7 +411,7 @@ else
         --secondary=yes \
         -p 1 \
         -N "$MINIMAP2_MAX_SECONDARY" \
-        "${MINIMAP2_SECONDARY_SEQ_ARGS[@]}" \
+        --secondary-seq \
         "$HIFI_INDEX" "${HIFI_FILES[@]}" 2> "$HIFI_LOG" |
         samtools view -@ "$SORT_THREADS" -b -F 4 - |
         samtools sort -@ "$SORT_THREADS" -m "$SORT_MEMORY" -o "$HIFI_BAM" -; then
@@ -488,8 +474,7 @@ fi
     echo "Final_output_scope: all_MAGs_present_in_worker_MAG_directory; multi_contig_MAGs_reported_as_non_analyzable_NA_rows"
     echo "HiFi_main_alignment_classes: primary_plus_supplementary"
     echo "HiFi_sensitivity_alignment_classes: all_mapped_primary_secondary_supplementary"
-    echo "HiFi_minimap2_secondary_policy: --secondary=yes_-p_1_-N_${MINIMAP2_MAX_SECONDARY}"
-    echo "HiFi_minimap2_secondary_sequence_payload_requested: $MINIMAP2_SECONDARY_SEQ_STATUS"
+    echo "HiFi_minimap2_secondary_policy: --secondary=yes_-p_1_-N_${MINIMAP2_MAX_SECONDARY}_--secondary-seq"
     echo "HiFi_minimap2_executable: $MINIMAP2_CMD"
     echo "HiFi_minimap2_version: $MINIMAP2_VERSION"
     echo "HiFi_MAPQ_cutoff_used: N"

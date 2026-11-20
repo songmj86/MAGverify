@@ -78,70 +78,189 @@ RESULTS = {
 }
 PUBLIC_RESULTS = {
     'map': {
-        'mapping_manifest.tsv': '01_mapping/mapping_manifest.tsv',
+        'mapping_manifest.tsv': ('01_mapping/mapping_manifest.tsv', None),
     },
     'clipping': {
-        'clipping_sites.tsv': '03_clipping/clipping.filtered.tsv',
-        'clipping_mag.tsv': '03_clipping/MAG_clipping.final.tsv',
-        'clipping_contig.tsv': '03_clipping/contig_clipping.final.tsv',
+        'clipping.site.tsv': ('03_clipping/clipping.filtered.tsv', 'site'),
+        'clipping.contig.tsv': ('03_clipping/contig_clipping.final.tsv', 'contig'),
+        'clipping.MAG.tsv': ('03_clipping/MAG_clipping.final.tsv', 'MAG'),
     },
     'chimera': {
-        'gene_taxonomy.tsv': '00_prep/gene_taxonomy/GTDB_R232/gene_taxonomy.mmseqs2.GTDB_R232.all_contigs.tsv',
-        'scg.tsv': '00_prep/SCG/SCG_from_anvio.original_contig.tsv',
-        'chimera_contig.tsv': '07_chimera/GTDB_R232/clipping_defined/contig_taxonomic_chimera.GTDB_R232.final.tsv',
-        'chimera_mag.tsv': '07_chimera/GTDB_R232/clipping_defined/MAG_taxonomic_chimera.GTDB_R232.final.tsv',
+        'gene_taxonomy.gene.tsv': ('00_prep/gene_taxonomy/GTDB_R232/gene_taxonomy.mmseqs2.GTDB_R232.all_contigs.tsv', 'gene'),
+        'scg.gene.tsv': ('00_prep/SCG/SCG_from_anvio.original_contig.tsv', 'gene'),
+        'chimera.contig.tsv': ('07_chimera/GTDB_R232/clipping_defined/contig_taxonomic_chimera.GTDB_R232.final.tsv', 'contig'),
+        'chimera.MAG.tsv': ('07_chimera/GTDB_R232/clipping_defined/MAG_taxonomic_chimera.GTDB_R232.final.tsv', 'MAG'),
     },
     'circularity': {
-        'circularity_mag.tsv': '02_circularity/MAG_circularity.final.tsv',
+        'circularity.MAG.tsv': ('02_circularity/MAG_circularity.final.tsv', 'MAG'),
     },
     'false-closure': {
-        'false_closure_mag.tsv': '04_false_closure/MAG_false_closure.final.tsv',
-        'false_closure_contig.tsv': '04_false_closure/contig_false_closure.final.tsv',
+        'false_closure.contig.tsv': ('04_false_closure/contig_false_closure.final.tsv', 'contig'),
+        'false_closure.MAG.tsv': ('04_false_closure/MAG_false_closure.final.tsv', 'MAG'),
     },
     'variants': {
-        'variants_contig.tsv': '09_assembly_variants/contig_assembly_allele_support.final.tsv',
-        'variants_mag.tsv': '09_assembly_variants/assembly_allele_support.by_MAG.tsv',
+        'variants.contig.tsv': ('09_assembly_variants/contig_assembly_allele_support.final.tsv', 'contig'),
+        'variants.MAG.tsv': ('09_assembly_variants/assembly_allele_support.by_MAG.tsv', 'MAG'),
     },
     'phantom': {
-        'phantom_contig.tsv': '05_phantom/phantom_sequences.final.tsv',
-        'phantom_mag.tsv': '05_phantom/MAG_phantom_summary.final.tsv',
+        'phantom.region.tsv': ('05_phantom/phantom_sequences.final.tsv', 'region'),
+        'phantom.MAG.tsv': ('05_phantom/MAG_phantom_summary.final.tsv', 'MAG'),
     },
     'repeats': {
-        'repeats_contig.tsv': '06_repeats/contig_repeat_breadth.final.tsv',
-        'repeats_mag.tsv': '06_repeats/MAG_repeat_breadth.final.tsv',
+        'repeats.contig.tsv': ('06_repeats/contig_repeat_breadth.final.tsv', 'contig'),
+        'repeats.MAG.tsv': ('06_repeats/MAG_repeat_breadth.final.tsv', 'MAG'),
     },
     'false-duplication': {
-        'false_duplication_contig.tsv': '08_false_duplication/false_duplication.by_contig.tsv',
-        'false_duplication_mag.tsv': '08_false_duplication/false_duplication.by_MAG.tsv',
+        'false_duplication.contig.tsv': ('08_false_duplication/false_duplication.by_contig.tsv', 'contig'),
+        'false_duplication.MAG.tsv': ('08_false_duplication/false_duplication.by_MAG.tsv', 'MAG'),
     },
     'summary': {
-        'summary_mag.tsv': '10_summary/integrated_QC_summary.by_MAG.tsv',
-        'summary_contig.tsv': '10_summary/integrated_QC_summary.MAG_contigs.tsv',
+        'summary.contig.tsv': ('10_summary/integrated_QC_summary.MAG_contigs.tsv', 'contig'),
+        'summary.MAG.tsv': ('10_summary/integrated_QC_summary.by_MAG.tsv', 'MAG'),
     },
+}
+LEGACY_PUBLIC_NAMES = (
+    'clipping_sites.tsv', 'clipping_mag.tsv', 'clipping_contig.tsv', 'gene_taxonomy.tsv', 'scg.tsv',
+    'chimera_contig.tsv', 'chimera_mag.tsv', 'circularity_mag.tsv', 'false_closure_mag.tsv',
+    'false_closure_contig.tsv', 'variants_contig.tsv', 'variants_mag.tsv', 'phantom_contig.tsv',
+    'phantom_mag.tsv', 'repeats_contig.tsv', 'repeats_mag.tsv', 'false_duplication_contig.tsv',
+    'false_duplication_mag.tsv', 'summary_mag.tsv', 'summary_contig.tsv',
+)
+ID_ALIASES = {
+    'Contig': ('contig', 'contig_id', 'contig_name'),
+    'MAG_ID': ('mag_id', 'mag', 'bin_id'),
+    'Assembler': ('assembler', 'source_assembler'),
 }
 
 
+class ContigIndex:
+    """Contig -> MAG_ID and contig -> Assembler lookups for the published tables."""
+
+    def __init__(self, root):
+        self.root = root
+        self._mags = None
+        self._assemblers = None
+
+    def mags(self):
+        if self._mags is None:
+            self._mags = {}
+            path = self.root / RESULTS['mag_map']
+            if path.is_file():
+                with path.open(encoding='utf-8-sig', newline='') as handle:
+                    for row in csv.DictReader(handle, delimiter='\t'):
+                        contig, mag = (row.get('Contig') or '').strip(), (row.get('MAG_ID') or '').strip()
+                        if contig and mag:
+                            self._mags.setdefault(contig, set()).add(mag)
+        return self._mags
+
+    def assemblers(self):
+        if self._assemblers is None:
+            self._assemblers = {}
+            paths = []
+            for name in ('all_assemblies.fasta', 'combined_assembly.fasta'):
+                sources = self.root / '00_prep' / f'{name}.sources.json'
+                try:
+                    paths = [Path(item['path']) for item in json.loads(sources.read_text())]
+                    break
+                except (OSError, ValueError, KeyError, TypeError):
+                    continue
+            for fasta in paths:
+                name = fasta.stem
+                fai = Path(str(fasta) + '.fai')
+                if fai.is_file() and fasta.is_file() and fai.stat().st_mtime_ns >= fasta.stat().st_mtime_ns:
+                    with fai.open() as handle:
+                        for line in handle:
+                            self._assemblers[line.split('\t', 1)[0]] = name
+                elif fasta.is_file():
+                    with fasta.open('rb') as handle:
+                        for line in handle:
+                            if line.startswith(b'>'):
+                                self._assemblers[line[1:].split()[0].decode()] = name
+        return self._assemblers
+
+
+def normalize_header(header, level):
+    renamed, used = list(header), set()
+    for target, aliases in ID_ALIASES.items():
+        if target in renamed:
+            used.add(target)
+            continue
+        for index, name in enumerate(renamed):
+            if name.lower() in aliases and target not in used:
+                renamed[index] = target
+                used.add(target)
+                break
+    if level == 'MAG' and 'MAG_ID' not in renamed and renamed and renamed[0].lower() == 'id':
+        renamed[0] = 'MAG_ID'
+    return renamed
+
+
+def publish_table(source, target, level, index):
+    """MAG tables start with MAG_ID, Assembler; contig/site/region/gene tables with Contig, MAG_ID, Assembler."""
+    with source.open(encoding='utf-8-sig', newline='') as handle:
+        rows = list(csv.reader(handle, delimiter='\t'))
+    if not rows:
+        return
+    header = normalize_header(rows[0], level)
+    data = [row + [''] * (len(header) - len(row)) for row in rows[1:]]
+    columns = {name: i for i, name in enumerate(header)}
+    lead = ['MAG_ID', 'Assembler'] if level == 'MAG' else ['Contig', 'MAG_ID', 'Assembler']
+    extra = {}
+    if lead[0] not in columns:
+        print(f'WARNING: {source.name} has no {lead[0]} column; published without reordering', flush=True)
+        lead = []
+    elif level == 'MAG':
+        if 'Assembler' not in columns:
+            members = {}
+            for contig, mags in index.mags().items():
+                for mag in mags:
+                    members.setdefault(mag, set()).add(index.assemblers().get(contig, 'NA'))
+            extra['Assembler'] = lambda row: ','.join(sorted(members.get(row[columns['MAG_ID']], {'NA'})))
+    else:
+        if 'MAG_ID' not in columns:
+            extra['MAG_ID'] = lambda row: ','.join(sorted(index.mags().get(row[columns['Contig']], {'NA'})))
+        if 'Assembler' not in columns:
+            extra['Assembler'] = lambda row: index.assemblers().get(row[columns['Contig']], 'NA')
+    out_header = lead + [name for name in header if name not in lead]
+    target.parent.mkdir(parents=True, exist_ok=True)
+    fd, temp = tempfile.mkstemp(prefix=f'.{target.name}.', dir=target.parent)
+    with os.fdopen(fd, 'w', newline='') as handle:
+        writer = csv.writer(handle, delimiter='\t', lineterminator='\n')
+        writer.writerow(out_header)
+        blank = {'', '-', '.', 'na', 'none', 'null'}
+        for row in data:
+            values = [extra[name](row) if name in extra else row[columns[name]] for name in out_header]
+            for i in range(len(lead)):
+                if values[i].strip().lower() in blank:
+                    values[i] = 'NA'
+            writer.writerow(values)
+    os.replace(temp, target)
+
+
 def publish_results(stage, root):
-    """Expose final tables with simple names without duplicating large files."""
+    """Write the final tables to results/ as MODULE.LEVEL.tsv with the same leading ID columns."""
     names = PUBLIC_RESULTS.get(stage, {})
-    available = [(name, root / relative) for name, relative in names.items()
+    available = [(name, root / relative, level) for name, (relative, level) in names.items()
                  if (root / relative).is_file() and (root / relative).stat().st_size > 0]
     if not available:
         return
     public_dir = root / 'results'
     public_dir.mkdir(parents=True, exist_ok=True)
-    for name, original in available:
-        short_path = public_dir / name
-        relative_target = os.path.relpath(original, public_dir)
-        if short_path.is_symlink():
-            if short_path.resolve() == original.resolve():
-                continue
-            short_path.unlink()
-        elif short_path.exists():
-            raise UsageError(f'Output name already exists and is not a managed link: {short_path}')
-        short_path.symlink_to(relative_target)
+    for legacy in LEGACY_PUBLIC_NAMES:
+        old = public_dir / legacy
+        if old.is_symlink():
+            old.unlink()
+    index = ContigIndex(root)
+    for name, original, level in available:
+        target = public_dir / name
+        if target.is_symlink():
+            target.unlink()
+        if level is None:
+            target.symlink_to(os.path.relpath(original, public_dir))
+        elif not (target.is_file() and target.stat().st_mtime_ns >= original.stat().st_mtime_ns):
+            publish_table(original, target, level, index)
     print('Final tables:', flush=True)
-    for name, _ in available:
+    for name, _, _ in available:
         print('  ' + str(public_dir / name), flush=True)
 
 

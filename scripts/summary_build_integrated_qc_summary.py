@@ -874,7 +874,9 @@ if module_available['circularity']:
                 raise SystemExit(
                     f'ERROR: invalid Read_supported_circular_topology for {mag}: {topology}'
                 )
-            if high_conf not in {'Y', 'N'} or additional_candidate not in {'Y', 'N'} or circ not in {'Y', 'N'}:
+            derived_values = {'Y', 'N', 'NA'} if assembler == 'NA' else {'Y', 'N'}
+            if (high_conf not in derived_values or additional_candidate not in derived_values
+                    or circ not in {'Y', 'N', 'NA'}):
                 raise SystemExit(f'ERROR: invalid derived circularity field for {mag}')
             if eligibility not in {
                 'Y_single_contig', 'N_not_single_contig',
@@ -897,8 +899,13 @@ if module_available['circularity']:
                 raise SystemExit(
                     f'ERROR: non-evaluable single-contig MAG must have topology=NA for {mag}'
                 )
-            expected_high_conf = 'Y' if assembler == 'Y' and topology == 'Y' else 'N'
-            expected_additional = 'Y' if assembler == 'N' and topology == 'Y' else 'N'
+            if assembler == 'NA':
+                expected_high_conf = expected_additional = 'NA'
+                expected_circ = topology
+            else:
+                expected_high_conf = 'Y' if assembler == 'Y' and topology == 'Y' else 'N'
+                expected_additional = 'Y' if assembler == 'N' and topology == 'Y' else 'N'
+                expected_circ = expected_high_conf
             if high_conf != expected_high_conf:
                 raise SystemExit(
                     f'ERROR: inconsistent high-confidence circularity for {mag}'
@@ -907,10 +914,8 @@ if module_available['circularity']:
                 raise SystemExit(
                     f'ERROR: inconsistent additional circular candidate call for {mag}'
                 )
-            if circ != high_conf:
-                raise SystemExit(
-                    f'ERROR: Circular compatibility alias differs from High_confidence_circular for {mag}'
-                )
+            if circ != expected_circ:
+                raise SystemExit(f'ERROR: inconsistent Circular call for {mag}')
             circularity[mag] = {'Circular': circ, 'Assembler': assembler}
             circularity_eligibility[mag] = eligibility
     all_mags.update(circularity)

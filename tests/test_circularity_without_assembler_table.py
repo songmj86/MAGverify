@@ -28,8 +28,9 @@ class CircularityWithoutAssemblerTableTests(unittest.TestCase):
                 rows = {row['ID']: row for row in csv.DictReader(handle, delimiter='\t')}
             self.assertEqual(rows['Bin1L']['Assembler_reported_circularity'], 'NA')
             self.assertEqual(rows['Bin1L']['Read_supported_circular_topology'], 'Y')
-            self.assertEqual(rows['Bin1L']['High_confidence_circular'], 'N')
-            self.assertEqual(rows['Bin1L']['Additional_circular_candidate'], 'N')
+            self.assertEqual(rows['Bin1L']['High_confidence_circular'], 'NA')
+            self.assertEqual(rows['Bin1L']['Additional_circular_candidate'], 'NA')
+            self.assertEqual(rows['Bin1L']['Circular'], 'Y')
             self.assertEqual(rows['Bin2L']['Read_supported_circular_topology'], 'NA')
 
 

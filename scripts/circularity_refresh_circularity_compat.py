@@ -224,8 +224,13 @@ def build_rows(
                 topology = "NA"
 
         assembler = assembler_calls[mag]
-        high_confidence = "Y" if assembler == "Y" and topology == "Y" else "N"
-        additional_candidate = "Y" if assembler == "N" and topology == "Y" else "N"
+        if assembler == "NA":
+            high_confidence = additional_candidate = "NA"
+            circular = topology
+        else:
+            high_confidence = "Y" if assembler == "Y" and topology == "Y" else "N"
+            additional_candidate = "Y" if assembler == "N" and topology == "Y" else "N"
+            circular = high_confidence
 
         final_rows.append(
             {
@@ -236,7 +241,7 @@ def build_rows(
                 "Read_supported_circular_topology": topology,
                 "High_confidence_circular": high_confidence,
                 "Additional_circular_candidate": additional_candidate,
-                "Circular": high_confidence,
+                "Circular": circular,
             }
         )
         audit_rows.append(
