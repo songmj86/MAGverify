@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Convert GTDB-Tk summaries to the MAGverify MAG taxonomy TSV."""
+import shutil
+import re
 import argparse
 import csv
 from pathlib import Path
@@ -67,18 +69,37 @@ def convert(gtdbtk_dir: Path, output: Path, mag_dir: Path | None = None) -> int:
     return len(data)
 
 
+
+class OptionHelpFormatter(argparse.RawDescriptionHelpFormatter):
+    """Show options without value placeholders, each option on one line."""
+
+    def __init__(self, prog):
+        width = max(100, shutil.get_terminal_size((120, 24)).columns)
+        super().__init__(prog, max_help_position=40, width=width)
+
+    def _format_args(self, action, default_metavar):
+        return '' if action.option_strings else super()._format_args(action, default_metavar)
+
+    def _format_action_invocation(self, action):
+        return ', '.join(action.option_strings) or super()._format_action_invocation(action)
+
+    def _format_usage(self, usage, actions, groups, prefix):
+        text = super()._format_usage(usage, actions, groups, prefix)
+        text = re.sub(r'(?<=\S)  +(?=\S)', ' ', text.replace(' ]', ']'))
+        return '\n'.join(line.rstrip() for line in text.split('\n'))
+
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__, add_help=False)
+    parser = argparse.ArgumentParser(description=__doc__, add_help=False, formatter_class=OptionHelpFormatter)
     parser.add_argument("-h", action="help", help=argparse.SUPPRESS)
     parser.add_argument("--gtdbtk-dir", required=True, type=Path, metavar="DIR",
                         help="GTDB-Tk classify_wf output directory "
                              "(gtdbtk.bac120.summary.tsv, gtdbtk.ar53.summary.tsv)")
     parser.add_argument("-g", dest="mag_dir", required=True, type=Path, metavar="DIR",
-                        help="Folder of MAGs (*.fa)")
-    parser.add_argument("-o", dest="output_dir", required=True, type=Path, metavar="DIR",
-                        help="Folder of base output (table: DIR/MAG_taxonomy.tsv)")
+                        help="Directory of MAGs (*.fa)")
+    parser.add_argument("-o", dest="output", required=True, type=Path, metavar="FILE",
+                        help="Output MAG taxonomy TSV")
     args = parser.parse_args()
-    output = args.output_dir / "MAG_taxonomy.tsv"
+    output = args.output
     try:
         count = convert(args.gtdbtk_dir, output, args.mag_dir)
     except (ValueError, OSError) as error:

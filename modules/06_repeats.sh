@@ -21,7 +21,7 @@ REPEAT_DIR="${REPEAT_DIR}"
 LOG="$OUT/00_log/06_repeats.log"
 
 FORCE_RERUN_REPEAT="${FORCE_RERUN_REPEAT:-N}"
-REPEAT_CACHE_META="${REPEAT_CACHE_META:-${REPEAT_SUM}.inputs.sha256}"
+REPEAT_CACHE_META="${REPEAT_CACHE_META:-${REPEAT_DIR}/.cache/repeats.contig.tsv.inputs.sha256}"
 
 REPEAT_MIN_ALIGN_PAPER="${REPEAT_MIN_ALIGN_PAPER:-200}"
 REPEAT_PIDENT_PAPER="${REPEAT_PIDENT_PAPER:-80}"
@@ -49,21 +49,36 @@ export OPENBLAS_NUM_THREADS=1
 export MKL_NUM_THREADS=1
 export NUMEXPR_NUM_THREADS=1
 
-SELF_BLAST="${REPEAT_SELF_BLAST:-$REPEAT_DIR/self_blast.paper_same_contig.filtered.tsv}"
-INTER_BLAST="${REPEAT_INTER_BLAST:-$REPEAT_DIR/inter_blast.paper_same_MAG_different_contig.filtered.tsv}"
+REPEAT_WORK_DIR="$REPEAT_DIR/.work"
+SELF_BLAST="$REPEAT_WORK_DIR/self_blast.paper_same_contig.filtered.tsv"
+INTER_BLAST="$REPEAT_WORK_DIR/inter_blast.paper_same_MAG_different_contig.filtered.tsv"
+REPEAT_HSP="$REPEAT_DIR/repeats.HSP.tsv"
+REPEAT_REGIONS="$REPEAT_DIR/repeats.region.tsv"
 REPEAT_MAG_MAP="${REPEAT_MAG_MAP:-$MAG_CONTIG_MAP}"
-REPEAT_MAG_SUM="${REPEAT_MAG_SUM:-$REPEAT_DIR/MAG_repeat_breadth.final.tsv}"
-REPEAT_DATASET_SUM="${REPEAT_DATASET_SUM:-$REPEAT_DIR/dataset_repeat_breadth.final.tsv}"
-REPEAT_DATASET_SUM_INTUITIVE="${REPEAT_DATASET_SUM_INTUITIVE:-$REPEAT_DIR/dataset_repeat_breadth.final.tsv}"
+REPEAT_MAG_SUM="${REPEAT_MAG_SUM:-$REPEAT_DIR/repeats.MAG.tsv}"
+REPEAT_DATASET_SUM="${REPEAT_DATASET_SUM:-$REPEAT_DIR/repeats.dataset.tsv}"
+REPEAT_DATASET_SUM_INTUITIVE="$REPEAT_DATASET_SUM"
 
-REPEAT_REGION_BED="${REPEAT_REGION_BED:-$REPEAT_DIR/repeat_regions.final.bed}"
-REPEAT_REGION_TSV="${REPEAT_REGION_TSV:-$REPEAT_DIR/repeat_regions.final.tsv}"
-INTRA_REGION_BED="${INTRA_REGION_BED:-$REPEAT_DIR/intra_repeat_regions.final.bed}"
-INTRA_REGION_TSV="${INTRA_REGION_TSV:-$REPEAT_DIR/intra_repeat_regions.final.tsv}"
-INTER_REGION_BED="${INTER_REGION_BED:-$REPEAT_DIR/inter_repeat_regions.final.bed}"
-INTER_REGION_TSV="${INTER_REGION_TSV:-$REPEAT_DIR/inter_repeat_regions.final.tsv}"
+REPEAT_REGION_BED="$REPEAT_WORK_DIR/repeat_regions.final.bed"
+REPEAT_REGION_TSV="$REPEAT_WORK_DIR/repeat_regions.final.tsv"
+INTRA_REGION_BED="$REPEAT_WORK_DIR/intra_repeat_regions.final.bed"
+INTRA_REGION_TSV="$REPEAT_WORK_DIR/intra_repeat_regions.final.tsv"
+INTER_REGION_BED="$REPEAT_WORK_DIR/inter_repeat_regions.final.bed"
+INTER_REGION_TSV="$REPEAT_WORK_DIR/inter_repeat_regions.final.tsv"
 
-mkdir -p "$OUT/00_log" "$REPEAT_DIR" \
+# Results of earlier versions: separate HSP/region tables in the module directory.
+for legacy in self_blast.paper_same_contig.filtered.tsv inter_blast.paper_same_MAG_different_contig.filtered.tsv \
+              repeat_regions.final.bed repeat_regions.final.tsv intra_repeat_regions.final.bed \
+              intra_repeat_regions.final.tsv inter_repeat_regions.final.bed inter_repeat_regions.final.tsv; do
+    if [[ -e "$REPEAT_DIR/$legacy" ]]; then
+        mkdir -p "$REPEAT_WORK_DIR"
+        mv -f "$REPEAT_DIR/$legacy" "$REPEAT_WORK_DIR/$legacy"
+    fi
+done
+[[ -e "$REPEAT_DIR/dataset_repeat_breadth.final.tsv" && ! -e "$REPEAT_DATASET_SUM" ]] \
+    && mv -f "$REPEAT_DIR/dataset_repeat_breadth.final.tsv" "$REPEAT_DATASET_SUM"
+
+mkdir -p "$OUT/00_log" "$REPEAT_DIR" "$REPEAT_WORK_DIR" \
     "$(dirname "$REPEAT_SUM")" "$(dirname "$REPEAT_MAG_SUM")" "$(dirname "$REPEAT_DATASET_SUM")"
 exec > >(tee -a "$LOG") 2>&1
 
@@ -212,10 +227,9 @@ fi
 if [[ "$FORCE_RERUN_REPEAT" != "Y" \
       && "$CACHED_REPEAT_FINGERPRINT" == "$REPEAT_FINGERPRINT" \
       && -s "$REPEAT_SUM" && -s "$REPEAT_MAG_SUM" \
-      && -s "$SELF_BLAST" && -s "$INTER_BLAST" \
-      && -e "$INTRA_REGION_BED" && -s "$INTRA_REGION_TSV" \
-      && -e "$INTER_REGION_BED" && -s "$INTER_REGION_TSV" \
-      && -e "$REPEAT_REGION_BED" && -s "$REPEAT_REGION_TSV" ]]; then
+      && ( ( -s "$REPEAT_HSP" && -s "$REPEAT_REGIONS" ) \
+           || ( -s "$SELF_BLAST" && -s "$INTER_BLAST" && -s "$INTRA_REGION_TSV" \
+                && -s "$INTER_REGION_TSV" && -s "$REPEAT_REGION_TSV" ) ) ]]; then
     echo "Existing INTRA+INTER repeat evidence matches current inputs; reusing evidence."
     NEED_REPEAT_ANALYSIS=0
 else
@@ -294,7 +308,7 @@ with open(manifest, 'w') as handle:
         path = out_dir / f'chunk_{idx:06d}.list'
         path.write_text('\n'.join(names) + '\n')
         handle.write(str(path) + '\n')
-print(f'Eligible contigs: {len(contigs)} in {len(chunks)} chunks (longest first).')
+print(f'Contigs at or above the minimum length: {len(contigs)} in {len(chunks)} chunks (longest first).')
 PY_SPLIT
 
     INTRA_FILTER="$TMP_ROOT/filter_intra.py"
@@ -345,14 +359,19 @@ while IFS= read -r contig; do
 done < "$chunk" \
     | python3 "$filter_py" "$out_root/$base.hsp.tsv" "$out_root/$base.bed" "$min_align" "$min_pident"
 rm -rf "$work"
+: > "$out_root/$base.done"
 SH_INTRA
     chmod +x "$INTRA_WORKER"
 
     echo "[60B] Running INTRA repeat BLAST (each contig against itself): ${REPEAT_JOBS} parallel jobs"
     if [[ -s "$INTRA_MANIFEST" ]]; then
+        qc_progress_watch "06_repeats][INTRA BLAST chunks" "$(wc -l < "$INTRA_MANIFEST")" \
+            "$INTRA_OUT_DIR" '*.done' &
+        progress_pid=$!
         xargs -r -n 1 -P "$REPEAT_JOBS" \
             "$INTRA_WORKER" "$REPEAT_FASTA" "$INTRA_FILTER" "$INTRA_DB_DIR" "$INTRA_OUT_DIR" \
             "$REPEAT_MIN_ALIGN_PAPER" "$REPEAT_PIDENT_PAPER" < "$INTRA_MANIFEST"
+        qc_progress_stop "$progress_pid"
         while IFS= read -r f; do cat "$f" >> "$TMP_INTRA_HSP"; done \
             < <(find "$INTRA_OUT_DIR" -name '*.hsp.tsv' -type f | LC_ALL=C sort)
         while IFS= read -r f; do cat "$f" >> "$TMP_INTRA_RAW_BED"; done \
@@ -465,7 +484,7 @@ fasta="$1"; filter_py="$2"; out_root="$3"; min_align="$4"; min_pident="$5"; bund
 base="$(basename "$bundle")"
 mag_id="$(<"$bundle/MAG_ID.txt")"
 mapfile -t contigs < "$bundle/contigs.txt"
-(( ${#contigs[@]} > 1 )) || exit 0
+(( ${#contigs[@]} > 1 )) || { : > "$out_root/$base.done"; exit 0; }
 mag_fa="$bundle/MAG.fa"
 samtools faidx "$fasta" "${contigs[@]}" > "$mag_fa"
 samtools faidx "$mag_fa"
@@ -478,14 +497,19 @@ for i in "${!contigs[@]}"; do
         2>> "$out_root/$base.blastn.stderr.log"
 done | python3 "$filter_py" "$mag_id" "$out_root/$base.hsp.tsv" "$out_root/$base.bed" "$min_align" "$min_pident"
 rm -f "$bundle/query.fa" "$bundle/others.fa" "$mag_fa" "$mag_fa.fai"
+: > "$out_root/$base.done"
 SH_INTER
     chmod +x "$INTER_WORKER"
 
     echo "[60E] Running same-MAG INTER repeat BLAST (each contig against the other contigs of its MAG): ${REPEAT_JOBS} parallel jobs"
     if [[ -s "$INTER_MANIFEST" ]]; then
+        qc_progress_watch "06_repeats][INTER BLAST MAGs" "$(wc -l < "$INTER_MANIFEST")" \
+            "$INTER_OUT_DIR" '*.done' &
+        progress_pid=$!
         xargs -r -n 1 -P "$REPEAT_JOBS" \
             "$INTER_WORKER" "$REPEAT_FASTA" "$INTER_FILTER" "$INTER_OUT_DIR" \
             "$REPEAT_MIN_ALIGN_PAPER" "$REPEAT_PIDENT_PAPER" < "$INTER_MANIFEST"
+        qc_progress_stop "$progress_pid"
         while IFS= read -r f; do cat "$f" >> "$TMP_INTER_HSP"; done \
             < <(find "$INTER_OUT_DIR" -name '*.hsp.tsv' -type f | LC_ALL=C sort)
         while IFS= read -r f; do cat "$f" >> "$TMP_INTER_RAW_BED"; done \
@@ -543,7 +567,7 @@ for fasta_name in "${REPEAT_ASSEMBLER_FILES[@]}"; do
     }
     source_fasta="$ASSEMBLER_ASSEMBLY_DIR/$fasta_name"
     [[ -s "$source_fasta" ]] || {
-        echo "ERROR: source assembler FASTA missing or empty: $source_fasta"
+        echo "ERROR: assembler FASTA missing or empty: $source_fasta"
         exit 1
     }
     if [[ ! -s "${source_fasta}.fai" || "$source_fasta" -nt "${source_fasta}.fai" ]]; then
@@ -567,23 +591,26 @@ fi
 
 qc_write_result_cache_atomic "$REPEAT_CACHE_META" "$REPEAT_FINGERPRINT" "$REPEAT_SUM"
 
-for f in "$REPEAT_SUM" "$REPEAT_MAG_SUM" "$SELF_BLAST" "$INTER_BLAST" \
-         "$INTRA_REGION_TSV" "$INTER_REGION_TSV" "$REPEAT_REGION_TSV" \
+if [[ -s "$SELF_BLAST" && -s "$INTRA_REGION_TSV" ]]; then
+    python3 "$SCRIPT_DIR/../scripts/repeats_consolidate_outputs.py" "$REPEAT_MAG_MAP" \
+        "$SELF_BLAST" "$INTER_BLAST" "$INTRA_REGION_TSV" "$INTER_REGION_TSV" "$REPEAT_REGION_TSV" \
+        "$REPEAT_HSP" "$REPEAT_REGIONS"
+fi
+rm -rf "$REPEAT_WORK_DIR"
+
+for f in "$REPEAT_SUM" "$REPEAT_MAG_SUM" "$REPEAT_HSP" "$REPEAT_REGIONS" \
          "$REPEAT_DATASET_SUM_INTUITIVE"; do
     [[ -s "$f" ]] || { echo "ERROR: expected repeat output missing/empty: $f"; exit 1; }
 done
 
 echo
 echo "[06_repeats] Final outputs"
-echo "Contig INTRA-only summary         : $REPEAT_SUM"
-echo "MAG INTRA+INTER union summary     : $REPEAT_MAG_SUM"
-echo "INTRA HSPs (used by 65)           : $SELF_BLAST"
-echo "INTER same-MAG HSPs               : $INTER_BLAST"
-echo "INTRA repeat regions              : $INTRA_REGION_TSV"
-echo "INTER repeat regions              : $INTER_REGION_TSV"
-echo "TOTAL union repeat regions        : $REPEAT_REGION_TSV"
-echo "Dataset INTRA-only summary        : $REPEAT_DATASET_SUM_INTUITIVE"
-echo "Assembler information             : source_assembler + assembler-specific INTRA excessive-repeat contig counts"
+echo "Contig summary (INTRA)            : $REPEAT_SUM"
+echo "MAG summary (INTRA+INTER union)   : $REPEAT_MAG_SUM"
+echo "Dataset summary (INTRA)           : $REPEAT_DATASET_SUM_INTUITIVE"
+echo "Repeat regions (INTRA/INTER/TOTAL): $REPEAT_REGIONS"
+echo "BLAST HSPs (INTRA/INTER)          : $REPEAT_HSP"
+echo "Assembler information             : Assembler + assembler-specific INTRA excessive-repeat contig counts"
 echo "Contig interpretation             : EXCESSIVE_REPEAT_CONTIG=Y means INTRA repeat fraction >= contig threshold"
 echo "MAG excessive-contig annotation : HAS_EXCESSIVE_INTRA_REPEAT_CONTIG=Y means >=1 member contig has INTRA repeat fraction >= contig threshold"
 echo "MAG interpretation                : EXCESSIVE_REPEAT_MAG=Y means MAG-wide INTRA+INTER union fraction >= genome threshold"

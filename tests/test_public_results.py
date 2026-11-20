@@ -1,60 +1,51 @@
-import json
+"""Final tables stay in the module directories; no OUTPUT/results/ copies are made."""
+import contextlib
+import io
 import tempfile
 import unittest
 from pathlib import Path
 
-from scripts.core_magverify_cli import PUBLIC_RESULTS, publish_results
+from scripts.core_magverify_cli import FINAL_TABLES, remove_generated_results_dir, report_final_tables
 
 
-class PublicResultTablesTest(unittest.TestCase):
+class FinalTableTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        prep = self.root / '00_prep'
-        prep.mkdir()
-        (prep / 'MAG_contig_map.tsv').write_text('MAG_ID\tContig\nBin1L\tctg1\n')
-        asm = self.root / 'asm'
-        asm.mkdir()
-        (asm / 'metaMDBG.fa').write_text('>ctg1\nACGT\n>ctg2\nACGT\n')
-        (prep / 'all_assemblies.fasta.sources.json').write_text(
-            json.dumps([{'path': str(asm / 'metaMDBG.fa'), 'size': 1, 'mtime_ns': 1}]))
 
-    def write(self, relative, text):
-        path = self.root / relative
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text)
+    def test_final_tables_follow_module_level_names(self):
+        for stage, tables in FINAL_TABLES.items():
+            for relative in tables:
+                name = Path(relative).name
+                if stage != 'map':
+                    self.assertRegex(name, r'^[a-z_]+\.(MAG|contig|site|region|dataset|HSP)\.tsv$', name)
 
-    def test_mag_and_contig_tables_get_standard_leading_columns(self):
-        self.write('06_repeats/MAG_repeat_breadth.final.tsv', 'repeat_fraction\tMAG_ID\n0.1\tBin1L\n')
-        self.write('06_repeats/contig_repeat_breadth.final.tsv',
-                   'contig\tsource_assembler\tfraction\nctg1\tmetaMDBG\t0.2\nctg2\tmetaMDBG\t0.3\n')
-        publish_results('repeats', self.root)
-        mag = (self.root / 'results/repeats.MAG.tsv').read_text().splitlines()
-        self.assertEqual(mag, ['MAG_ID\tAssembler\trepeat_fraction', 'Bin1L\tmetaMDBG\t0.1'])
-        contig = (self.root / 'results/repeats.contig.tsv').read_text().splitlines()
-        self.assertEqual(contig, ['Contig\tMAG_ID\tAssembler\tfraction',
-                                  'ctg1\tBin1L\tmetaMDBG\t0.2', 'ctg2\tNA\tmetaMDBG\t0.3'])
+    def test_report_lists_existing_tables_only(self):
+        (self.root / '06_repeats').mkdir()
+        (self.root / '06_repeats/repeats.MAG.tsv').write_text('MAG_ID\nBin1L\n')
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            report_final_tables('repeats', self.root)
+        self.assertIn('06_repeats/repeats.MAG.tsv', out.getvalue())
+        self.assertNotIn('repeats.contig.tsv', out.getvalue())
+        self.assertFalse((self.root / 'results').exists())
 
-    def test_circularity_id_column_becomes_mag_id_and_old_links_go(self):
+    def test_generated_results_dir_is_removed(self):
         results = self.root / 'results'
         results.mkdir()
+        (results / 'repeats.MAG.tsv').write_text('x')
         (results / 'circularity_mag.tsv').symlink_to('../nowhere.tsv')
-        self.write('02_circularity/MAG_circularity.final.tsv', 'ID\tCircular\nBin1L\tY\n')
-        publish_results('circularity', self.root)
-        self.assertEqual((results / 'circularity.MAG.tsv').read_text().splitlines()[0],
-                         'MAG_ID\tAssembler\tCircular')
-        self.assertFalse((results / 'circularity_mag.tsv').is_symlink())
+        remove_generated_results_dir(self.root)
+        self.assertFalse(results.exists())
 
-    def test_names_follow_module_level_pattern(self):
-        for stage, tables in PUBLIC_RESULTS.items():
-            for name, (_, level) in tables.items():
-                if level:
-                    self.assertTrue(name.endswith(f'.{level}.tsv'), name)
-
-    def test_no_fake_result_when_stage_has_no_outputs(self):
-        publish_results('map', self.root)
-        self.assertFalse((self.root / 'results').exists())
+    def test_results_dir_with_user_files_is_kept(self):
+        results = self.root / 'results'
+        results.mkdir()
+        (results / 'repeats.MAG.tsv').write_text('x')
+        (results / 'my_notes.txt').write_text('keep')
+        remove_generated_results_dir(self.root)
+        self.assertTrue((results / 'my_notes.txt').exists())
 
 
 if __name__ == '__main__':

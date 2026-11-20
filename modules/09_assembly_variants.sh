@@ -22,9 +22,8 @@ ASSEMBLY_VARIANT_PROFILE_ALIGNMENT_CLASSES="primary_secondary_supplementary"
 ASSEMBLY_VARIANT_MEMORY_BUDGET_GB="${ASSEMBLY_VARIANT_MEMORY_BUDGET_GB:-900}"
 ASSEMBLY_VARIANT_MEMORY_RESERVE_GB="${ASSEMBLY_VARIANT_MEMORY_RESERVE_GB:-64}"
 ALLELE_ANVIO_MEMORY_POLL_SECONDS="${ALLELE_ANVIO_MEMORY_POLL_SECONDS:-5}"
-ALLELE_ANVIO_FULL_PROFILE_THREADS="${ALLELE_ANVIO_FULL_PROFILE_THREADS:-100}"
-[[ "$ALLELE_ANVIO_FULL_PROFILE_THREADS" == "0" ]] && ALLELE_ANVIO_FULL_PROFILE_THREADS=100
-ALLELE_ANVIO_PREPROCESS_THREADS="${ALLELE_ANVIO_PREPROCESS_THREADS:-70}"
+ALLELE_ANVIO_FULL_PROFILE_THREADS="${ALLELE_ANVIO_FULL_PROFILE_THREADS:-$THREADS}"
+ALLELE_ANVIO_PREPROCESS_THREADS="${ALLELE_ANVIO_PREPROCESS_THREADS:-$THREADS}"
 ASSEMBLY_VARIANT_KEEP_FULL_PROFILE="${ASSEMBLY_VARIANT_KEEP_FULL_PROFILE:-N}"
 ASSEMBLY_VARIANT_DROP_FILE_CACHE="${ASSEMBLY_VARIANT_DROP_FILE_CACHE:-Y}"
 ASSEMBLY_VARIANT_SKIP_GENE_CALLING="${ASSEMBLY_VARIANT_SKIP_GENE_CALLING:-N}"
@@ -44,11 +43,11 @@ ALLELE_CONTIG_ALL="${ALLELE_CONTIG_ALL:-${VARIANT_DIR}/contig_assembly_allele_su
 ALLELE_SUMMARY_ALL="${ALLELE_SUMMARY_ALL:-${VARIANT_DIR}/assembly_allele_support.all_contigs.summary.tsv}"
 ALLELE_ASSEMBLER_SUMMARY="${ALLELE_ASSEMBLER_SUMMARY:-${VARIANT_DIR}/assembly_allele_support.by_assembler.tsv}"
 
-ALLELE_CONTIG="${ALLELE_CONTIG:-${VARIANT_DIR}/contig_assembly_allele_support.final.tsv}"
+ALLELE_CONTIG="${ALLELE_CONTIG:-${VARIANT_DIR}/variants.contig.tsv}"
 ALLELE_SUMMARY="${ALLELE_SUMMARY:-${VARIANT_DIR}/assembly_allele_support.summary.tsv}"
 ALLELE_VARIANTS_MAG="${ALLELE_VARIANTS_MAG:-${VARIANT_DIR}/assembly_allele_disagreements.by_MAG.tsv}"
-ALLELE_MAG="${ALLELE_MAG:-${VARIANT_DIR}/assembly_allele_support.by_MAG.tsv}"
-ALLELE_CACHE_META="${ALLELE_CACHE_META:-${VARIANT_DIR}/assembly_allele_support.inputs.sha256}"
+ALLELE_MAG="${ALLELE_MAG:-${VARIANT_DIR}/variants.MAG.tsv}"
+ALLELE_CACHE_META="${ALLELE_CACHE_META:-${VARIANT_DIR}/.cache/variants.inputs.sha256}"
 
 ANVIO_REFORMAT_FASTA="$ANVIO_ENV_PREFIX/bin/anvi-script-reformat-fasta"
 ANVIO_REFORMAT_BAM="$ANVIO_ENV_PREFIX/bin/anvi-script-reformat-bam"
@@ -282,7 +281,7 @@ def load_fai(path):
 old_rows = load_fai(original_fai)
 new_rows = load_fai(renamed_fai)
 if len(old_rows) != len(new_rows):
-    raise SystemExit("cannot reheader BAM: source and renamed FASTA counts differ")
+    raise SystemExit("cannot reheader BAM: original and renamed FASTA counts differ")
 
 rename = {}
 old_lengths = {}
@@ -294,7 +293,7 @@ for i, ((old_name, old_len), (new_name, new_len)) in enumerate(zip(old_rows, new
             f"{old_name}={old_len}, {new_name}={new_len}"
         )
     if old_name in rename:
-        raise SystemExit(f"cannot reheader BAM: duplicate source ID {old_name}")
+        raise SystemExit(f"cannot reheader BAM: duplicate original ID {old_name}")
     if new_name in new_seen:
         raise SystemExit(f"cannot reheader BAM: duplicate renamed ID {new_name}")
     rename[old_name] = new_name
@@ -320,7 +319,7 @@ for line in header.splitlines():
         raise SystemExit("cannot reheader BAM: malformed @SQ line")
     old_name = fields[sn_i][3:]
     if old_name not in rename:
-        raise SystemExit(f"cannot reheader BAM: BAM reference not in source FASTA: {old_name}")
+        raise SystemExit(f"cannot reheader BAM: BAM reference not in the original FASTA: {old_name}")
     old_len = old_lengths[old_name]
     if ln != old_len:
         raise SystemExit(
@@ -571,20 +570,20 @@ GLOBAL_FP_PARTS=()
 echo "[09_assembly_variants] Started: $(date)"
 echo "SCRIPT_ID: $SCRIPT_ID"
 echo "anvi'o version: $ANVIO_VERSION"
-echo "HiFi scope: every >=1,000-bp contig in each corresponding full co-assembly; assembly-allele classification is site-level from anvi'o-reported variability"
+echo "HiFi scope: every >=1,000-bp contig of each assembler; assembly-allele classification is site-level from anvi'o-reported variability"
 echo "HiFi reference population: each assembler is profiled separately"
 echo "HiFi alignment population: $ASSEMBLY_VARIANT_ALIGNMENT_POPULATION ($ASSEMBLY_VARIANT_HIFI_BAM_COLUMN)"
 echo "MAG outputs: subset from the assembly-wide classifications; no second HiFi mapping/profile"
-echo "anvi-profile execution: one complete assembler-specific co-assembly at a time; no contig batching; assemblers serial"
+echo "anvi-profile execution: all contigs of one assembler at a time; no contig batching; assemblers serial"
 echo "Memory planning: configured_budget=${ASSEMBLY_VARIANT_MEMORY_BUDGET_GB} GB; MemAvailable_at_start=${MEM_AVAILABLE_GB} GB; host_reserve=${ASSEMBLY_VARIANT_MEMORY_RESERVE_GB} GB; effective_budget=${PROFILE_MEMORY_EFFECTIVE_GB} GB"
-echo "anvi-profile threads: selected=${ALLELE_ANVIO_FULL_PROFILE_THREADS}; CPU_allocation=${ANVIO_THREADS}; fixed default=100"
+echo "anvi-profile threads: ${ALLELE_ANVIO_FULL_PROFILE_THREADS} (reduced automatically if the memory budget is reached)"
 echo "Runtime memory guard: poll=${ALLELE_ANVIO_MEMORY_POLL_SECONDS}s; retry with fewer threads if the effective budget is reached"
 echo "anvi'o preprocessing/index threads: $ALLELE_ANVIO_PREPROCESS_THREADS"
 echo "Full PROFILE.db retention: $ASSEMBLY_VARIANT_KEEP_FULL_PROFILE"
 
 variant_one_assembler() {
     local assembler="$1" assembly="$2" hifi_all_bam="$3" hifi_bam="$4" row_file="$5" fp_file="$6"
-    echo "[40-LR][$assembler] Validating corresponding full co-assembly inputs."
+    echo "[40-LR][$assembler] Validating $assembler assembly inputs."
     [[ -s "$assembly" ]] || { echo "ERROR: missing corresponding assembly for $assembler: $assembly"; exit 1; }
     [[ -s "$hifi_bam" ]] || { echo "ERROR: missing corresponding HiFi BAM for $assembler: $hifi_bam"; exit 1; }
     samtools faidx "$assembly"
@@ -646,7 +645,7 @@ PY_PREP_FP
 )"
 
     if [[ -s "$preprocess_cache" ]] && ! qc_cache_matches "$preprocess_cache" "$preprocess_fp"; then
-        echo "[40-LR][$assembler] Source assembly/BAM changed; rebuilding renamed anvi'o FASTA/BAM and full-reference profile."
+        echo "[40-LR][$assembler] Assembly/BAM changed; rebuilding renamed anvi'o FASTA/BAM and profile."
         rm -rf "$profile_dir" "$profile_batches"
         rm -f "$reformatted_fa" "${reformatted_fa}.fai" "$name_map" \
               "$reformatted_bam" "${reformatted_bam}.bai" "${reformatted_bam}.csi" \
@@ -656,7 +655,7 @@ PY_PREP_FP
     fi
 
     if [[ ! -s "$reformatted_fa" || ! -s "$name_map" ]]; then
-        echo "[40-LR][$assembler] Reformatting the corresponding full co-assembly FASTA for anvi'o."
+        echo "[40-LR][$assembler] Reformatting the $assembler assembly FASTA for anvi'o."
         "$ANVIO_REFORMAT_FASTA" "$assembly" --simplify-names --report-file "$name_map.tmp.$$" -o "$reformatted_fa.tmp.$$"
         mv -f "$reformatted_fa.tmp.$$" "$reformatted_fa"
         mv -f "$name_map.tmp.$$" "$name_map"
@@ -671,7 +670,7 @@ PY_PREP_FP
     if [[ ! -s "$reformatted_bam" ]]; then
         renamed_tmp="$reformatted_bam.tmp.$$.bam"
         rm -f "$renamed_tmp" "${renamed_tmp}.bai" "${renamed_tmp}.csi"
-        echo "[40-LR][$assembler] Renaming the existing full-co-assembly HiFi BAM dictionary; reads are not remapped."
+        echo "[40-LR][$assembler] Renaming contigs in the existing $assembler HiFi BAM header; reads are not remapped."
 
         if run_anvio_reformat_bam "$hifi_bam" "$name_map" "$renamed_tmp" \
            && qc_bam_matches_fai "$renamed_tmp" "${reformatted_fa}.fai"; then
@@ -699,14 +698,15 @@ PY_PREP_FP
     }
     qc_write_cache_atomic "$preprocess_cache" "$preprocess_fp"
 
-    contigs_db_fp="$(python3 - "$preprocess_fp" "$ANVIO_VERSION" "$ASSEMBLY_VARIANT_SKIP_GENE_CALLING" <<'PY_CONTIGS_DB_FP'
+    contigs_db_fp="$(python3 - "$preprocess_fp" "$ANVIO_VERSION" "$ASSEMBLY_VARIANT_SKIP_GENE_CALLING" "$GENES_FP" <<'PY_CONTIGS_DB_FP'
 import hashlib, json, sys
-prep_fp, anvio_version, skip_gene_calling = sys.argv[1:]
+prep_fp, anvio_version, skip_gene_calling, genes_fp = sys.argv[1:]
 payload={
-    "workflow":"assembly_variant_full_contigs_db_v1",
+    "workflow":"assembly_variant_full_contigs_db_v2",
     "preprocess":prep_fp,
     "anvio_version":anvio_version,
     "skip_gene_calling":skip_gene_calling,
+    "genes":genes_fp,
 }
 print(hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest())
 PY_CONTIGS_DB_FP
@@ -716,11 +716,17 @@ PY_CONTIGS_DB_FP
         rm -rf "$profile_dir"
     fi
     if [[ ! -s "$contigs_db" ]]; then
-        echo "[40-LR][$assembler] Building one full co-assembly CONTIGS.db."
+        echo "[40-LR][$assembler] Building one CONTIGS.db for all $assembler contigs."
         rm -f "$contigs_db.tmp.$$.db"
         contigs_db_args=( -f "$reformatted_fa" -o "$contigs_db.tmp.$$.db" -T "$ALLELE_ANVIO_PREPROCESS_THREADS" )
         if [[ "$ASSEMBLY_VARIANT_SKIP_GENE_CALLING" == "Y" ]]; then
             contigs_db_args+=( --skip-gene-calling )
+        else
+            gene_calls="$adir/assembly.anvio.gene_calls.tsv"
+            python3 "$SCRIPT_DIR/../scripts/prep_genes_to_anvio_gene_calls.py" \
+                "$GENE_CALLS_DIR/genes.gff" "$GENE_CALLS_DIR/genes.faa" "$name_map" "$gene_calls" \
+                --version "$PYRODIGAL_VERSION"
+            contigs_db_args+=( --external-gene-calls "$gene_calls" )
         fi
         "$ANVIO_GEN_CONTIGS_DB" "${contigs_db_args[@]}"
         [[ -s "$contigs_db.tmp.$$.db" ]] || { echo "ERROR: full CONTIGS.db was not created for $assembler"; exit 1; }
@@ -737,7 +743,7 @@ PY_CONTIGS_DB_FP
         mv -f "$split_map.tmp.$$" "$split_map"
     fi
     split_count="$(count_anvio_splits "$contigs_db")"
-    echo "[40-LR][$assembler] Full-reference CONTIGS.db splits: $split_count."
+    echo "[40-LR][$assembler] CONTIGS.db splits: $split_count."
     if (( split_count > 200000 && ALLELE_ANVIO_FULL_PROFILE_THREADS > 20 )); then
         echo "[40-LR][$assembler] NOTE: >200,000 splits with >20 threads can be memory-intensive in anvi-profile; runtime memory guard is enabled."
     fi
@@ -759,8 +765,8 @@ payload={
     "percent_identity_filter":None,
     "fetch_filter":None,
     "alignment_classes":alignment_classes,
-    "mapping_reference":"existing_corresponding_full_coassembly_competitive_bam",
-    "profiling_reference":"complete_corresponding_assembler_coassembly_single_profile",
+    "mapping_reference":"existing_assembler_all_contigs_competitive_bam",
+    "profiling_reference":"assembler_all_contigs_single_profile",
     "contig_batching":False,
 }
 print(hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest())
@@ -772,9 +778,9 @@ PY_PROFILE_FP
         rm -f "$snv_raw" "$indel_raw" "$detail_tsv" "$contig_tsv" "$summary_tsv" \
               "$profile_cache" "$classification_cache"
         if [[ -s "$profile_db" ]]; then
-            echo "[40-LR][$assembler] Reusing existing full-reference PROFILE.db and exporting raw tables."
+            echo "[40-LR][$assembler] Reusing existing PROFILE.db and exporting raw tables."
         else
-            echo "[40-LR][$assembler] Running one full-reference anvi-profile; starting threads=$ALLELE_ANVIO_FULL_PROFILE_THREADS, effective memory budget=${PROFILE_MEMORY_EFFECTIVE_GB} GB."
+            echo "[40-LR][$assembler] Running one anvi-profile on all $assembler contigs; starting threads=$ALLELE_ANVIO_FULL_PROFILE_THREADS, effective memory budget=${PROFILE_MEMORY_EFFECTIVE_GB} GB."
             attempt_threads="$ALLELE_ANVIO_FULL_PROFILE_THREADS"
             while :; do
                 tmp_profile="$adir/PROFILE.tmp.$$"
@@ -796,7 +802,7 @@ PY_PROFILE_FP
                             echo "ERROR: anvi-profile exceeded the memory budget even at the minimum thread count for $assembler."
                             exit 1
                         fi
-                        echo "[40-LR][$assembler] Retrying full-reference anvi-profile with $next_threads threads after memory/OOM stop."
+                        echo "[40-LR][$assembler] Retrying anvi-profile with $next_threads threads after memory/OOM stop."
                         attempt_threads="$next_threads"
                     else
                         echo "ERROR: anvi-profile failed for $assembler with exit code $rc."
@@ -811,7 +817,7 @@ PY_PROFILE_FP
         mv -f "$snv_raw.tmp.$$" "$snv_raw"
         mv -f "$indel_raw.tmp.$$" "$indel_raw"
         [[ -s "$snv_raw" && -s "$indel_raw" && -s "$split_map" ]] || {
-            echo "ERROR: full-reference anvi'o outputs are missing for $assembler"
+            echo "ERROR: anvi'o profile outputs are missing for $assembler"
             exit 1
         }
         qc_write_cache_atomic "$profile_cache" "$profile_fp"
@@ -820,7 +826,7 @@ PY_PROFILE_FP
             rm -rf "$profile_dir"
         fi
         if [[ "$ASSEMBLY_VARIANT_REMOVE_LEGACY_BATCHES" == "Y" && -d "$profile_batches" ]]; then
-            echo "[40-LR][$assembler] Removing obsolete PROFILE_BATCHES after successful full-reference profiling."
+            echo "[40-LR][$assembler] Removing obsolete PROFILE_BATCHES after successful profiling."
             rm -rf "$profile_batches"
         fi
         drop_file_cache_best_effort "$assembly" "$hifi_bam" "$reformatted_fa" "$reformatted_bam" "$contigs_db"
@@ -865,6 +871,16 @@ PY_CLASS_FP
     printf '%s|%s\n' "$assembler" "$classification_fp" > "$fp_file"
     mv -f "$row_file.tmp" "$row_file"
 }
+
+GENES_FP="NA"
+PYRODIGAL_VERSION="NA"
+if [[ "$ASSEMBLY_VARIANT_SKIP_GENE_CALLING" != "Y" ]]; then
+    GENES_ASSEMBLY="${ASSEMBLY_FA:-$PREP_DIR/all_assemblies.fasta}"
+    PATH="$PATH:$ANVIO_ENV_PREFIX/bin" bash "$SCRIPT_DIR/lib_genes.sh" \
+        "$GENES_ASSEMBLY" "$GENE_CALLS_DIR" "$ALLELE_ANVIO_PREPROCESS_THREADS"
+    GENES_FP="$(<"$GENE_CALLS_DIR/.cache/genes.inputs.sha256")"
+    PYRODIGAL_VERSION="$(PATH="$PATH:$ANVIO_ENV_PREFIX/bin" bash "$SCRIPT_DIR/lib_genes.sh" --version)"
+fi
 
 VARIANT_ROWS=()
 while IFS=$'\t' read -r assembler assembly hifi_all_bam hifi_bam; do

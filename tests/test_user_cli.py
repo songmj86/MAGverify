@@ -103,12 +103,12 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
             with self.subTest(name=name):
                 result = self.call(name, '-h')
                 self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertIn('-o DIR', result.stdout)
+                self.assertRegex(result.stdout, r'\n  -o +Directory of base output')
                 self.assertNotIn('--output-dir', result.stdout)
                 self.assertNotIn('--threads', result.stdout)
                 self.assertNotIn('default: up to', result.stdout)
                 self.assertNotIn('--reads', result.stdout)
-                self.assertIn('-a DIR', result.stdout)
+                self.assertRegex(result.stdout, r'\n  -a +Directory of assembled contigs')
                 self.assertNotIn('--contigs-dir', result.stdout)
                 self.assertNotIn('--mag-dir', result.stdout)
                 self.assertNotIn('--source-assembly', result.stdout)
@@ -366,6 +366,18 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
         p = self.call(*args)
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         self.assertIn('07_chimera.sh', p.stdout)
+
+    def test_chimera_reads_prep_outputs_by_default(self):
+        prep = Path(self.output) / '00_prep'
+        prep.mkdir(parents=True, exist_ok=True)
+        (prep / 'GTDB_R232.dbtype').write_bytes(b'\x00\x00\x00\x00')
+        (prep / 'gtdb_taxonomy.MAG.tsv').write_text('ID\tGTDB_Domain\nm1\td__Bacteria\n')
+        p = self.call('chimera', '-a', self.source_dir, '--mag-map', self.map_table,
+                      '--mapping-manifest', self.manifest, '--clipping-table', self.generic_tsv,
+                      '-o', self.output, '--dry-run')
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn('MMseqs2 database: ' + str(prep / 'GTDB_R232'), p.stdout)
+        self.assertIn('MAG taxonomy: ' + str(prep / 'gtdb_taxonomy.MAG.tsv'), p.stdout)
 
     def test_chimera_explains_missing_taxonomy_database(self):
         p = self.call('chimera', '-a', self.source_dir, '--mag-map', self.map_table,

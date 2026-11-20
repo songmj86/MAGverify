@@ -67,7 +67,7 @@ def load_sources(manifest: str) -> Tuple[Dict[str, str], Dict[str, Dict[str, int
                 fail(f"invalid/duplicate mapping manifest row {line_number}")
             fai = fasta + ".fai"
             if not os.path.isfile(fai) or os.path.getsize(fai) == 0:
-                fail(f"source FAI missing for {assembler}: {fai}")
+                fail(f"assembler FAI missing for {assembler}: {fai}")
             assembler_to_fasta[assembler] = fasta
             source_lengths[assembler] = load_fai(fai)
     if not assembler_to_fasta:
@@ -133,7 +133,7 @@ def main() -> None:
     for assembler, lengths in source_lengths.items():
         for contig, length in lengths.items():
             if contig in union:
-                fail(f"contig ID occurs in multiple source assemblers: {contig}")
+                fail(f"contig ID occurs in multiple assemblers: {contig}")
             union[contig] = (assembler, length)
     if set(union) != set(combined):
         missing = sorted(set(combined) - set(union))[:10]
@@ -144,7 +144,7 @@ def main() -> None:
         )
     for contig, length in combined.items():
         if union[contig][1] != length:
-            fail(f"source/combined contig length mismatch: {contig}")
+            fail(f"assembler/all-assemblies contig length mismatch: {contig}")
 
     base_fields: List[str] | None = None
     rows: List[Dict[str, str]] = []
@@ -171,12 +171,12 @@ def main() -> None:
                 except (TypeError, ValueError) as error:
                     fail(f"invalid clipping coordinate at {path}:{line_number}: {error}")
                 if contig not in source_lengths[assembler]:
-                    fail(f"clipping contig is not in source assembler {assembler}: {contig}")
+                    fail(f"clipping contig is not in the {assembler} assembly: {contig}")
                 if source_lengths[assembler][contig] != length or not 0 <= pos0 < length or pos1 != pos0 + 1:
                     fail(f"stale clipping coordinate: {assembler}:{contig}:{pos1}")
                 key = (contig, pos0)
                 if key in seen:
-                    fail(f"duplicate clipping position across source tables: {contig}:{pos1}")
+                    fail(f"duplicate clipping position across assembler tables: {contig}:{pos1}")
                 seen.add(key)
                 distance = min(pos0, length - 1 - pos0)
                 region = "TERMINAL" if distance < args.terminal_window else "INTERNAL"

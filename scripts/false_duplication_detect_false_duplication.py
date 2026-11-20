@@ -133,7 +133,7 @@ def route_all_contigs(mag_map: Dict[str, str], sources: Sequence[MappingSource])
             routed[contig] = source
     for contig in mag_map:
         if contig not in routed:
-            fail(f"MAG contig absent from source assemblies: {contig}")
+            fail(f"MAG contig absent from assemblies: {contig}")
     return routed
 
 
@@ -264,7 +264,7 @@ def read_duplication_pairs(
             stats["rows"] += 1
             q, t = f[0], f[5]
             if q not in routed or t not in routed:
-                fail(f"self-alignment contig absent from source assemblies: {q},{t}")
+                fail(f"self-alignment contig absent from assemblies: {q},{t}")
             if routed[q].assembler != routed[t].assembler:
                 fail(f"different-assembler self-alignment detected: {q},{t}")
             try:
@@ -1125,7 +1125,7 @@ def main() -> None:
     ]
     write_tsv(args.out_mags, mag_fields, mag_rows)
 
-    print(f"All source-assembly contigs summarized: {len(contig_rows)}")
+    print(f"All assembly contigs summarized: {len(contig_rows)}")
     print(f"Final-MAG contigs summarized: {len(mag_contig_rows)}")
     print(f"Duplication candidate pairs: {len(pair_rows)}")
     print(f"Intra-contig pairs: {sum(r['PAIR_SCOPE'] == 'INTRA_CONTIG' for r in pair_rows)}")

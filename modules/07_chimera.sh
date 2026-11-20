@@ -8,7 +8,7 @@ if [[ "${1:-}" == "__taxonomy_internal" || "${1:-}" == "__taxonomy_scope" ]]; th
 set -Eeuo pipefail
 
 SCRIPT_ID="00_gene_taxonomy"
-GENE_PREDICTION_METHOD_VERSION="full_assembly_meta_gene_prediction_v1"
+GENE_PREDICTION_METHOD_VERSION="shared_pyrodigal_meta_v1"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 SELF="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
 
@@ -45,7 +45,7 @@ Modes:
 Outputs:
   gene_taxonomy.mmseqs2.GTDB_R232.{MAG,nonMAG,all}_contigs.tsv
 
-The first run predicts genes once across the full assembly. Runs that use the
+The first run predicts genes once across all assemblies. Runs that use the
 same OUT_DIR, assembly, and predictor settings reuse this validated prediction
 across genome/contig modes.
 
@@ -146,6 +146,8 @@ for key, value in zip(
         raise SystemExit(1)
 if meta.get('output_schema') != 'nine_column_rank_names_v1':
     raise SystemExit(1)
+if meta.get('gene_predictor') != 'pyrodigal':
+    raise SystemExit(1)
 if os.path.realpath(meta.get('mmseqs_database', '')) != os.path.realpath(database):
     raise SystemExit(1)
 # Cheap staleness guard for the compatible-result fast path. The full internal
@@ -157,7 +159,7 @@ try:
         raise SystemExit(1)
     cache_dir = meta.get('gene_prediction_cache', '')
     fp = meta.get('gene_prediction_fingerprint', '')
-    fp_file = os.path.join(cache_dir, 'inputs.sha256')
+    fp_file = os.path.join(cache_dir, '.cache', 'genes.inputs.sha256')
     if not cache_dir or not fp or not os.path.isfile(fp_file):
         raise SystemExit(1)
     with open(fp_file, encoding='utf-8') as handle:
@@ -176,19 +178,6 @@ PY_VALIDATE_GENOME
             echo "ERROR: genome-mode MAG taxonomy or metadata is missing" >&2
             exit 1
         }
-
-        GENOME_PREDICTOR="$(awk -F'\t' '$1=="gene_predictor"{print $2}' "$MAG_META")"
-        [[ -n "$GENOME_PREDICTOR" ]] || {
-            echo "ERROR: genome-mode gene_predictor metadata is blank" >&2
-            exit 1
-        }
-        if [[ "${GENE_PREDICTOR:-auto}" == "auto" ]]; then
-            export GENE_PREDICTOR="$GENOME_PREDICTOR"
-            echo "[contig] Reusing genome-mode predictor backend: $GENOME_PREDICTOR"
-        elif [[ "$GENE_PREDICTOR" != "$GENOME_PREDICTOR" ]]; then
-            echo "ERROR: contig-mode GENE_PREDICTOR=$GENE_PREDICTOR differs from genome-mode=$GENOME_PREDICTOR" >&2
-            exit 1
-        fi
 
         CHIMERA_MIN_CLASSIFIED_GENES="${TAX_MIN_CLASSIFIED_GENES:-4}"
         [[ "$CHIMERA_MIN_CLASSIFIED_GENES" =~ ^[1-9][0-9]*$ ]] || {
@@ -324,66 +313,32 @@ if [[ -n "$MMSEQS_ENV" ]]; then export PATH="${MMSEQS_ENV}/bin:${PATH}"; fi
     exit 2
 }
 
-GENE_PREDICTOR="${GENE_PREDICTOR:-auto}"
+GENE_PREDICTOR="pyrodigal"
 GENE_PRED_THREADS="${GENE_PRED_THREADS:-$THREADS}"
-PYRODIGAL_POOL="${PYRODIGAL_POOL:-thread}"
-PRODIGAL_JOBS="${PRODIGAL_JOBS:-$THREADS}"
-PRODIGAL_CHUNK_BP="${PRODIGAL_CHUNK_BP:-100000000}"
 MMSEQS_THREADS="${MMSEQS_THREADS:-$THREADS}"
 TAXONOMY_MIN_PREDICTED_GENES_PER_CONTIG="${TAXONOMY_MIN_PREDICTED_GENES_PER_CONTIG:-1}"
 KEEP_FAILED_WORK="${KEEP_FAILED_WORK:-Y}"
-PYRODIGAL_BIN="${PYRODIGAL_BIN:-$(command -v pyrodigal 2>/dev/null || true)}"
-PRODIGAL_BIN="${PRODIGAL_BIN:-$(command -v prodigal 2>/dev/null || true)}"
+PREDICTOR_BIN="${PYRODIGAL_BIN:-$(command -v pyrodigal 2>/dev/null || true)}"
+[[ -n "$PREDICTOR_BIN" && -x "$PREDICTOR_BIN" ]] || {
+    echo "ERROR: pyrodigal is unavailable" >&2
+    exit 1
+}
+GENE_CALLS_DIR="${GENE_CALLS_DIR:-${OUT:+$OUT/00_prep/genes}}"
+GENE_CALLS_DIR="${GENE_CALLS_DIR:-$OUT_DIR/genes}"
 
-for value_name in GENE_PRED_THREADS PRODIGAL_JOBS PRODIGAL_CHUNK_BP MMSEQS_THREADS TAXONOMY_MIN_PREDICTED_GENES_PER_CONTIG; do
+for value_name in GENE_PRED_THREADS MMSEQS_THREADS TAXONOMY_MIN_PREDICTED_GENES_PER_CONTIG; do
     value="${!value_name}"
     [[ "$value" =~ ^[1-9][0-9]*$ ]] || {
         echo "ERROR: $value_name must be a positive integer: $value" >&2
         exit 2
     }
 done
-[[ "$PYRODIGAL_POOL" == "thread" || "$PYRODIGAL_POOL" == "process" ]] || {
-    echo "ERROR: PYRODIGAL_POOL must be thread or process" >&2
-    exit 2
-}
 [[ "$KEEP_FAILED_WORK" == "Y" || "$KEEP_FAILED_WORK" == "N" ]] || {
     echo "ERROR: KEEP_FAILED_WORK must be Y or N" >&2
     exit 2
 }
-if (( PRODIGAL_JOBS > THREADS )); then
-    PRODIGAL_JOBS="$THREADS"
-fi
 
 export OMP_NUM_THREADS="$MMSEQS_THREADS"
-
-case "$GENE_PREDICTOR" in
-    auto)
-        if [[ -n "$PRODIGAL_BIN" && -x "$PRODIGAL_BIN" ]]; then
-            GENE_PREDICTOR="prodigal_parallel"
-        elif [[ -n "$PYRODIGAL_BIN" && -x "$PYRODIGAL_BIN" ]]; then
-            GENE_PREDICTOR="pyrodigal"
-        else
-            echo "ERROR: neither pyrodigal nor prodigal is available" >&2
-            exit 1
-        fi
-        ;;
-    pyrodigal)
-        [[ -n "$PYRODIGAL_BIN" && -x "$PYRODIGAL_BIN" ]] || {
-            echo "ERROR: GENE_PREDICTOR=pyrodigal but pyrodigal is unavailable" >&2
-            exit 1
-        }
-        ;;
-    prodigal_parallel|prodigal_serial)
-        [[ -n "$PRODIGAL_BIN" && -x "$PRODIGAL_BIN" ]] || {
-            echo "ERROR: $GENE_PREDICTOR selected but prodigal is unavailable" >&2
-            exit 1
-        }
-        ;;
-    *)
-        echo "ERROR: unsupported GENE_PREDICTOR: $GENE_PREDICTOR" >&2
-        exit 2
-        ;;
-esac
 
 for tool in python3 mktemp grep sort; do
     command -v "$tool" >/dev/null 2>&1 || {
@@ -391,10 +346,6 @@ for tool in python3 mktemp grep sort; do
         exit 1
     }
 done
-[[ "$GENE_PREDICTOR" != "prodigal_parallel" ]] || command -v xargs >/dev/null 2>&1 || {
-    echo "ERROR: xargs is needed for prodigal_parallel" >&2
-    exit 1
-}
 
 [[ -s "$ASSEMBLY_FA" ]] || {
     echo "ERROR: missing or empty ASSEMBLY_FA: $ASSEMBLY_FA" >&2
@@ -518,8 +469,6 @@ cleanup() {
 }
 trap cleanup EXIT
 
-PREDICTOR_BIN="$PRODIGAL_BIN"
-[[ "$GENE_PREDICTOR" != "pyrodigal" ]] || PREDICTOR_BIN="$PYRODIGAL_BIN"
 PREDICTOR_REALPATH="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$PREDICTOR_BIN")"
 PREDICTOR_SIGNATURE="$(python3 - "$PREDICTOR_BIN" <<'PY_PREDICTOR_SIG'
 import hashlib
@@ -532,52 +481,20 @@ print(hashlib.sha256(payload.encode()).hexdigest())
 PY_PREDICTOR_SIG
 )"
 
-PREDICTION_FP="$(python3 - \
-    "$ASSEMBLY_FA" "$PRODIGAL_LINKER" "$PREDICTOR_BIN" \
-    "$GENE_PREDICTOR" "$GENE_PRED_THREADS" "$PYRODIGAL_POOL" \
-    "$PRODIGAL_JOBS" "$PRODIGAL_CHUNK_BP" \
-    "$GENE_PREDICTION_METHOD_VERSION" <<'PY_PREDICTION_FP'
-import hashlib
-import json
-import os
-import sys
-
-(
-    assembly, linker, predictor_bin, predictor, predictor_threads,
-    pyrodigal_pool, prodigal_jobs, prodigal_chunk_bp, method_version,
-) = sys.argv[1:]
-
-def stat(path):
-    value = os.stat(path)
-    return [os.path.realpath(path), value.st_size, value.st_mtime_ns]
-
-payload = {
-    'assembly': stat(assembly),
-    'linker': stat(linker),
-    'predictor_binary': stat(predictor_bin),
-    'predictor': predictor,
-    'predictor_threads': int(predictor_threads),
-    'pyrodigal_pool': pyrodigal_pool,
-    'prodigal_jobs': int(prodigal_jobs),
-    'prodigal_chunk_bp': int(prodigal_chunk_bp),
-    'method': method_version,
-}
-print(hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest())
-PY_PREDICTION_FP
-)"
+PREDICTION_FP="$(PYRODIGAL_BIN="$PREDICTOR_BIN" bash "$SCRIPT_DIR/lib_genes.sh" --fingerprint "$ASSEMBLY_FA")"
 
 PRED_CACHE_ROOT="${GENE_PREDICTION_CACHE_DIR:-$OUT_DIR/gene_prediction_cache}"
-PRED_CACHE_ENTRY="$PRED_CACHE_ROOT/all/$PREDICTION_FP"
-PRED_CACHE_FAA="$PRED_CACHE_ENTRY/genes.all.faa"
-PRED_CACHE_COORD="$PRED_CACHE_ENTRY/gene_coordinates.all.tsv"
-PRED_CACHE_META="$PRED_CACHE_ENTRY/run_metadata.tsv"
-PRED_CACHE_FP="$PRED_CACHE_ENTRY/inputs.sha256"
+rm -rf "$PRED_CACHE_ROOT/all"
+PRED_CACHE_ENTRY="$GENE_CALLS_DIR"
+PRED_CACHE_FAA="$GENE_CALLS_DIR/genes.faa"
+PRED_CACHE_COORD="$GENE_CALLS_DIR/genes.coordinates.tsv"
+PRED_CACHE_FP="$GENE_CALLS_DIR/.cache/genes.inputs.sha256"
 
 SCOPE_SELECTION_FP="all"
 SCOPE_CACHE_ENTRY="$PRED_CACHE_ENTRY"
 SCOPE_CACHE_FAA="$PRED_CACHE_FAA"
 SCOPE_CACHE_COORD="$PRED_CACHE_COORD"
-SCOPE_CACHE_META="$PRED_CACHE_META"
+SCOPE_CACHE_META=""
 SCOPE_CACHE_FP="$PRED_CACHE_FP"
 if [[ "$SCOPE" != "all" ]]; then
     SCOPE_SELECTION_FP="$(python3 - \
@@ -663,7 +580,7 @@ payload = {
     'scope_selection_fingerprint': scope_selection_fingerprint,
     'taxonomy_min_predicted_genes_per_contig': int(min_predicted_genes),
     'method': (
-        'full_assembly_meta_gene_prediction|post_prediction_scope_partition|'
+        'all_assemblies_meta_gene_prediction|post_prediction_scope_partition|'
         'mmseqs_taxonomy_lca_mode_3|'
         'lca_ranks_superkingdom_phylum_class_order_family|tax_lineage_2_domain_recovery|'
         'gtdb_empty_blacklist|blank_rank_unclassified|disk_backed_gene_id_merge|schema_rank_names_v2|'
@@ -703,57 +620,6 @@ else:
     if selected < 1 or not first or len(first.split('\t')) != len(expected):
         raise SystemExit(1)
 PY_VALIDATE_CACHE
-}
-
-prediction_cache_is_valid() {
-    [[ -s "$PRED_CACHE_FAA" && -s "$PRED_CACHE_COORD" \
-       && -s "$PRED_CACHE_META" && -s "$PRED_CACHE_FP" \
-       && "$(<"$PRED_CACHE_FP")" == "$PREDICTION_FP" ]] || return 1
-    python3 - \
-        "$PRED_CACHE_FAA" "$PRED_CACHE_COORD" "$PRED_CACHE_META" \
-        "$PREDICTION_FP" <<'PY_VALIDATE_PREDICTION_CACHE'
-import csv
-import sys
-from pathlib import Path
-
-faa_path, coord_path, meta_path = map(Path, sys.argv[1:4])
-expected_fingerprint = sys.argv[4]
-try:
-    with meta_path.open(encoding='utf-8-sig', newline='') as handle:
-        metadata = {
-            row['key']: row['value']
-            for row in csv.DictReader(handle, delimiter='\t')
-        }
-    selected = int(metadata['selected_contigs'])
-    expected_genes = int(metadata['predicted_genes'])
-    if metadata['input_fingerprint'] != expected_fingerprint:
-        raise ValueError('fingerprint mismatch')
-    if metadata['cache_schema'] != 'full_assembly_gene_prediction_cache_v1':
-        raise ValueError('cache schema mismatch')
-    if selected < 1 or expected_genes < 1:
-        raise ValueError('invalid cached counts')
-
-    faa_genes = 0
-    with faa_path.open(encoding='utf-8') as handle:
-        for line in handle:
-            if line.startswith('>'):
-                faa_genes += 1
-
-    coordinate_genes = 0
-    with coord_path.open(encoding='utf-8') as handle:
-        for line in handle:
-            fields = line.rstrip('\n\r').split('\t')
-            if len(fields) != 4:
-                raise ValueError('invalid coordinate row')
-            int(fields[2])
-            int(fields[3])
-            coordinate_genes += 1
-except (OSError, KeyError, ValueError, csv.Error):
-    raise SystemExit(1)
-
-if faa_genes != expected_genes or coordinate_genes != expected_genes:
-    raise SystemExit(1)
-PY_VALIDATE_PREDICTION_CACHE
 }
 
 scope_cache_is_valid() {
@@ -811,16 +677,13 @@ write_run_metadata() {
         printf 'script_id\t%s\n' "$SCRIPT_ID"
         printf 'scope\t%s\n' "$SCOPE"
         printf 'gene_predictor\t%s\n' "$GENE_PREDICTOR"
-        printf 'full_assembly_contigs\t%s\n' "$N_ALL_CONTIGS"
+        printf 'all_assemblies_contigs\t%s\n' "$N_ALL_CONTIGS"
         printf 'selected_contigs\t%s\n' "$N_SCOPE_CONTIGS"
-        printf 'full_assembly_predicted_genes\t%s\n' "$N_ALL_PREDICTED_GENES"
+        printf 'all_assemblies_predicted_genes\t%s\n' "$N_ALL_PREDICTED_GENES"
         printf 'predicted_genes\t%s\n' "$N_PREDICTED_GENES"
         printf 'predictor_realpath\t%s\n' "$PREDICTOR_REALPATH"
         printf 'predictor_signature\t%s\n' "$PREDICTOR_SIGNATURE"
         printf 'gene_prediction_threads\t%s\n' "$GENE_PRED_THREADS"
-        printf 'pyrodigal_pool\t%s\n' "$PYRODIGAL_POOL"
-        printf 'prodigal_jobs\t%s\n' "$PRODIGAL_JOBS"
-        printf 'prodigal_chunk_bp\t%s\n' "$PRODIGAL_CHUNK_BP"
         printf 'prediction_method_version\t%s\n' "$GENE_PREDICTION_METHOD_VERSION"
         printf 'gene_prediction_fingerprint\t%s\n' "$PREDICTION_FP"
         printf 'gene_prediction_cache\t%s\n' "$PRED_CACHE_ENTRY"
@@ -862,56 +725,9 @@ fi
 WORK="$(mktemp -d "$OUT_DIR/.mmseqs2_gene_taxonomy.XXXXXX")"
 PREDICTION_CACHE_STATUS="created"
 
-if prediction_cache_is_valid; then
-    PRED_CACHE_COUNTS="$(python3 - "$PRED_CACHE_META" <<'PY_READ_PREDICTION_CACHE'
-import csv
-import sys
-with open(sys.argv[1], encoding='utf-8-sig', newline='') as handle:
-    metadata = {
-        row['key']: row['value']
-        for row in csv.DictReader(handle, delimiter='\t')
-    }
-print(metadata['selected_contigs'], metadata['predicted_genes'])
-PY_READ_PREDICTION_CACHE
-)"
-    read -r N_ALL_CONTIGS N_ALL_PREDICTED_GENES <<< "$PRED_CACHE_COUNTS"
-    N_PREDICTED_GENES="$N_ALL_PREDICTED_GENES"
-    GENES_FAA="$PRED_CACHE_FAA"
-    GENE_COORD="$PRED_CACHE_COORD"
+if [[ -s "$PRED_CACHE_FP" && "$(<"$PRED_CACHE_FP")" == "$PREDICTION_FP" ]]; then
     PREDICTION_CACHE_STATUS="reused"
-else
-    SCOPE_FASTA="$ASSEMBLY_FA"
-    ALL_STATS="$WORK/all.stats.json"
-    python3 - "$ASSEMBLY_FA" "$ALL_STATS" <<'PY_ALL_STATS'
-import json
-import sys
-fasta, out = sys.argv[1:]
-n = bp = 0
-with open(fasta) as handle:
-    for line in handle:
-        if line.startswith('>'):
-            n += 1
-        else:
-            bp += len(line.strip())
-with open(out, 'w') as dst:
-    json.dump({'mode': 'all', 'output_contigs': n, 'output_bp': bp}, dst, indent=2)
-    dst.write('\n')
-print(f'All-contig scope: {n} contigs; {bp} bp')
-PY_ALL_STATS
-    N_ALL_CONTIGS="$(python3 - "$ALL_STATS" <<'PY_COUNT'
-import json, sys
-print(json.load(open(sys.argv[1]))['output_contigs'])
-PY_COUNT
-)"
-    (( N_ALL_CONTIGS > 0 )) || {
-        echo "ERROR: assembly contains no FASTA records: $ASSEMBLY_FA" >&2
-        exit 1
-    }
-    GENES_FAA="$WORK/genes.all.faa"
-    GENES_GFF="$WORK/genes.all.gff"
-    GENE_COORD="$WORK/gene_coordinates.all.tsv"
 fi
-
 QUERY_DB="$WORK/queryDB"
 TAX_RESULT="$WORK/taxonomyResult"
 TAX_RAW="$WORK/taxonomyResult.tsv"
@@ -922,19 +738,15 @@ MMSEQS_VERSION="$("$MMSEQS_BIN" version 2>&1)"
 echo "[00_gene_taxonomy_mmseqs2] Started: $(date)"
 echo "SCRIPT_ID        : $SCRIPT_ID"
 echo "SCOPE                 : $SCOPE"
-echo "FULL_ASSEMBLY_CONTIGS : $N_ALL_CONTIGS"
 echo "ASSEMBLY_FA           : $ASSEMBLY_FA"
 echo "MAG_CONTIG_MAP        : $MAG_CONTIG_MAP"
 echo "GENE_PREDICTOR        : $GENE_PREDICTOR"
 echo "GENE_PRED_THREADS     : $GENE_PRED_THREADS"
-echo "PYRODIGAL_POOL        : $PYRODIGAL_POOL"
-echo "PRODIGAL_JOBS         : $PRODIGAL_JOBS"
-echo "PRODIGAL_CHUNK_BP     : $PRODIGAL_CHUNK_BP"
 echo "GENE_PRED_CACHE       : $PRED_CACHE_ENTRY"
 echo "GENE_PRED_CACHE_STATUS: $PREDICTION_CACHE_STATUS"
 echo "MMSEQS_BIN            : $MMSEQS_BIN"
 echo "MMSEQS_TAX_DB         : $MMSEQS_TAX_DB"
-echo "TAXONOMY_SOURCE       : $TAXONOMY_SOURCE"
+echo "TAXONOMY_DATABASE     : $TAXONOMY_SOURCE"
 echo "TAXONOMY_RELEASE      : $TAXONOMY_RELEASE"
 echo "TAXONOMY_DB_LABEL     : $TAXONOMY_DB_LABEL"
 echo "GTDB_DB_LABEL         : $GTDB_DB_LABEL"
@@ -946,174 +758,27 @@ echo "TAX_MIN_GENES/CONTIG  : $TAXONOMY_MIN_PREDICTED_GENES_PER_CONTIG"
 echo "KEEP_FAILED_WORK      : $KEEP_FAILED_WORK"
 echo "OUT_TSV               : $OUT_TSV"
 
-if [[ "$PREDICTION_CACHE_STATUS" == "reused" ]]; then
-    echo "[1/5] Reusing validated full-assembly gene predictions"
-else
-echo "[1/5] Predicting genes across the full assembly and creating the shared cache"
-if [[ "$GENE_PREDICTOR" == "pyrodigal" ]]; then
-    "$PYRODIGAL_BIN" \
-        -p meta \
-        -j "$GENE_PRED_THREADS" \
-        --pool "$PYRODIGAL_POOL" \
-        -i "$SCOPE_FASTA" \
-        -a "$GENES_FAA" \
-        -f gff \
-        -o "$GENES_GFF"
-elif [[ "$GENE_PREDICTOR" == "prodigal_serial" ]]; then
-    "$PRODIGAL_BIN" -q -p meta -i "$SCOPE_FASTA" \
-        -a "$GENES_FAA" -f gff -o "$GENES_GFF"
-else
-    CHUNK_DIR="$WORK/prodigal_chunks"
-    RESULT_DIR="$WORK/prodigal_results"
-    MANIFEST="$WORK/prodigal_chunks.list"
-    mkdir -p "$CHUNK_DIR" "$RESULT_DIR"
-
-    python3 - "$SCOPE_FASTA" "$CHUNK_DIR" "$MANIFEST" "$PRODIGAL_CHUNK_BP" <<'PY_SPLIT'
-import sys
-from pathlib import Path
-
-fasta, out_dir, manifest, target_bp = sys.argv[1:]
-out_dir = Path(out_dir)
-target_bp = int(target_bp)
-chunk_index = 0
-chunk_bp = 0
-chunk_handle = None
-paths = []
-
-def new_chunk():
-    global chunk_index, chunk_bp, chunk_handle
-    if chunk_handle is not None:
-        chunk_handle.close()
-    chunk_index += 1
-    path = out_dir / f'chunk_{chunk_index:06d}.fa'
-    paths.append(path)
-    chunk_handle = path.open('w')
-    chunk_bp = 0
-
-def emit(header, sequence_lines):
-    global chunk_bp
-    length = sum(len(line.strip()) for line in sequence_lines)
-    if chunk_handle is None or (chunk_bp > 0 and chunk_bp + length > target_bp):
-        new_chunk()
-    chunk_handle.write(header)
-    if not header.endswith('\n'):
-        chunk_handle.write('\n')
-    for line in sequence_lines:
-        chunk_handle.write(line.rstrip('\n\r') + '\n')
-    chunk_bp += length
-
-header = None
-sequence = []
-with open(fasta) as handle:
-    for line in handle:
-        if line.startswith('>'):
-            if header is not None:
-                emit(header, sequence)
-            header = line
-            sequence = []
-        else:
-            sequence.append(line)
-if header is not None:
-    emit(header, sequence)
-if chunk_handle is not None:
-    chunk_handle.close()
-with open(manifest, 'w') as out:
-    for path in paths:
-        out.write(str(path) + '\n')
-print(f'Prodigal chunks: {len(paths)}')
-PY_SPLIT
-
-    WORKER="$WORK/run_prodigal_chunk.sh"
-    cat > "$WORKER" <<'WORKER_SH'
-#!/usr/bin/env bash
-set -Eeuo pipefail
-prodigal_bin="$1"
-result_dir="$2"
-chunk="$3"
-base="$(basename "$chunk" .fa)"
-"$prodigal_bin" -q -p meta -i "$chunk" \
-    -a "$result_dir/$base.faa" -f gff -o "$result_dir/$base.gff"
-WORKER_SH
-    chmod +x "$WORKER"
-    xargs -r -n 1 -P "$PRODIGAL_JOBS" \
-        "$WORKER" "$PRODIGAL_BIN" "$RESULT_DIR" < "$MANIFEST"
-
-    : > "$GENES_FAA"
-    printf '%s\n' '##gff-version 3' > "$GENES_GFF"
-    while IFS= read -r chunk; do
-        base="$(basename "$chunk" .fa)"
-        [[ -e "$RESULT_DIR/$base.faa" && -e "$RESULT_DIR/$base.gff" ]] || {
-            echo "ERROR: missing Prodigal chunk output: $base" >&2
-            exit 1
-        }
-        cat "$RESULT_DIR/$base.faa" >> "$GENES_FAA"
-        grep -v '^#' "$RESULT_DIR/$base.gff" >> "$GENES_GFF" || true
-    done < "$MANIFEST"
-fi
-
-[[ -s "$GENES_FAA" && -s "$GENES_GFF" ]] || {
-    echo "ERROR: gene predictor produced no protein/GFF output" >&2
+echo "[1/5] Shared gene prediction (pyrodigal -p meta)"
+PYRODIGAL_BIN="$PREDICTOR_BIN" bash "$SCRIPT_DIR/lib_genes.sh" \
+    "$ASSEMBLY_FA" "$GENE_CALLS_DIR" "$GENE_PRED_THREADS"
+[[ "$(<"$PRED_CACHE_FP")" == "$PREDICTION_FP" ]] || {
+    echo "ERROR: shared gene prediction fingerprint changed during the run: $GENE_CALLS_DIR" >&2
     exit 1
 }
-
-echo "[1/5] Linking full-assembly protein accessions to exact gene coordinates"
-python3 "$PRODIGAL_LINKER" "$GENES_FAA" "$GENES_GFF" "$GENE_COORD"
-[[ -s "$GENE_COORD" ]] || {
-    echo "ERROR: failed to link protein accessions to GFF coordinates" >&2
-    exit 1
-}
-N_PREDICTED_GENES="$(wc -l < "$GENE_COORD")"
-[[ "$N_PREDICTED_GENES" =~ ^[1-9][0-9]*$ ]] || {
-    echo "ERROR: invalid predicted-gene count from $GENE_COORD: $N_PREDICTED_GENES" >&2
-    exit 1
-}
-N_ALL_PREDICTED_GENES="$N_PREDICTED_GENES"
-
-mkdir -p "$PRED_CACHE_ENTRY"
-PRED_CACHE_TMP_FAA="$PRED_CACHE_ENTRY/genes.all.faa.tmp.$$"
-PRED_CACHE_TMP_COORD="$PRED_CACHE_ENTRY/gene_coordinates.all.tsv.tmp.$$"
-PRED_CACHE_TMP_META="$PRED_CACHE_ENTRY/run_metadata.tsv.tmp.$$"
-PRED_CACHE_TMP_FP="$PRED_CACHE_ENTRY/inputs.sha256.tmp.$$"
-
-mv -f "$GENES_FAA" "$PRED_CACHE_TMP_FAA"
-mv -f "$PRED_CACHE_TMP_FAA" "$PRED_CACHE_FAA"
-mv -f "$GENE_COORD" "$PRED_CACHE_TMP_COORD"
-mv -f "$PRED_CACHE_TMP_COORD" "$PRED_CACHE_COORD"
-{
-    printf 'key\tvalue\n'
-    printf 'cache_schema\tfull_assembly_gene_prediction_cache_v1\n'
-    printf 'scope\tall\n'
-    printf 'gene_predictor\t%s\n' "$GENE_PREDICTOR"
-    printf 'selected_contigs\t%s\n' "$N_ALL_CONTIGS"
-    printf 'predicted_genes\t%s\n' "$N_ALL_PREDICTED_GENES"
-    printf 'predictor_realpath\t%s\n' "$PREDICTOR_REALPATH"
-    printf 'predictor_signature\t%s\n' "$PREDICTOR_SIGNATURE"
-    printf 'gene_prediction_threads\t%s\n' "$GENE_PRED_THREADS"
-    printf 'pyrodigal_pool\t%s\n' "$PYRODIGAL_POOL"
-    printf 'prodigal_jobs\t%s\n' "$PRODIGAL_JOBS"
-    printf 'prodigal_chunk_bp\t%s\n' "$PRODIGAL_CHUNK_BP"
-    printf 'prediction_method_version\t%s\n' "$GENE_PREDICTION_METHOD_VERSION"
-    printf 'input_fingerprint\t%s\n' "$PREDICTION_FP"
-} > "$PRED_CACHE_TMP_META"
-mv -f "$PRED_CACHE_TMP_META" "$PRED_CACHE_META"
-printf '%s\n' "$PREDICTION_FP" > "$PRED_CACHE_TMP_FP"
-mv -f "$PRED_CACHE_TMP_FP" "$PRED_CACHE_FP"
-
+N_ALL_CONTIGS="$(grep -c '^>' "$ASSEMBLY_FA")"
+echo "ALL_ASSEMBLIES_CONTIGS: $N_ALL_CONTIGS"
+N_ALL_PREDICTED_GENES="$(wc -l < "$PRED_CACHE_COORD")"
+N_PREDICTED_GENES="$N_ALL_PREDICTED_GENES"
 GENES_FAA="$PRED_CACHE_FAA"
 GENE_COORD="$PRED_CACHE_COORD"
-prediction_cache_is_valid || {
-    echo "ERROR: newly written gene-prediction cache failed validation: $PRED_CACHE_ENTRY" >&2
-    exit 1
-}
-fi
 
 if [[ "$SCOPE" == "all" ]]; then
     N_SCOPE_CONTIGS="$N_ALL_CONTIGS"
     N_PREDICTED_GENES="$N_ALL_PREDICTED_GENES"
     GENES_FAA="$PRED_CACHE_FAA"
     GENE_COORD="$PRED_CACHE_COORD"
-    SCOPE_CACHE_STATUS="full_assembly_cache"
-    echo "[2/5] Using all full-assembly gene predictions"
+    SCOPE_CACHE_STATUS="all_assemblies_cache"
+    echo "[2/5] Using the gene predictions of all assemblies"
 elif scope_cache_is_valid; then
     SCOPE_CACHE_COUNTS="$(python3 - "$SCOPE_CACHE_META" <<'PY_READ_SCOPE_CACHE'
 import csv
@@ -1137,7 +802,7 @@ else
     SCOPE_WORK_FAA="$WORK/genes.${SCOPE}.faa"
     SCOPE_WORK_COORD="$WORK/gene_coordinates.${SCOPE}.tsv"
     SCOPE_WORK_STATS="$WORK/${SCOPE}.stats.json"
-    echo "[2/5] Selecting $SCOPE genes from the full-assembly prediction cache"
+    echo "[2/5] Selecting $SCOPE genes from the shared gene predictions"
     python3 "$GENE_SCOPE_SELECTOR" genes "$SCOPE_MODE" \
         "$ASSEMBLY_FA" "$MAG_CONTIG_MAP" \
         "$PRED_CACHE_FAA" "$PRED_CACHE_COORD" \
@@ -1351,7 +1016,7 @@ if [[ ! -s "$GENE_TAX_SELECTED" ]]; then
     echo "Generating gene taxonomy for chimera analysis"
     bash "$SCRIPT_DIR/07_chimera.sh" __taxonomy_internal contig \
         "$ASSEMBLY_FA" "$MMSEQS_TAX_DB" "$MAG_CONTIG_MAP" \
-        "$GTDB_GENE_TAX_DIR" "${THREADS:-100}"
+        "$GTDB_GENE_TAX_DIR" "$THREADS"
     [[ -s "$GENE_TAX_SELECTED" ]] || {
         echo "ERROR: gene taxonomy was not generated: $GENE_TAX_SELECTED" >&2
         exit 1
@@ -1482,7 +1147,7 @@ if [[ -s "$SCG_TSV" ]]; then
     if [[ -s "$MAG_GTDB_TAXONOMY_TSV" ]]; then
         SCG_AVAILABLE=Y
     else
-        echo "WARNING: SCG table is present but MAG GTDB-Tk taxonomy is unavailable; SCG redundancy annotation is disabled." >&2
+        echo "WARNING: SCG table is present but the MAG taxonomy table is missing; SCG redundancy annotation is disabled. Run MAGverify prep-taxonomy to add it." >&2
     fi
 fi
 

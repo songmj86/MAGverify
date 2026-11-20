@@ -27,7 +27,7 @@ class PrepScgCLITests(unittest.TestCase):
             'printf "contig\\thmm_name\\tgene_callers_id\\tsource\\n" > "$2/SCG_from_anvio.original_contig.tsv"\n')
         bindir = self.root / 'test_bin'
         bindir.mkdir()
-        for exe in ('anvi-script-reformat-fasta', 'anvi-gen-contigs-database', 'anvi-run-hmms'):
+        for exe in ('pyrodigal', 'anvi-script-reformat-fasta', 'anvi-gen-contigs-database', 'anvi-run-hmms'):
             shim = bindir / exe
             shim.write_text('#!/bin/sh\nexit 0\n')
             shim.chmod(0o755)
@@ -45,7 +45,7 @@ class PrepScgCLITests(unittest.TestCase):
     def test_help(self):
         result = self.run_cli('prep-scg', '-h')
         self.assertEqual(result.returncode, 0, result.stderr)
-        for option in ('-a DIR', '-t N', '-o DIR', '00_prep/SCG'):
+        for option in ('  -a ', '  -t ', '  -o ', '00_prep/SCG'):
             self.assertIn(option, result.stdout)
 
     def test_builds_all_assemblies_and_scg_table(self):

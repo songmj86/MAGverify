@@ -370,9 +370,9 @@ def main() -> None:
     all_regions_path = out_dir / f"taxonomic_transition_clipping_validation.{rel}.regions.tsv"
     chim_regions_path = out_dir / f"taxonomic_chimera.{rel}.regions.tsv"
     high_regions_path = out_dir / f"high_confidence_taxonomic_chimera.{rel}.regions.tsv"
-    contig_path = out_dir / f"contig_taxonomic_chimera.{rel}.final.tsv"
-    mag_contig_path = out_dir / f"MAG_contig_taxonomic_chimera.{rel}.final.tsv"
-    mag_path = out_dir / f"MAG_taxonomic_chimera.{rel}.final.tsv"
+    contig_path = out_dir / "chimera.contig.tsv"
+    mag_contig_path = out_dir / "chimera.MAG_contig.tsv"
+    mag_path = out_dir / "chimera.MAG.tsv"
     meta_path = out_dir / "run_metadata.tsv"
 
     chim_regions = [r for r in classified_regions if r["Taxonomic_chimera"] == "Y"]

@@ -24,14 +24,14 @@ seen = set()
 group_output_rows = []
 for group in group_rows:
     group_id = group["Group_ID"]
-    final_path = os.path.join(grouped_root, group_id, "MAG_END_START_closure.final.tsv")
+    final_path = os.path.join(grouped_root, group_id, "circularity.MAG.junction.tsv")
     if not os.path.isfile(final_path) or os.path.getsize(final_path) == 0:
-        raise SystemExit(f"ERROR: Missing source-group result: {final_path}")
+        raise SystemExit(f"ERROR: Missing assembler-group result: {final_path}")
     fields, rows = read_tsv(final_path)
     if output_fields is None:
         output_fields = fields
     elif fields != output_fields:
-        raise SystemExit(f"ERROR: Source-group final schema mismatch: {final_path}")
+        raise SystemExit(f"ERROR: Assembler-group final schema mismatch: {final_path}")
     group_output_rows.append((group_id, group["Assembler"], group["Assembly_FASTA"], group["MAG_count"], final_path))
     for row in rows:
         mag_id = row.get("MAG_ID", "")
@@ -40,7 +40,7 @@ for group in group_rows:
             raise SystemExit(f"ERROR: Unexpected MAG_ID in {final_path}: {mag_id}")
         meta = expected[mag_id]
         if meta["group"] != group_id or meta["contig"] != contig_id:
-            raise SystemExit(f"ERROR: Source provenance mismatch: {mag_id} / {contig_id}")
+            raise SystemExit(f"ERROR: Assembler provenance mismatch: {mag_id} / {contig_id}")
         if mag_id in seen:
             raise SystemExit(f"ERROR: MAG_ID occurs in multiple groups: {mag_id}")
         seen.add(mag_id)
@@ -49,7 +49,7 @@ for group in group_rows:
         merged_rows.append(row)
 
 if output_fields is None:
-    raise SystemExit("ERROR: no source-group circularity outputs")
+    raise SystemExit("ERROR: no assembler-group circularity outputs")
 for field in ("Source_assembler", "Source_assembly_FASTA"):
     if field not in output_fields:
         output_fields.append(field)

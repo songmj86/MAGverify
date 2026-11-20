@@ -175,7 +175,7 @@ def read_gtdb_chimera(path):
             if contig not in lengths or int(row['length']) != lengths[contig]:
                 raise SystemExit(f'ERROR: stale GTDB name/length: {contig}')
             if row['taxonomy_source'].strip().upper() != 'GTDB':
-                raise SystemExit(f'ERROR: non-GTDB taxonomy source: {contig}')
+                raise SystemExit(f'ERROR: non-GTDB taxonomy: {contig}')
             current_release = row['taxonomy_release'].strip()
             if not current_release:
                 raise SystemExit(f'ERROR: blank GTDB release: {contig}')

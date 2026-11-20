@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Build the assembler-reported circularity tables from native assembler outputs.
 
-Accepted sources (format detected from the content, gzip allowed):
+Accepted files (format detected from the content, gzip allowed):
   hifiasm-meta  p_ctg GFA, or FASTA/header list; contig names end in c (circular) or l (linear)
   metaMDBG      contigs FASTA or header list with circular=yes/no
   metaFlye      assembly_info.txt (circ. column)
 
 Outputs in OUT/00_prep/:
-  assembler_circularity.contig.tsv  Contig, Assembler, Assembler_circularity, Source_file
+  assembler_circularity.contig.tsv  Contig, Assembler, Assembler_circularity, File
   assembler_circularity.MAG.tsv     MAG_ID, Assembler, Assembler_circularity, Number_of_contigs, Contig
 The source files are read in parallel, one process per file.
 A MAG is Y when it consists of one contig that its assembler reported as circular.
@@ -15,6 +15,7 @@ A MAG is Y when it consists of one contig that its assembler reported as circula
 
 from __future__ import annotations
 
+import shutil
 import argparse
 import gzip
 import os
@@ -57,7 +58,7 @@ def first_line(path: Path) -> str:
         for line in handle:
             if line.strip():
                 return line
-    fail(f"empty circularity source: {path}")
+    fail(f"empty assembler circularity file: {path}")
     return ""
 
 
@@ -151,19 +152,38 @@ def write_atomic(path: Path, header: str, rows: List[str]) -> None:
     os.replace(temp, path)
 
 
+
+class OptionHelpFormatter(argparse.RawDescriptionHelpFormatter):
+    """Show options without value placeholders, each option on one line."""
+
+    def __init__(self, prog):
+        width = max(100, shutil.get_terminal_size((120, 24)).columns)
+        super().__init__(prog, max_help_position=40, width=width)
+
+    def _format_args(self, action, default_metavar):
+        return '' if action.option_strings else super()._format_args(action, default_metavar)
+
+    def _format_action_invocation(self, action):
+        return ', '.join(action.option_strings) or super()._format_action_invocation(action)
+
+    def _format_usage(self, usage, actions, groups, prefix):
+        text = super()._format_usage(usage, actions, groups, prefix)
+        text = re.sub(r'(?<=\S)  +(?=\S)', ' ', text.replace(' ]', ']'))
+        return '\n'.join(line.rstrip() for line in text.split('\n'))
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, add_help=False,
-                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+                                     formatter_class=OptionHelpFormatter)
     parser.add_argument("-h", action="help", help=argparse.SUPPRESS)
     parser.add_argument("-c", dest="sources", action="append", required=True, type=Path, metavar="FILE",
                         help="Assembler circularity file (repeat per assembler)")
-    parser.add_argument("-g", dest="mag_dir", required=True, type=Path, metavar="DIR", help="Folder of MAGs (*.fa)")
-    parser.add_argument("-o", dest="output", required=True, type=Path, metavar="DIR", help="Folder of base output")
+    parser.add_argument("-g", dest="mag_dir", required=True, type=Path, metavar="DIR", help="Directory of MAGs (*.fa)")
+    parser.add_argument("-o", dest="output", required=True, type=Path, metavar="DIR", help="Directory of base output")
     args = parser.parse_args()
 
     for path in args.sources:
         if not path.is_file():
-            fail(f"circularity source not found: {path}")
+            fail(f"assembler circularity file not found: {path}")
 
     with ProcessPoolExecutor(max_workers=len(args.sources)) as pool:
         loaded = list(pool.map(load_source, args.sources))
@@ -194,7 +214,7 @@ def main() -> None:
         contig = contigs[0] if len(contigs) == 1 else "NA"
         mag_rows.append(f"{mag_id}\t{assemblers}\t{call}\t{len(contigs)}\t{contig}")
     if missing:
-        fail(f"{len(missing)} MAG contigs are absent from the circularity sources, e.g. "
+        fail(f"{len(missing)} MAG contigs are absent from the assembler circularity files, e.g. "
              f"{', '.join(missing[:5])}. Give the complete assembler outputs with -c "
              f"(the contig names must match the MAG FASTAs)")
 
@@ -202,7 +222,7 @@ def main() -> None:
     contig_rows = [f"{name}\t{assembler}\t{call}\t{source}"
                    for name, (call, assembler, source) in sorted(calls.items())]
     write_atomic(out_dir / "assembler_circularity.contig.tsv",
-                 "Contig\tAssembler\tAssembler_circularity\tSource_file", contig_rows)
+                 "Contig\tAssembler\tAssembler_circularity\tFile", contig_rows)
     write_atomic(out_dir / "assembler_circularity.MAG.tsv",
                  "MAG_ID\tAssembler\tAssembler_circularity\tNumber_of_contigs\tContig", mag_rows)
     n_circular = sum(row.split("\t")[2] == "Y" for row in mag_rows)

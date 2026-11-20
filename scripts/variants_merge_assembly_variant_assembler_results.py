@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Merge source-assembler-specific assembly-variant results.
+"""Merge assembler-specific assembly-variant results.
 
-Each assembler is profiled independently against its complete co-assembly using
+Each assembler is profiled independently against all of its own contigs using
 its own HiFi_all_BAM. This helper combines those independent classifications
 without changing their reference populations and writes assembly-wide and
 assembler-level statistics.

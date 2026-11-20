@@ -6,7 +6,7 @@ from collections import Counter, defaultdict
 assemblies_fai, contig_path, mag_path, dataset_path, *source_fastas = sys.argv[1:]
 
 if not source_fastas:
-    raise SystemExit('ERROR: no source assembler FASTAs supplied')
+    raise SystemExit('ERROR: no assembler FASTAs supplied')
 
 
 def read_fai(path):
@@ -43,7 +43,7 @@ for fasta in source_fastas:
     for contig, length in source.items():
         if contig in contig_source:
             raise SystemExit(
-                f'ERROR: contig ID occurs in multiple source assemblers: {contig}'
+                f'ERROR: contig ID occurs in multiple assemblers: {contig}'
             )
         contig_source[contig] = (assembler, length)
 
@@ -92,7 +92,7 @@ mag_sources = defaultdict(set)
 for row in contig_rows:
     contig = row['contig']
     if contig not in contig_source:
-        raise SystemExit(f'ERROR: contig summary ID lacks source assembler: {contig}')
+        raise SystemExit(f'ERROR: contig summary ID lacks assembler: {contig}')
     assembler = contig_source[contig][0]
     row['source_assembler'] = assembler
     mag = row.get('MAG_ID', '').strip()

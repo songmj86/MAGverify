@@ -55,7 +55,7 @@ def check_inputs(assembly, mag_dir, manifest):
                 raise ValueError(f"Missing manifest field at line {line_no}. Re-run 01_mapping.sh")
             source = Path(row["Assembly_FASTA"])
             bam = Path(row["HiFi_all_BAM"])
-            check_file(source, f"Source assembly FASTA for {assembler}")
+            check_file(source, f"Assembly FASTA for {assembler}")
             check_file(bam, f"HiFi_all_BAM for {assembler} (run 01_mapping.sh first)")
             check_file(bam.parent / ".cache" / (bam.name + ".inputs.sha256"), f"HiFi_all_BAM cache for {assembler} (run 01_mapping.sh first)")
     if n == 0:
@@ -76,7 +76,7 @@ def main():
         )
     except ValueError as error:
         parser.exit(1, f"ERROR: {error}\n")
-    print(f"Clipping inputs found: {mag_count} MAG FASTAs; {assembler_count} source assembler(s).")
+    print(f"Clipping inputs found: {mag_count} MAG FASTAs; {assembler_count} assembler(s).")
     print("File presence checked. BAM integrity and contig identities are verified during analysis.")
 
 

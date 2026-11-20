@@ -489,12 +489,12 @@ with open(manifest, encoding='utf-8-sig', newline='') as handle:
         assembly = (row.get('Assembly_FASTA') or '').strip()
         bam = (row.get('HiFi_all_BAM') or '').strip()
         if not assembler or not assembly or not bam:
-            raise SystemExit('ERROR: blank source mapping manifest field')
+            raise SystemExit('ERROR: blank mapping manifest field')
         fai = assembly + '.fai'
-        bam_meta = bam + '.inputs.sha256'
+        bam_meta = os.path.join(os.path.dirname(bam), '.cache', os.path.basename(bam) + '.inputs.sha256')
         for path in (assembly, fai, bam, bam_meta):
             if not os.path.isfile(path) or os.path.getsize(path) == 0:
-                raise SystemExit(f'ERROR: source clipping input missing: {path}')
+                raise SystemExit(f'ERROR: clipping input missing: {path}')
         sources.append({
             'assembler': assembler,
             'assembly': stat_payload(assembly),
@@ -548,15 +548,15 @@ qc_validate_current_clipping_result() {
     while IFS=$'\t' read -r assembler assembly hifi_bam _rest; do
         [[ "$assembler" == "Assembler" ]] && continue
         [[ -n "$assembler" && -s "$assembly" && -s "${assembly}.fai" && -s "$hifi_bam" ]] || {
-            echo "ERROR: incomplete source-assembler clipping input for $assembler" >&2
+            echo "ERROR: incomplete clipping input for $assembler" >&2
             return 1
         }
         samtools quickcheck -v "$hifi_bam" >/dev/null 2>&1 || {
-            echo "ERROR: source HiFi BAM failed quickcheck: $hifi_bam" >&2
+            echo "ERROR: HiFi BAM failed quickcheck: $hifi_bam" >&2
             return 1
         }
         qc_bam_matches_fai "$hifi_bam" "${assembly}.fai" || {
-            echo "ERROR: source HiFi BAM/reference mismatch: $assembler" >&2
+            echo "ERROR: HiFi BAM/reference mismatch: $assembler" >&2
             return 1
         }
     done < "$ASSEMBLER_MAPPING_MANIFEST"
@@ -594,7 +594,7 @@ with open(path, encoding='utf-8-sig', newline='') as handle:
         raise SystemExit(f'ERROR: clipping table lacks new schema columns: {sorted(missing)}')
     bad = [row for row in reader if (row.get('region_type') or '').strip() != 'INTERNAL']
 if bad:
-    raise SystemExit('ERROR: legacy clipping.filtered.tsv must contain INTERNAL rows only')
+    raise SystemExit('ERROR: legacy clipping.site.tsv must contain INTERNAL rows only')
 PY_QC_INTERNAL_CLIP
 }
 
@@ -603,6 +603,34 @@ qc_parallel_jobs() {
     (( jobs > items )) && jobs="$items"
     (( jobs < 1 )) && jobs=1
     echo "$jobs"
+}
+
+qc_duration() {
+    local s="$1"
+    if (( s >= 3600 )); then printf '%dh%02dm' $(( s / 3600 )) $(( s % 3600 / 60 ))
+    elif (( s >= 60 )); then printf '%dm' $(( s / 60 ))
+    else printf '%ds' "$s"; fi
+}
+
+# Report finished/total work units with the remaining time until stopped or the caller exits.
+# Usage: qc_progress_watch LABEL TOTAL DIR GLOB &   (count files matching GLOB in DIR)
+qc_progress_watch() {
+    local label="$1" total="$2" dir="$3" pattern="$4" parent="$$"
+    local interval="${PROGRESS_INTERVAL:-300}" start="$SECONDS" finished elapsed remaining
+    (( total > 0 )) || return 0
+    while sleep "$interval"; do
+        kill -0 "$parent" 2>/dev/null || break
+        finished="$(find "$dir" -maxdepth 1 -name "$pattern" 2>/dev/null | wc -l)"
+        elapsed=$(( SECONDS - start ))
+        remaining="estimating"
+        (( finished > 0 )) && remaining="$(qc_duration $(( elapsed * (total - finished) / finished )))"
+        echo "[$label] $finished/$total ($(( 100 * finished / total ))%) | elapsed $(qc_duration "$elapsed") | remaining $remaining"
+    done
+}
+
+qc_progress_stop() {
+    kill "$1" 2>/dev/null || true
+    wait "$1" 2>/dev/null || true
 }
 
 qc_split_threads() {

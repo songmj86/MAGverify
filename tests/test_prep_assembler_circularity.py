@@ -58,12 +58,12 @@ class PrepAssemblerCircularityTests(unittest.TestCase):
         self.assertIn('s1.ctg000002c\thifiasm-meta\tY\tRead.p_ctg.gfa', contigs)
         self.assertIn('contig_2\tmetaFlye\tN\tassembly_info.txt', contigs)
 
-    def test_incomplete_sources_are_rejected(self):
+    def test_incomplete_files_are_rejected(self):
         partial = Path(self.temp.name) / 'headers.txt'
         partial.write_text('S\ts0.ctg000001l\n')
         result = self.run_cli(partial, self.mdbg, self.flye)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn('absent from the circularity sources', result.stderr + result.stdout)
+        self.assertIn('absent from the assembler circularity files', result.stderr + result.stdout)
         self.assertIn('Bin1L:s1.ctg000002c', result.stderr + result.stdout)
 
 

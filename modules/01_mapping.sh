@@ -54,15 +54,6 @@ for tool in minimap2 samtools awk python3; do
         || { echo "ERROR: missing tool: $tool"; exit 1; }
 done
 
-MINIMAP2_SECONDARY_SEQ_ARGS=()
-_MINIMAP2_HELP_TEXT="$(minimap2 2>&1 || true)"
-if grep -q -- '--secondary-seq' <<< "$_MINIMAP2_HELP_TEXT"; then
-    MINIMAP2_SECONDARY_SEQ_ARGS=(--secondary-seq)
-    MINIMAP2_SECONDARY_SEQ_STATUS="Y"
-else
-    MINIMAP2_SECONDARY_SEQ_STATUS="N"
-fi
-unset _MINIMAP2_HELP_TEXT
 if [[ "$RUN_PER_ASSEMBLER_MAPPING" == "Y" ]]; then
     [[ -s "$READS" ]] || { echo "ERROR: missing READS: $READS"; exit 1; }
 fi
@@ -286,14 +277,16 @@ map_one_assembler() {
         hifi_sort_prefix="$hifi_dir/.samtools_sort.${assembler}.$$"
         TMP_PER_ASSEMBLER_FILES+=("$hifi_tmp")
         TMP_PER_ASSEMBLER_PREFIXES+=("$hifi_sort_prefix")
-        minimap2 \
+        python3 "$SCRIPT_DIR/../scripts/core_progress_reader.py" "$READS" \
+            --label "01_mapping][$assembler" --interval "${PROGRESS_INTERVAL:-300}" \
+          | minimap2 \
             -t "$MM2_THREADS" \
             -ax "$PRESET" \
             -p 1 \
             -N "$MINIMAP2_MAX_SECONDARY" \
             --secondary-seq \
             -I "$MINIMAP2_INDEX_CHUNK" \
-            "$assembly" "$READS" \
+            "$assembly" - \
           | samtools view -@ "$SAMTOOLS_THREADS" -b -F 4 - \
           | samtools sort -@ "$SAMTOOLS_THREADS" -m "$SORT_MEM" -O BAM \
                 -T "$hifi_sort_prefix" -o "$hifi_tmp" -

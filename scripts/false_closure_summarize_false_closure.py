@@ -153,7 +153,7 @@ def main() -> None:
         resolved_count = intval(row, "SOURCE_CONTIG_CIRCULARITY_RESOLVED_COUNT", mag)
         unresolved_count = intval(row, "SOURCE_CONTIG_CIRCULARITY_UNRESOLVED_COUNT", mag)
         if resolved_count + unresolved_count != contig_count:
-            fail(f"source circularity counts do not sum to contig count for {mag}")
+            fail(f"assembler circularity counts do not sum to contig count for {mag}")
         if circular_count > resolved_count:
             fail(f"circular contig count exceeds resolved count for {mag}")
 
@@ -162,9 +162,9 @@ def main() -> None:
         complete = call(row["SOURCE_CONTIG_CIRCULARITY_COMPLETE_Y_N"], {"Y", "N"}, "source circularity completeness", mag)
         expected_aggregate = "Y" if circular_count > 0 else ("N" if complete == "Y" else "NA")
         if assembler != expected_aggregate:
-            fail(f"source-contig aggregate circularity inconsistent for {mag}: {assembler} vs {expected_aggregate}")
+            fail(f"contig aggregate circularity inconsistent for {mag}: {assembler} vs {expected_aggregate}")
         if complete != ("Y" if unresolved_count == 0 else "N"):
-            fail(f"source circularity completeness inconsistent for {mag}")
+            fail(f"assembler circularity completeness inconsistent for {mag}")
         analyzable = call(row["False_closure_analyzable"], {"Y", "N"}, "false-closure analyzability", mag)
         false_call = call(row["False_closure"], {"Y", "N", "NA"}, "false-closure call", mag)
         if (analyzable == "Y") != (false_call in {"Y", "N"}):

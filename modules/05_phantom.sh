@@ -20,9 +20,9 @@ SCRIPT_ID="05_phantom"
 : "${PHANTOM_MAG_MERYL_CACHE_META:?}" "${PHANTOM_MAG_MERYL_CATALOGUE_CACHE_META:?}"
 
 PHANTOM_MAG_SUMMARIZER="$SCRIPT_DIR/../scripts/phantom_summarize_phantom_by_mag.py"
-PHANTOM_CACHE_META="${PHANTOM_CACHE_META:-${PHANTOM_FINAL}.inputs.sha256}"
+PHANTOM_CACHE_META="${PHANTOM_CACHE_META:-${PHANTOM_DIR}/.cache/phantom.region.tsv.inputs.sha256}"
 PHANTOM_DB_CACHE_META="${PHANTOM_BLAST_DB}.inputs.sha256"
-PHANTOM_SOURCE_MAPPING_AUDIT="${PHANTOM_DIR}/phantom.source_mapping_manifest.tsv"
+PHANTOM_SOURCE_MAPPING_AUDIT="${PHANTOM_DIR}/phantom.mapping_manifest.tsv"
 FORCE_RERUN_PHANTOM="${FORCE_RERUN_PHANTOM:-N}"
 
 mkdir -p "$OUT/00_log" "${PHANTOM_DIR}" \
@@ -59,18 +59,18 @@ PY_VALIDATE
 
 samtools faidx "$ASSEMBLY_FA"
 [[ -s "$ASSEMBLER_MAPPING_MANIFEST" ]] || {
-    echo "ERROR: missing source-assembler mapping manifest: $ASSEMBLER_MAPPING_MANIFEST"
+    echo "ERROR: missing mapping manifest: $ASSEMBLER_MAPPING_MANIFEST"
     echo "       rerun 01_mapping.sh with per-assembler HiFi mapping enabled"
     exit 1
 }
 
 while IFS=$'\t' read -r assembler source_fasta hifi_all; do
-    [[ -s "$source_fasta" ]] || { echo "ERROR: source assembly missing: $source_fasta"; exit 1; }
+    [[ -s "$source_fasta" ]] || { echo "ERROR: assembly missing: $source_fasta"; exit 1; }
     samtools faidx "$source_fasta"
-    [[ -s "$hifi_all" ]] || { echo "ERROR: source-assembler HiFi_all_BAM missing for $assembler: $hifi_all"; exit 1; }
+    [[ -s "$hifi_all" ]] || { echo "ERROR: HiFi_all_BAM missing for $assembler: $hifi_all"; exit 1; }
     samtools quickcheck -v "$hifi_all" || { echo "ERROR: samtools quickcheck failed: $hifi_all"; exit 1; }
     qc_bam_matches_fai "$hifi_all" "${source_fasta}.fai" || {
-        echo "ERROR: HiFi BAM/source assembly mismatch: $assembler"
+        echo "ERROR: HiFi BAM/assembly mismatch: $assembler"
         exit 1
     }
 done < <(qc_manifest_columns "$ASSEMBLER_MAPPING_MANIFEST" Assembler Assembly_FASTA HiFi_all_BAM)
@@ -109,7 +109,7 @@ for row in rows:
     source = load_fai(row['Assembly_FASTA'].strip() + '.fai')
     for contig, length in source.items():
         if contig in union:
-            raise SystemExit(f'ERROR: contig ID occurs in multiple source assemblers: {contig}')
+            raise SystemExit(f'ERROR: contig ID occurs in multiple assemblers: {contig}')
         union[contig] = (assembler, length)
 if set(union) != set(combined):
     missing = sorted(set(combined) - set(union))[:20]
@@ -214,7 +214,7 @@ PHANTOM_MAG_MERYL_FP="$(qc_hash_text "$PHANTOM_FP" "$MAG_MAP_SHA" \
 
 echo "[05_phantom] Started: $(date)"
 echo "SCRIPT_ID: $SCRIPT_ID"
-echo "Zero-coverage reference: each contig's source-assembler total co-assembly"
+echo "Zero-coverage reference: each contig's original assembly"
 echo "Zero-coverage population: ALL mapped alignments (primary+secondary+supplementary)"
 echo "Minimum zero-region length: $ZERO_MIN_BP bp"
 echo "Raw-read confirmation: BLASTN -dust no -max_target_seqs 1"
@@ -592,7 +592,7 @@ while IFS=$'\t' read -r assembler source_fasta hifi_all _rest; do
     ZERO_ROWS+=("$assembler"$'\t'"$hifi_all")
 done < "$ASSEMBLER_MAPPING_MANIFEST"
 ZERO_JOBS="$(qc_parallel_jobs "${#ZERO_ROWS[@]}")"
-echo "  Source-assembler zero-depth: ${#ZERO_ROWS[@]} assemblers, $ZERO_JOBS in parallel"
+echo "  Per-assembler zero-depth: ${#ZERO_ROWS[@]} assemblers, $ZERO_JOBS in parallel"
 for row in "${ZERO_ROWS[@]}"; do
     IFS=$'\t' read -r assembler hifi_all <<< "$row"
     ( zero_depth_one_assembler "$hifi_all" "$ZERO_PARTS_DIR/$assembler.bed" ) &

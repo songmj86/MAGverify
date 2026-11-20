@@ -11,7 +11,7 @@ conda env create -f environment.yml
 conda activate MAGverify
 ```
 
-This one creation command installs the tools declared in `environment.yml` and the local MAGverify package itself. The file includes `anvio-minimal=9` from Bioconda, together with minimap2, samtools, bedtools, BLAST+, MMseqs2, Prodigal, Meryl and HMMER. Anvi'o's Python dependencies are resolved through its Conda recipe. `pip:` inside `environment.yml` installs the MAGverify CLI automatically; there is **no additional manual installation command**. You may use `mamba env create -f environment.yml` as an alternative to Conda.
+This one creation command installs the tools declared in `environment.yml` and the local MAGverify package itself. The file includes `anvio-minimal=9` from Bioconda, together with minimap2, samtools, bedtools, BLAST+, MMseqs2, Pyrodigal, Meryl and HMMER. Anvi'o's Python dependencies are resolved through its Conda recipe. `pip:` inside `environment.yml` installs the MAGverify CLI automatically; there is **no additional manual installation command**. You may use `mamba env create -f environment.yml` as an alternative to Conda.
 
 **Important:** change to the repository root (`cd MAGverify`) before invoking `conda env create`, since the YAML includes a local editable package (`-e .`). Keep this repository directory after installation, since the editable installation uses its Python files and shell modules.
 
@@ -34,13 +34,13 @@ python -c 'import anvio; print(anvio.__version__)'
 
 The listed programs should be found under the same Conda environment's `bin` directory. `MAGverify doctor` lists available executables, but does not replace a functional test. Confirm that any prerequisite programs not found on PATH are installed before processing data. The `anvi-self-test --suite mini --no-interactive` command can be used for a separate anvi'o functional test.
 
-`MAGverify doctor` also prints `MAGverify source`, the repository directory the command runs from. The installation is editable, so it keeps using the directory where the environment was created. If you update or move the repository, or `MAGverify <module> -h` lacks an option shown in this documentation, reinstall from the current repository root:
+`MAGverify doctor` also prints `MAGverify path`, the repository directory the command runs from. The installation is editable, so it keeps using the directory where the environment was created. If you update or move the repository, or `MAGverify <module> -h` lacks an option shown in this documentation, reinstall from the current repository root:
 
 ```bash
 conda activate MAGverify
 cd /path/to/MAGverify
 pip install -e . --no-deps
-MAGverify doctor          # MAGverify source should now be this directory
+MAGverify doctor          # MAGverify path should now be this directory
 ```
 
 `--no-deps` leaves the Conda-managed tools untouched. Reinstalling does not modify files in the previous directory, so jobs already running from it are not affected.
@@ -69,7 +69,7 @@ MAGverify circularity \
   -t 100
 ```
 
-Continue the remaining modules in the order specified in the [README](../README.md). All commands accept `-a` for the directory of original assembler FASTA files and `-o` for the common output root. Neither `--anvio-env` nor an explicit `--mapping-manifest` is needed when using the same `-o` for every stage. The manifest is created by `MAGverify map` in `OUTPUT/01_mapping/mapping_manifest.tsv` and linked under `OUTPUT/results/mapping_manifest.tsv`.
+Continue the remaining modules in the order specified in the [README](../README.md). All commands accept `-a` for the directory of original assembler FASTA files and `-o` for the common output root. Neither `--anvio-env` nor an explicit `--mapping-manifest` is needed when using the same `-o` for every stage. The manifest is created by `MAGverify map` in `OUTPUT/01_mapping/mapping_manifest.tsv`.
 
 ## 4. Input preparation
 

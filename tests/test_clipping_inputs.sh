@@ -20,7 +20,7 @@ printf 'assembler\t%s\t%s\t%s\t%s\t%s\n' \
 export MAG_DIR="$TMP/MAGs"
 export ASSEMBLER_MAPPING_MANIFEST="$manifest"
 python3 "$ROOT/../scripts/clipping_check_clipping_inputs.py" --assembly "$TMP/combined.fa" --mag-dir "$MAG_DIR" --manifest "$ASSEMBLER_MAPPING_MANIFEST" > "$TMP/success.log"
-grep -q '1 MAG FASTAs; 1 source assembler' "$TMP/success.log"
+grep -q '1 MAG FASTAs; 1 assembler' "$TMP/success.log"
 
 # Missing prior mapping must be rejected before starting any downstream analysis.
 rm "$TMP/01_mapping/all.bam"

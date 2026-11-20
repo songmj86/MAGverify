@@ -53,7 +53,7 @@ def source_lengths(manifest: str) -> Dict[str, Dict[str, int]]:
                 fail("invalid mapping manifest")
             result[assembler] = load_fai(fasta + ".fai")
     if not result:
-        fail("mapping manifest contains no source assemblies")
+        fail("mapping manifest contains no assemblies")
     return result
 
 
@@ -220,7 +220,7 @@ def main() -> None:
     atomic_write(args.ratio_output, ratio_fields, ratio_rows)
 
     all_ratio = next(row for row in ratio_rows if row["source_assembler"] == "ALL")
-    print("Terminal/internal density ratios (ALL source assemblers):")
+    print("Terminal/internal density ratios (ALL assemblers):")
     for key, value in all_ratio.items():
         if key != "source_assembler":
             print(f"  {key}: {value}")

@@ -11,12 +11,29 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 
 
-def help_formatter(prog):
-    """Keep each option and its description on one line."""
-    width = max(100, shutil.get_terminal_size((120, 24)).columns)
-    return argparse.HelpFormatter(prog, max_help_position=40, width=width)
+class OptionHelpFormatter(argparse.RawDescriptionHelpFormatter):
+    """Show options without value placeholders, each option on one line."""
+
+    def __init__(self, prog):
+        width = max(100, shutil.get_terminal_size((120, 24)).columns)
+        super().__init__(prog, max_help_position=40, width=width)
+
+    def _format_args(self, action, default_metavar):
+        return '' if action.option_strings else super()._format_args(action, default_metavar)
+
+    def _format_action_invocation(self, action):
+        return ', '.join(action.option_strings) or super()._format_action_invocation(action)
+
+    def _format_usage(self, usage, actions, groups, prefix):
+        text = super()._format_usage(usage, actions, groups, prefix)
+        text = re.sub(r'(?<=\S)  +(?=\S)', ' ', text.replace(' ]', ']'))
+        return '\n'.join(line.rstrip() for line in text.split('\n'))
+
+
+help_formatter = OptionHelpFormatter
 
 ROOT = Path(__file__).resolve().parent.parent / "modules"
 SCRIPTS_DIR = Path(__file__).resolve().parent
@@ -58,210 +75,73 @@ FILE_OPTIONS = {
 RESULTS = {
     'taxonomy': '00_prep/gene_taxonomy/GTDB_R232/gene_taxonomy.mmseqs2.GTDB_R232.all_contigs.tsv',
     'mag_map': '00_prep/MAG_contig_map.tsv',
+    'mag_taxonomy': '00_prep/gtdb_taxonomy.MAG.tsv',
+    'database': '00_prep/GTDB_R232',
     'mapping_manifest': '01_mapping/mapping_manifest.tsv',
-    'clipping_table': '03_clipping/clipping.filtered.tsv',
-    'clipping_all_table': '03_clipping/clipping.all_regions.filtered.tsv',
+    'clipping_table': '03_clipping/clipping.site.tsv',
+    'clipping_all_table': '03_clipping/clipping.site.all_regions.tsv',
     'scg_table': '00_prep/SCG/SCG_from_anvio.original_contig.tsv',
     'assembler_circularity': '00_prep/assembler_circularity.MAG.tsv',
-    'circularity_table': '02_circularity/MAG_circularity.final.tsv',
-    'circularity_audit': '02_circularity/MAG_circularity.audit.tsv',
-    'false_closure_table': '04_false_closure/MAG_false_closure.final.tsv',
-    'false_closure_audit': '04_false_closure/MAG_false_closure.audit.tsv',
-    'chimera_table': '07_chimera/GTDB_R232/clipping_defined/contig_taxonomic_chimera.GTDB_R232.final.tsv',
-    'variants_table': '09_assembly_variants/contig_assembly_allele_support.final.tsv',
-    'phantom_table': '05_phantom/phantom_sequences.final.tsv',
-    'repeats_table': '06_repeats/contig_repeat_breadth.final.tsv',
-    'repeats_mag_table': '06_repeats/MAG_repeat_breadth.final.tsv',
-    'duplication_table': '08_false_duplication/false_duplication.by_contig.tsv',
-    'duplication_clipping_table': '08_false_duplication/validation/clipping/false_duplication.by_contig.clipping.tsv',
-    'duplication_clipping_mag_table': '08_false_duplication/validation/clipping/false_duplication.by_MAG.clipping.tsv',
+    'circularity_table': '02_circularity/circularity.MAG.tsv',
+    'circularity_audit': '02_circularity/circularity.MAG.audit.tsv',
+    'false_closure_table': '04_false_closure/false_closure.MAG.tsv',
+    'false_closure_audit': '04_false_closure/false_closure.MAG.audit.tsv',
+    'chimera_table': '07_chimera/GTDB_R232/clipping_defined/chimera.contig.tsv',
+    'variants_table': '09_assembly_variants/variants.contig.tsv',
+    'phantom_table': '05_phantom/phantom.region.tsv',
+    'repeats_table': '06_repeats/repeats.contig.tsv',
+    'repeats_mag_table': '06_repeats/repeats.MAG.tsv',
+    'duplication_table': '08_false_duplication/false_duplication.contig.tsv',
+    'duplication_clipping_table': '08_false_duplication/validation/clipping/false_duplication.contig.clipping.tsv',
+    'duplication_clipping_mag_table': '08_false_duplication/validation/clipping/false_duplication.MAG.clipping.tsv',
 }
-PUBLIC_RESULTS = {
-    'map': {
-        'mapping_manifest.tsv': ('01_mapping/mapping_manifest.tsv', None),
-    },
-    'clipping': {
-        'clipping.site.tsv': ('03_clipping/clipping.filtered.tsv', 'site'),
-        'clipping.contig.tsv': ('03_clipping/contig_clipping.final.tsv', 'contig'),
-        'clipping.MAG.tsv': ('03_clipping/MAG_clipping.final.tsv', 'MAG'),
-    },
-    'chimera': {
-        'gene_taxonomy.gene.tsv': ('00_prep/gene_taxonomy/GTDB_R232/gene_taxonomy.mmseqs2.GTDB_R232.all_contigs.tsv', 'gene'),
-        'scg.gene.tsv': ('00_prep/SCG/SCG_from_anvio.original_contig.tsv', 'gene'),
-        'chimera.contig.tsv': ('07_chimera/GTDB_R232/clipping_defined/contig_taxonomic_chimera.GTDB_R232.final.tsv', 'contig'),
-        'chimera.MAG.tsv': ('07_chimera/GTDB_R232/clipping_defined/MAG_taxonomic_chimera.GTDB_R232.final.tsv', 'MAG'),
-    },
-    'circularity': {
-        'circularity.MAG.tsv': ('02_circularity/MAG_circularity.final.tsv', 'MAG'),
-    },
-    'false-closure': {
-        'false_closure.contig.tsv': ('04_false_closure/contig_false_closure.final.tsv', 'contig'),
-        'false_closure.MAG.tsv': ('04_false_closure/MAG_false_closure.final.tsv', 'MAG'),
-    },
-    'variants': {
-        'variants.contig.tsv': ('09_assembly_variants/contig_assembly_allele_support.final.tsv', 'contig'),
-        'variants.MAG.tsv': ('09_assembly_variants/assembly_allele_support.by_MAG.tsv', 'MAG'),
-    },
-    'phantom': {
-        'phantom.region.tsv': ('05_phantom/phantom_sequences.final.tsv', 'region'),
-        'phantom.MAG.tsv': ('05_phantom/MAG_phantom_summary.final.tsv', 'MAG'),
-    },
-    'repeats': {
-        'repeats.contig.tsv': ('06_repeats/contig_repeat_breadth.final.tsv', 'contig'),
-        'repeats.MAG.tsv': ('06_repeats/MAG_repeat_breadth.final.tsv', 'MAG'),
-    },
-    'false-duplication': {
-        'false_duplication.contig.tsv': ('08_false_duplication/false_duplication.by_contig.tsv', 'contig'),
-        'false_duplication.MAG.tsv': ('08_false_duplication/false_duplication.by_MAG.tsv', 'MAG'),
-    },
-    'summary': {
-        'summary.contig.tsv': ('10_summary/integrated_QC_summary.MAG_contigs.tsv', 'contig'),
-        'summary.MAG.tsv': ('10_summary/integrated_QC_summary.by_MAG.tsv', 'MAG'),
-    },
+FINAL_TABLES = {
+    'map': ('01_mapping/mapping_manifest.tsv',),
+    'circularity': ('02_circularity/circularity.MAG.tsv',),
+    'clipping': ('03_clipping/clipping.site.tsv', '03_clipping/clipping.contig.tsv', '03_clipping/clipping.MAG.tsv'),
+    'false-closure': ('04_false_closure/false_closure.contig.tsv', '04_false_closure/false_closure.MAG.tsv'),
+    'phantom': ('05_phantom/phantom.region.tsv', '05_phantom/phantom.MAG.tsv'),
+    'repeats': ('06_repeats/repeats.contig.tsv', '06_repeats/repeats.MAG.tsv', '06_repeats/repeats.dataset.tsv',
+                '06_repeats/repeats.region.tsv', '06_repeats/repeats.HSP.tsv'),
+    'chimera': ('07_chimera/GTDB_R232/clipping_defined/chimera.contig.tsv',
+                '07_chimera/GTDB_R232/clipping_defined/chimera.MAG.tsv'),
+    'false-duplication': ('08_false_duplication/false_duplication.contig.tsv',
+                          '08_false_duplication/false_duplication.MAG.tsv'),
+    'variants': ('09_assembly_variants/variants.contig.tsv', '09_assembly_variants/variants.MAG.tsv'),
+    'summary': ('10_summary/summary.contig.tsv', '10_summary/summary.MAG.tsv'),
 }
-LEGACY_PUBLIC_NAMES = (
-    'clipping_sites.tsv', 'clipping_mag.tsv', 'clipping_contig.tsv', 'gene_taxonomy.tsv', 'scg.tsv',
-    'chimera_contig.tsv', 'chimera_mag.tsv', 'circularity_mag.tsv', 'false_closure_mag.tsv',
-    'false_closure_contig.tsv', 'variants_contig.tsv', 'variants_mag.tsv', 'phantom_contig.tsv',
-    'phantom_mag.tsv', 'repeats_contig.tsv', 'repeats_mag.tsv', 'false_duplication_contig.tsv',
-    'false_duplication_mag.tsv', 'summary_mag.tsv', 'summary_contig.tsv',
-)
-ID_ALIASES = {
-    'Contig': ('contig', 'contig_id', 'contig_name'),
-    'MAG_ID': ('mag_id', 'mag', 'bin_id'),
-    'Assembler': ('assembler', 'source_assembler'),
+GENERATED_RESULTS_NAMES = {
+    'mapping_manifest.tsv', 'clipping_sites.tsv', 'clipping_mag.tsv', 'clipping_contig.tsv', 'gene_taxonomy.tsv',
+    'scg.tsv', 'chimera_contig.tsv', 'chimera_mag.tsv', 'circularity_mag.tsv', 'false_closure_mag.tsv',
+    'false_closure_contig.tsv', 'variants_contig.tsv', 'variants_mag.tsv', 'phantom_contig.tsv', 'phantom_mag.tsv',
+    'repeats_contig.tsv', 'repeats_mag.tsv', 'false_duplication_contig.tsv', 'false_duplication_mag.tsv',
+    'summary_mag.tsv', 'summary_contig.tsv', 'clipping.site.tsv', 'clipping.contig.tsv', 'clipping.MAG.tsv',
+    'gene_taxonomy.gene.tsv', 'scg.gene.tsv', 'chimera.contig.tsv', 'chimera.MAG.tsv', 'circularity.MAG.tsv',
+    'false_closure.contig.tsv', 'false_closure.MAG.tsv', 'variants.contig.tsv', 'variants.MAG.tsv',
+    'phantom.region.tsv', 'phantom.MAG.tsv', 'repeats.contig.tsv', 'repeats.MAG.tsv',
+    'false_duplication.contig.tsv', 'false_duplication.MAG.tsv', 'summary.contig.tsv', 'summary.MAG.tsv',
 }
 
 
-class ContigIndex:
-    """Contig -> MAG_ID and contig -> Assembler lookups for the published tables."""
-
-    def __init__(self, root):
-        self.root = root
-        self._mags = None
-        self._assemblers = None
-
-    def mags(self):
-        if self._mags is None:
-            self._mags = {}
-            path = self.root / RESULTS['mag_map']
-            if path.is_file():
-                with path.open(encoding='utf-8-sig', newline='') as handle:
-                    for row in csv.DictReader(handle, delimiter='\t'):
-                        contig, mag = (row.get('Contig') or '').strip(), (row.get('MAG_ID') or '').strip()
-                        if contig and mag:
-                            self._mags.setdefault(contig, set()).add(mag)
-        return self._mags
-
-    def assemblers(self):
-        if self._assemblers is None:
-            self._assemblers = {}
-            paths = []
-            for name in ('all_assemblies.fasta', 'combined_assembly.fasta'):
-                sources = self.root / '00_prep' / f'{name}.sources.json'
-                try:
-                    paths = [Path(item['path']) for item in json.loads(sources.read_text())]
-                    break
-                except (OSError, ValueError, KeyError, TypeError):
-                    continue
-            for fasta in paths:
-                name = fasta.stem
-                fai = Path(str(fasta) + '.fai')
-                if fai.is_file() and fasta.is_file() and fai.stat().st_mtime_ns >= fasta.stat().st_mtime_ns:
-                    with fai.open() as handle:
-                        for line in handle:
-                            self._assemblers[line.split('\t', 1)[0]] = name
-                elif fasta.is_file():
-                    with fasta.open('rb') as handle:
-                        for line in handle:
-                            if line.startswith(b'>'):
-                                self._assemblers[line[1:].split()[0].decode()] = name
-        return self._assemblers
-
-
-def normalize_header(header, level):
-    renamed, used = list(header), set()
-    for target, aliases in ID_ALIASES.items():
-        if target in renamed:
-            used.add(target)
-            continue
-        for index, name in enumerate(renamed):
-            if name.lower() in aliases and target not in used:
-                renamed[index] = target
-                used.add(target)
-                break
-    if level == 'MAG' and 'MAG_ID' not in renamed and renamed and renamed[0].lower() == 'id':
-        renamed[0] = 'MAG_ID'
-    return renamed
-
-
-def publish_table(source, target, level, index):
-    """MAG tables start with MAG_ID, Assembler; contig/site/region/gene tables with Contig, MAG_ID, Assembler."""
-    with source.open(encoding='utf-8-sig', newline='') as handle:
-        rows = list(csv.reader(handle, delimiter='\t'))
-    if not rows:
+def remove_generated_results_dir(root):
+    """Delete OUTPUT/results/ from earlier versions when it holds only generated copies or links."""
+    folder = root / 'results'
+    if not folder.is_dir():
         return
-    header = normalize_header(rows[0], level)
-    data = [row + [''] * (len(header) - len(row)) for row in rows[1:]]
-    columns = {name: i for i, name in enumerate(header)}
-    lead = ['MAG_ID', 'Assembler'] if level == 'MAG' else ['Contig', 'MAG_ID', 'Assembler']
-    extra = {}
-    if lead[0] not in columns:
-        print(f'WARNING: {source.name} has no {lead[0]} column; published without reordering', flush=True)
-        lead = []
-    elif level == 'MAG':
-        if 'Assembler' not in columns:
-            members = {}
-            for contig, mags in index.mags().items():
-                for mag in mags:
-                    members.setdefault(mag, set()).add(index.assemblers().get(contig, 'NA'))
-            extra['Assembler'] = lambda row: ','.join(sorted(members.get(row[columns['MAG_ID']], {'NA'})))
-    else:
-        if 'MAG_ID' not in columns:
-            extra['MAG_ID'] = lambda row: ','.join(sorted(index.mags().get(row[columns['Contig']], {'NA'})))
-        if 'Assembler' not in columns:
-            extra['Assembler'] = lambda row: index.assemblers().get(row[columns['Contig']], 'NA')
-    out_header = lead + [name for name in header if name not in lead]
-    target.parent.mkdir(parents=True, exist_ok=True)
-    fd, temp = tempfile.mkstemp(prefix=f'.{target.name}.', dir=target.parent)
-    with os.fdopen(fd, 'w', newline='') as handle:
-        writer = csv.writer(handle, delimiter='\t', lineterminator='\n')
-        writer.writerow(out_header)
-        blank = {'', '-', '.', 'na', 'none', 'null'}
-        for row in data:
-            values = [extra[name](row) if name in extra else row[columns[name]] for name in out_header]
-            for i in range(len(lead)):
-                if values[i].strip().lower() in blank:
-                    values[i] = 'NA'
-            writer.writerow(values)
-    os.replace(temp, target)
+    entries = list(folder.iterdir())
+    if all(entry.name in GENERATED_RESULTS_NAMES and (entry.is_symlink() or entry.is_file()) for entry in entries):
+        for entry in entries:
+            entry.unlink()
+        folder.rmdir()
 
 
-def publish_results(stage, root):
-    """Write the final tables to results/ as MODULE.LEVEL.tsv with the same leading ID columns."""
-    names = PUBLIC_RESULTS.get(stage, {})
-    available = [(name, root / relative, level) for name, (relative, level) in names.items()
-                 if (root / relative).is_file() and (root / relative).stat().st_size > 0]
-    if not available:
-        return
-    public_dir = root / 'results'
-    public_dir.mkdir(parents=True, exist_ok=True)
-    for legacy in LEGACY_PUBLIC_NAMES:
-        old = public_dir / legacy
-        if old.is_symlink():
-            old.unlink()
-    index = ContigIndex(root)
-    for name, original, level in available:
-        target = public_dir / name
-        if target.is_symlink():
-            target.unlink()
-        if level is None:
-            target.symlink_to(os.path.relpath(original, public_dir))
-        elif not (target.is_file() and target.stat().st_mtime_ns >= original.stat().st_mtime_ns):
-            publish_table(original, target, level, index)
-    print('Final tables:', flush=True)
-    for name, _, _ in available:
-        print('  ' + str(public_dir / name), flush=True)
+def report_final_tables(stage, root):
+    tables = [root / relative for relative in FINAL_TABLES.get(stage, ())]
+    tables = [path for path in tables if path.is_file() and path.stat().st_size > 0]
+    if tables:
+        print('Final tables:', flush=True)
+        for path in tables:
+            print('  ' + str(path), flush=True)
 
 
 FLAGS = {
@@ -321,7 +201,7 @@ def reads_input(directory, root, dry_run):
         raise UsageError(f'-r {parent} mixes gzipped and uncompressed FASTQ files; use one format')
     output = root / '00_prep' / ('hifi_reads.fastq.gz' if gzipped.pop() else 'hifi_reads.fastq')
     fingerprint = [dict(path=str(p), size=p.stat().st_size, mtime_ns=p.stat().st_mtime_ns) for p in files]
-    metadata = output.with_name(output.name + '.sources.json')
+    metadata = inputs_record(output)
     if output.is_file() and metadata.is_file():
         try:
             if json.loads(metadata.read_text(encoding='utf-8')) == fingerprint:
@@ -390,7 +270,7 @@ def source_inputs(args, output_root):
     )
     parent = dir_input(args.source_assemblies, '-a')
     names = [p.name for p in paths]
-    print(f'Source assemblies ({len(names)}): ' + ', '.join(names), flush=True)
+    print(f'Assemblies ({len(names)}): ' + ', '.join(names), flush=True)
     return parent, ' '.join(names)
 
 
@@ -407,7 +287,16 @@ def mag_inputs(args, output_root):
 def run(cmd, env, dry_run):
     print('$ ' + shlex.join(map(str, cmd)), flush=True)
     if not dry_run:
+        start = time.monotonic()
         subprocess.run(cmd, cwd=ROOT, env=env, check=True)
+        print('Elapsed: ' + format_duration(time.monotonic() - start), flush=True)
+
+
+def format_duration(seconds):
+    seconds = int(seconds)
+    hours, rest = divmod(seconds, 3600)
+    minutes, secs = divmod(rest, 60)
+    return f'{hours}h{minutes:02d}m' if hours else f'{minutes}m{secs:02d}s'
 
 
 def check_programs(stage, mapping=False, env=None):
@@ -420,6 +309,8 @@ def check_programs(stage, mapping=False, env=None):
         core.add('anvi-script-find-misassemblies')
     if stage == 'prep-chimera':
         core.update({'mmseqs', 'awk', 'sed'})
+    if stage in ('prep-scg', 'chimera', 'variants'):
+        core.add('pyrodigal')
     if stage == 'prep-scg':
         core.update({'anvi-script-reformat-fasta', 'anvi-gen-contigs-database', 'anvi-run-hmms'})
     if stage == 'variants':
@@ -455,12 +346,21 @@ def check_manifest(value):
     return path
 
 
+def inputs_record(path):
+    """Sidecar JSON recording the inputs of a generated file (former name: .sources.json)."""
+    record = Path(str(path) + '.inputs.json')
+    legacy = Path(str(path) + '.sources.json')
+    if legacy.is_file() and not record.exists():
+        os.replace(legacy, record)
+    return record
+
+
 def all_assemblies_path(root):
     """Path of the concatenated assembler FASTAs; moves files with the former name."""
     output = root / '00_prep' / 'all_assemblies.fasta'
     legacy = root / '00_prep' / 'combined_assembly.fasta'
     if legacy.is_file() and not output.exists():
-        for suffix in ('', '.fai', '.sources.json'):
+        for suffix in ('', '.fai', '.sources.json', '.inputs.json'):
             old = Path(str(legacy) + suffix)
             if old.exists():
                 os.replace(old, Path(str(output) + suffix))
@@ -474,7 +374,7 @@ def assemble_combined(paths, output, dry_run):
         raise UsageError('No assembler FASTAs available to build the all-assemblies FASTA')
     fingerprint = [dict(path=str(p.resolve()), size=p.stat().st_size,
                         mtime_ns=p.stat().st_mtime_ns) for p in sources]
-    metadata = output.with_suffix(output.suffix + '.sources.json')
+    metadata = inputs_record(output)
     if output.is_file() and output.stat().st_size and metadata.is_file():
         try:
             if json.loads(metadata.read_text(encoding='utf-8')) == fingerprint:
@@ -482,7 +382,7 @@ def assemble_combined(paths, output, dry_run):
                 return output
         except (ValueError, OSError):
             pass
-    print(f'All assemblies: {output} ({len(sources)} source FASTA(s))', flush=True)
+    print(f'All assemblies: {output} ({len(sources)} assembler FASTAs)', flush=True)
     if dry_run:
         return output
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -504,7 +404,7 @@ def assemble_combined(paths, output, dry_run):
                             except UnicodeDecodeError:
                                 raise UsageError(f'Invalid FASTA contig identifier in {source}') from None
                             if identifier in identifiers:
-                                raise UsageError(f'Duplicate contig ID {identifier!r} across source assemblies. '
+                                raise UsageError(f'Duplicate contig ID {identifier!r} across assemblies. '
                                                  'IDs must be unique; inspect your assembler FASTAs.')
                             identifiers.add(identifier)
                             seen_header = True
@@ -640,7 +540,7 @@ def mapping_result(stage, args, root, env, sources):
             requested = {p.resolve() for p in source_paths(sources)}
             recorded = {p.resolve() for p in source_fastas_from_manifest(manifest)}
             if requested != recorded:
-                raise UsageError('Source assemblies differ from the existing mapping manifest. '
+                raise UsageError('Assemblies differ from the existing mapping manifest. '
                                  'Rerun MAGverify map with the new inputs or use another -o DIR.')
         return manifest
     if sources and 'READS' not in env:
@@ -761,7 +661,8 @@ def need_result(name, args, root, env, stage, optional=False):
         return fallback
     if optional:
         return None
-    hint = ' (run MAGverify prep-circularity first)' if name == 'assembler_circularity' else ''
+    hint = {'assembler_circularity': ' (run MAGverify prep-circularity first)',
+            'mag_taxonomy': ' (run MAGverify prep-taxonomy first)'}.get(name, '')
     raise UsageError(f'{stage} needs {flag} FILE or an existing result at {fallback}{hint}')
 
 
@@ -778,8 +679,8 @@ def prep_chimera_run(args):
         file_input(gtdb_dir / name, f'GTDB R232 input in --gtdb-dir ({name})')
     if not args.dry_run:
         check_programs('prep-chimera', env=env)
-    work = root / 'tmp_prep_chimera'
-    db = root / 'GTDB_R232'
+    work = root / '00_prep' / 'tmp_prep_chimera'
+    db = root / RESULTS['database']
     if db.is_dir():
         raise UsageError(f'{db} is a directory; remove it so the MMseqs2 database files can be written')
     print('GTDB R232 input directory: ' + str(gtdb_dir), flush=True)
@@ -797,6 +698,17 @@ def prep_circularity_run(args):
     for source in args.sources:
         cmd += ['-c', str(file_input(source, '-c'))]
     run(cmd + ['-g', str(mags), '-o', str(root)], env, args.dry_run)
+
+
+def prep_taxonomy_run(args):
+    """Convert GTDB-Tk summaries to the MAG taxonomy table read by chimera."""
+    root, env = defaults_for('prep-taxonomy', args)
+    gtdbtk = dir_input(args.gtdbtk_dir, '-d')
+    mags = dir_input(args.mag_dir, '-g')
+    output = root / RESULTS['mag_taxonomy']
+    print('MAG taxonomy: ' + str(output), flush=True)
+    run(['python3', str(SCRIPTS_DIR / 'prep_gtdbtk_summary_to_mag_taxonomy.py'),
+         '--gtdbtk-dir', str(gtdbtk), '-g', str(mags), '-o', str(output)], env, args.dry_run)
 
 
 def prep_scg_run(args):
@@ -824,9 +736,10 @@ def add_prep_parser(subparsers):
     p.add_argument('--gtdb-dir', required=True, metavar='DIR',
                    help='GTDB R232 directory (gtdb_proteins_aa_reps_r232.tar.gz, '
                         'bac120_taxonomy_r232.tsv, ar53_taxonomy_r232.tsv)')
-    p.add_argument('-t', dest='threads', type=int, metavar='N', help='Threads')
+    p.add_argument('-t', dest='threads', type=int, metavar='N', help='Number of threads')
     p.add_argument('-o', dest='output_directory', required=True, metavar='DIR',
-                   help='Folder of base output (database: DIR/GTDB_R232)')
+                   help='Directory of base output, the same -o as the analysis modules '
+                        '(database: 00_prep/GTDB_R232)')
     p = subparsers.add_parser('prep-circularity', formatter_class=help_formatter,
         help='Build the assembler circularity table',
         description='Build the assembler-reported circularity table (used by circularity and false-closure)',
@@ -835,26 +748,104 @@ def add_prep_parser(subparsers):
     p.add_argument('-c', dest='sources', action='append', required=True, metavar='FILE',
                    help='Assembler circularity file; repeat for each assembler '
                         '(hifiasm-meta p_ctg.gfa, metaMDBG contigs.fasta.gz, metaFlye assembly_info.txt)')
-    p.add_argument('-g', dest='mag_dir', required=True, metavar='DIR', help='Folder of MAGs (*.fa)')
+    p.add_argument('-g', dest='mag_dir', required=True, metavar='DIR', help='Directory of MAGs (*.fa)')
     p.add_argument('-o', dest='output_directory', required=True, metavar='DIR',
-                   help='Folder of base output, the same -o as the analysis modules '
-                        '(table: DIR/00_prep/assembler_circularity.MAG.tsv)')
+                   help='Directory of base output, the same -o as the analysis modules '
+                        '(table: 00_prep/assembler_circularity.MAG.tsv)')
+    p = subparsers.add_parser('prep-taxonomy', formatter_class=help_formatter,
+        help='Build the MAG taxonomy table from GTDB-Tk results',
+        description='Build the MAG taxonomy table from GTDB-Tk results (used by chimera)',
+        add_help=False)
+    p.add_argument('-h', action='help', help=argparse.SUPPRESS)
+    p.add_argument('-d', dest='gtdbtk_dir', required=True, metavar='DIR',
+                   help='Directory of GTDB-Tk classify_wf results '
+                        '(gtdbtk.bac120.summary.tsv; gtdbtk.ar53.summary.tsv)')
+    p.add_argument('-g', dest='mag_dir', required=True, metavar='DIR', help='Directory of MAGs (*.fa)')
+    p.add_argument('-o', dest='output_directory', required=True, metavar='DIR',
+                   help='Directory of base output, the same -o as the analysis modules '
+                        '(table: 00_prep/gtdb_taxonomy.MAG.tsv)')
     p = subparsers.add_parser('prep-scg', formatter_class=help_formatter,
         help="Annotate single-copy genes with anvi'o",
         description="Annotate single-copy genes on all assemblies with anvi'o "
                     "(used by false-closure and chimera)", add_help=False)
     p.add_argument('-h', action='help', help=argparse.SUPPRESS)
     p.add_argument('-a', dest='source_assemblies', required=True, metavar='DIR',
-                   help='Folder of assembled contigs (*.fa)')
-    p.add_argument('-t', dest='threads', type=int, metavar='N', help='Threads')
+                   help='Directory of assembled contigs (*.fa)')
+    p.add_argument('-t', dest='threads', type=int, metavar='N', help='Number of threads')
     p.add_argument('-o', dest='output_directory', required=True, metavar='DIR',
-                   help='Folder of base output, the same -o as the analysis modules '
-                        '(table: DIR/00_prep/SCG/SCG_from_anvio.original_contig.tsv)')
+                   help='Directory of base output, the same -o as the analysis modules '
+                        '(table: 00_prep/SCG/SCG_from_anvio.original_contig.tsv)')
     return p
+
+LEGACY_OUTPUT_NAMES = (
+    ('MAG_phantom_sequences.final.tsv', 'phantom.MAG_region.tsv'),
+    ('MAG_phantom_summary.final.tsv', 'phantom.MAG.tsv'),
+    ('phantom_sequences.final.tsv', 'phantom.region.tsv'),
+    ('clipping.all_regions.filtered.tsv', 'clipping.site.all_regions.tsv'),
+    ('clipping.filtered.tsv', 'clipping.site.tsv'),
+    ('contig_clipping.final.tsv', 'clipping.contig.tsv'),
+    ('MAG_clipping.final.tsv', 'clipping.MAG.tsv'),
+    ('MAG_circularity.final.tsv', 'circularity.MAG.tsv'),
+    ('MAG_circularity.audit.tsv', 'circularity.MAG.audit.tsv'),
+    ('MAG_END_START_closure.final.tsv', 'circularity.MAG.junction.tsv'),
+    ('MAG_contig_false_closure.final.tsv', 'false_closure.MAG_contig.tsv'),
+    ('contig_false_closure.final.tsv', 'false_closure.contig.tsv'),
+    ('MAG_false_closure.final.tsv', 'false_closure.MAG.tsv'),
+    ('MAG_false_closure.audit.tsv', 'false_closure.MAG.audit.tsv'),
+    ('contig_assembly_allele_support.final.tsv', 'variants.contig.tsv'),
+    ('assembly_allele_support.by_MAG.tsv', 'variants.MAG.tsv'),
+    ('contig_repeat_breadth.final.tsv', 'repeats.contig.tsv'),
+    ('MAG_repeat_breadth.final.tsv', 'repeats.MAG.tsv'),
+    ('false_duplication.by_contig.clipping.tsv', 'false_duplication.contig.clipping.tsv'),
+    ('false_duplication.by_MAG.clipping.tsv', 'false_duplication.MAG.clipping.tsv'),
+    ('false_duplication.by_contig.tsv', 'false_duplication.contig.tsv'),
+    ('false_duplication.by_MAG.tsv', 'false_duplication.MAG.tsv'),
+    ('integrated_QC_summary.MAG_contigs.tsv', 'summary.contig.tsv'),
+    ('integrated_QC_summary.by_MAG.tsv', 'summary.MAG.tsv'),
+    ('contig_taxonomic_chimera.GTDB_R232.final.tsv', 'chimera.contig.tsv'),
+    ('MAG_contig_taxonomic_chimera.GTDB_R232.final.tsv', 'chimera.MAG_contig.tsv'),
+    ('MAG_taxonomic_chimera.GTDB_R232.final.tsv', 'chimera.MAG.tsv'),
+    ('source_group_outputs.tsv', 'assembler_group_outputs.tsv'),
+)
+LEGACY_OUTPUT_DIRS = (
+    ('02_circularity/00_source_plan', '02_circularity/00_assembler_plan'),
+    ('02_circularity/01_by_source', '02_circularity/01_by_assembler'),
+)
+
+
+def migrate_legacy_outputs(root):
+    """Rename result files and folders written by earlier versions so they are reused."""
+    for old, new in LEGACY_OUTPUT_DIRS:
+        if (root / old).is_dir() and not (root / new).exists():
+            os.replace(root / old, root / new)
+    names = dict(LEGACY_OUTPUT_NAMES)
+    for directory, _, files in os.walk(root):
+        if Path(directory).name == 'results':
+            continue
+        for name in files:
+            base = name[:-len('.inputs.sha256')] if name.endswith('.inputs.sha256') else name
+            if base in names:
+                old = Path(directory) / name
+                new = Path(directory) / (names[base] + name[len(base):])
+                if not new.exists():
+                    os.replace(old, new)
+    for module_dir in sorted(root.glob('[0-1][0-9]_*')):
+        if not module_dir.is_dir() or module_dir.name == '01_mapping':
+            continue
+        for meta in module_dir.glob('*.inputs.sha256'):
+            name = 'variants.inputs.sha256' if meta.name == 'assembly_allele_support.inputs.sha256' else meta.name
+            target = module_dir / '.cache' / name
+            if not target.exists():
+                target.parent.mkdir(exist_ok=True)
+                os.replace(meta, target)
+
 
 def stage_run(args):
     stage = args.module
     root, env = defaults_for(stage, args)
+    if not args.dry_run and root.is_dir():
+        migrate_legacy_outputs(root)
+        remove_generated_results_dir(root)
     main_input, sources = choose_inputs(args, root, env)
     if stage not in ('map', 'circularity') and not main_input:
         raise UsageError(f'{stage} needs -a DIR or --mapping-manifest TSV')
@@ -872,15 +863,22 @@ def stage_run(args):
     if stage == 'chimera':
         existing_taxonomy = need_result('taxonomy', args, root, env, stage, optional=True)
         if not existing_taxonomy:
-            if not args.database:
-                raise UsageError('chimera needs --database MMSEQS_PREFIX to generate gene taxonomy, '
-                                 'or --taxonomy TSV to reuse a previous result')
-            prefix = Path(args.database).expanduser().resolve()
+            prefix = (Path(args.database).expanduser().resolve() if args.database
+                      else root / RESULTS['database'])
+            if not args.database and not Path(str(prefix) + '.dbtype').is_file():
+                raise UsageError(f'chimera needs the MMseqs2 database at {prefix} '
+                                 '(run MAGverify prep-chimera with the same -o first), '
+                                 'or --database PREFIX, or --taxonomy TSV')
+            print(f'MMseqs2 database: {prefix}', flush=True)
             if not Path(str(prefix) + '.dbtype').is_file():
                 raise UsageError(f'--database must be a MMseqs2 database prefix with .dbtype: {prefix}')
             env['MMSEQS_TAX_DB'] = str(prefix)
             env['GTDB_GENE_TAX_TSV'] = str(root / RESULTS['taxonomy'])
         need_result('clipping_table', args, root, env, stage)
+        table = need_result('mag_taxonomy', args, root, env, stage, optional=True)
+        print(f'MAG taxonomy: {table}' if table else
+              'MAG taxonomy: none (SCG redundancy annotation is skipped; run MAGverify prep-taxonomy)',
+              flush=True)
     if stage == 'false-closure':
         for table in ('clipping_table', 'clipping_all_table', 'assembler_circularity'):
             need_result(table, args, root, env, stage)
@@ -942,7 +940,7 @@ def stage_run(args):
     print('Output: ' + str(root / STAGES[stage][1]), flush=True)
     run(cmd, env, args.dry_run)
     if not args.dry_run:
-        publish_results(stage, root)
+        report_final_tables(stage, root)
 
 
 def add_stage_parser(subparsers, stage):
@@ -955,45 +953,50 @@ def add_stage_parser(subparsers, stage):
         return bool(members.intersection(names))
     if handles('map', 'clipping', 'chimera', 'circularity', 'false-closure', 'variants', 'phantom', 'false-duplication'):
         p.add_argument('-r', dest='reads', metavar='DIR',
-                       help='Folder of HiFi reads (*.fastq.gz; *.fq.gz)')
+                       help='Directory of HiFi reads (*.fastq.gz; *.fq.gz)')
     p.add_argument('-a', dest='source_assemblies', metavar='DIR',
-                   help='Folder of assembled contigs (*.fa)')
+                   help='Directory of assembled contigs (*.fa)')
     mag_stage = handles('clipping','chimera','circularity','false-closure','variants','phantom','repeats','false-duplication','summary')
     if mag_stage:
         p.add_argument('-g', dest='mag_dir', metavar='DIR',
-                       help='Folder of MAGs (*.fa)')
-    p.add_argument('-t', dest='threads', type=int, metavar='N', help='Threads')
-    p.add_argument('-o', dest='output_directory', required=True, metavar='DIR', help='Folder of base output')
+                       help='Directory of MAGs (*.fa)')
+    p.add_argument('-t', dest='threads', type=int, metavar='N', help='Number of threads')
+    p.add_argument('-o', dest='output_directory', required=True, metavar='DIR', help='Directory of base output')
     if mag_stage and stage != 'circularity':
-        p.add_argument('--mag-map', metavar='TSV', help='MAG-contig table')
+        p.add_argument('--mag-map', metavar='TSV', help=argparse.SUPPRESS)
     if handles('clipping','chimera','false-closure','variants','phantom','repeats','false-duplication','summary'):
-        p.add_argument('--mapping-manifest', metavar='TSV', help='Mapping manifest TSV')
+        p.add_argument('--mapping-manifest', metavar='TSV', help=argparse.SUPPRESS)
     if handles('chimera','summary'):
-        p.add_argument('--taxonomy', metavar='TSV', help='Gene taxonomy TSV')
+        p.add_argument('--taxonomy', metavar='TSV', help='Gene taxonomy TSV (chimera output)')
     if handles('chimera','false-closure','summary'):
-        p.add_argument('--scg-table', metavar='TSV', help='SCG table')
+        p.add_argument('--scg-table', metavar='TSV', help='SCG TSV (prep-scg output)')
     if handles('chimera'):
-        p.add_argument('--mag-taxonomy', metavar='TSV', help='MAG taxonomy TSV from the GTDB-Tk converter (DIR/MAG_taxonomy.tsv)')
+        p.add_argument('--mag-taxonomy', metavar='TSV', help='MAG taxonomy TSV (prep-taxonomy output)')
     if handles('chimera','false-closure','false-duplication','summary'):
-        p.add_argument('--clipping-table', metavar='TSV', help='Clipping TSV')
+        p.add_argument('--clipping-table', metavar='TSV', help='Clipping site TSV (clipping output)')
     if handles('false-closure','summary'):
-        p.add_argument('--clipping-all-table', metavar='TSV', help='All-region clipping TSV')
+        p.add_argument('--clipping-all-table', metavar='TSV', help='All-region clipping TSV (clipping output)')
     if handles('false-closure','circularity','summary'):
         p.add_argument('--assembler-circularity', metavar='TSV',
                        help='Assembler circularity TSV (prep-circularity output)')
     if handles('summary'):
         for flag, message in [
-            ('--circularity-table','Circularity final TSV'),('--circularity-audit','Circularity audit TSV'),
-            ('--false-closure-table','False closure TSV'),('--false-closure-audit','False closure audit TSV'),
-            ('--chimera-table','Chimera final TSV'),('--variants-table','Assembly variants TSV'),
-            ('--phantom-table','Phantom TSV'),('--repeats-table','Contig repeat TSV'),
-            ('--repeats-mag-table','MAG repeat TSV'),('--duplication-table','False duplication TSV'),
-            ('--duplication-clipping-table','False duplication clipping contig TSV'),
-            ('--duplication-clipping-mag-table','False duplication clipping MAG TSV')]:
+            ('--circularity-table', 'Circularity MAG TSV (circularity output)'),
+            ('--circularity-audit', 'Circularity audit TSV (circularity output)'),
+            ('--false-closure-table', 'False closure MAG TSV (false-closure output)'),
+            ('--false-closure-audit', 'False closure audit TSV (false-closure output)'),
+            ('--chimera-table', 'Chimera contig TSV (chimera output)'),
+            ('--variants-table', 'Variants contig TSV (variants output)'),
+            ('--phantom-table', 'Phantom region TSV (phantom output)'),
+            ('--repeats-table', 'Repeats contig TSV (repeats output)'),
+            ('--repeats-mag-table', 'Repeats MAG TSV (repeats output)'),
+            ('--duplication-table', 'False duplication contig TSV (false-duplication output)'),
+            ('--duplication-clipping-table', 'False duplication clipping contig TSV (false-duplication output)'),
+            ('--duplication-clipping-mag-table', 'False duplication clipping MAG TSV (false-duplication output)')]:
             p.add_argument(flag, metavar='TSV', help=message)
         p.add_argument('--include', metavar='MODULES', help='Completed modules (comma-separated)')
     if stage == 'chimera':
-        p.add_argument('--database', metavar='PREFIX', help='MMseqs2 database prefix from prep-chimera (DIR/GTDB_R232)')
+        p.add_argument('--database', metavar='PREFIX', help='MMseqs2 database prefix (prep-chimera output)')
     if handles('map', 'circularity', 'repeats', 'variants'):
         p.add_argument('-m', dest='memory_gb', type=int, metavar='N', help='Memory limit (GB)')
     if handles('variants'):
@@ -1017,6 +1020,7 @@ def main(argv=None):
     if args.module == 'list':
         print('Preparation (run once):')
         print('  prep-chimera       Build MMseqs2 taxonomy database from local GTDB R232 files')
+        print('  prep-taxonomy      Build the MAG taxonomy table from GTDB-Tk results')
         print('  prep-circularity   Build the assembler circularity table')
         print("  prep-scg           Annotate single-copy genes with anvi'o")
         print('Analysis modules (run separately):')
@@ -1030,14 +1034,16 @@ def main(argv=None):
         except Exception:
             installed = 'not installed (running from source)'
         print(f'{"MAGverify version":34s} {installed}')
-        print(f'{"MAGverify source":34s} {ROOT.parent}')
-        for cmd in ['bash', 'python3', 'minimap2', 'samtools', 'mmseqs', 'anvi-profile',
+        print(f'{"MAGverify path":34s} {ROOT.parent}')
+        for cmd in ['bash', 'python3', 'minimap2', 'samtools', 'mmseqs', 'pyrodigal', 'anvi-profile',
                     'anvi-script-find-misassemblies', 'blastn', 'makeblastdb', 'meryl', 'bedtools']:
             print(f'{cmd:34s} {shutil.which(cmd) or "not found"}')
         return 0
     try:
         if args.module == 'prep-chimera':
             prep_chimera_run(args)
+        elif args.module == 'prep-taxonomy':
+            prep_taxonomy_run(args)
         elif args.module == 'prep-circularity':
             prep_circularity_run(args)
         elif args.module == 'prep-scg':

@@ -52,22 +52,22 @@ class PrepChimeraCLITests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('--gtdb-dir', result.stdout)
         self.assertNotIn('--database-prefix', result.stdout)
-        self.assertIn('DIR/GTDB_R232', result.stdout)
-        self.assertIn('-o DIR', result.stdout)
+        self.assertIn('(database: 00_prep/GTDB_R232)', result.stdout)
+        self.assertIn('  -o ', result.stdout)
         self.assertNotIn('--output-dir', result.stdout)
-        self.assertIn('-t N', result.stdout)
+        self.assertIn('  -t ', result.stdout)
         self.assertNotIn('--threads', result.stdout)
-        self.assertNotIn('-a DIR', result.stdout)
+        self.assertNotIn('  -a ', result.stdout)
         self.assertNotIn('--dry-run', result.stdout)
 
     def test_prep_uses_local_inputs_and_default_database_prefix(self):
         result = self.run_cli('prep-chimera', '--gtdb-dir', self.gtdb,
                               '-o', self.output, '-t', '1')
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        argv = (self.output / 'tmp_prep_chimera/invocation.txt').read_text().splitlines()
-        self.assertEqual(argv, [str(self.output / 'tmp_prep_chimera'), '1', str(self.gtdb),
-                                str(self.output / 'GTDB_R232')])
-        self.assertFalse((self.output / 'tmp_prep_chimera/0_prep').exists())
+        argv = (self.output / '00_prep/tmp_prep_chimera/invocation.txt').read_text().splitlines()
+        self.assertEqual(argv, [str(self.output / '00_prep/tmp_prep_chimera'), '1', str(self.gtdb),
+                                str(self.output / '00_prep/GTDB_R232')])
+        self.assertFalse((self.output / '00_prep/tmp_prep_chimera/0_prep').exists())
 
     def test_database_prefix_option_removed(self):
         result = self.run_cli('prep-chimera', '--gtdb-dir', self.gtdb,

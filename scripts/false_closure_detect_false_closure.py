@@ -232,7 +232,7 @@ def load_mapping_manifest(path: str) -> Dict[str, SourceMapping]:
                 (ps_bam, "HiFi primary+supplementary BAM"),
             ):
                 if not os.path.isfile(required_path) or os.path.getsize(required_path) == 0:
-                    fail(f"source {label} missing for {assembler}: {required_path}")
+                    fail(f"{label} missing for {assembler}: {required_path}")
             lengths = load_fai_lengths(fai)
             for contig in lengths:
                 previous = seen_contigs.get(contig)
@@ -291,9 +291,9 @@ def load_breakpoints(
             contig = (row.get("contig") or "").strip()
             assembler = (row.get("source_assembler") or "").strip()
             if contig not in source_of:
-                fail(f"clipping contig absent from source assemblies at line {line_number}: {contig}")
+                fail(f"clipping contig absent from assemblies at line {line_number}: {contig}")
             if source_of[contig] != assembler:
-                fail(f"source assembler mismatch for clipping contig {contig}: {assembler} vs {source_of[contig]}")
+                fail(f"assembler mismatch for clipping contig {contig}: {assembler} vs {source_of[contig]}")
             clipping_analyzable = (row.get("Clipping_analyzable") or "").strip().upper()
             clipping_call = (row.get("Clipping") or "NA").strip().upper()
             if clipping_analyzable not in {"Y", "N"}:
@@ -328,7 +328,7 @@ def load_breakpoints(
             except (TypeError, ValueError) as exc:
                 fail(f"invalid clipping row at line {line_number}: {exc}")
             if length != source.lengths[contig]:
-                fail(f"clipping length disagrees with source FAI for {contig}")
+                fail(f"clipping length disagrees with the assembler FAI for {contig}")
             if not 1 <= position <= length or distance < 0:
                 fail(f"invalid clipping coordinate for {contig}: {position}")
             if n_clipped < 2 or n_spanning != 0:
@@ -497,7 +497,7 @@ def run(args: argparse.Namespace) -> None:
     if set(contig_circularity) != source_contigs:
         missing = sorted(source_contigs - set(contig_circularity))[:10]
         extra = sorted(set(contig_circularity) - source_contigs)[:10]
-        fail(f"resolved circularity/source-assembly contig mismatch: missing={missing}, extra={extra}")
+        fail(f"resolved circularity/assembly contig mismatch: missing={missing}, extra={extra}")
     breakpoints, unresolved_clipping_contigs = load_breakpoints(
         args.clipping_all_final_tsv, mappings, contig_to_mag
     )

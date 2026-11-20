@@ -14,16 +14,16 @@ if [[ "$QC_STAGE" == "01_mapping" ||
     if [[ "$QC_STAGE" != "02_circularity" || "${1:-}" != -* ]]; then
         if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
             case "$QC_STAGE" in
-                01_mapping) description='Map PacBio HiFi reads to each original source assembly'; input='HiFi FASTQ or FASTQ.GZ'; extras='ASSEMBLER_ASSEMBLY_DIR, ASSEMBLER_FASTAS'; output='OUTPUT_DIR/mapping_manifest.tsv' ;;
-            03_clipping) description='Identify clipping and validate read support'; input='All-assemblies FASTA'; extras='MAG_DIR, ASSEMBLER_MAPPING_MANIFEST with source-specific HiFi BAMs from 01_mapping; MAG map generated automatically'; output='OUTPUT_DIR/clipping.all_regions.filtered.tsv' ;;
+                01_mapping) description='Map PacBio HiFi reads to each original assembly'; input='HiFi FASTQ or FASTQ.GZ'; extras='ASSEMBLER_ASSEMBLY_DIR, ASSEMBLER_FASTAS'; output='OUTPUT_DIR/mapping_manifest.tsv' ;;
+            03_clipping) description='Identify clipping and validate read support'; input='All-assemblies FASTA'; extras='MAG_DIR, ASSEMBLER_MAPPING_MANIFEST with source-specific HiFi BAMs from 01_mapping; MAG map generated automatically'; output='OUTPUT_DIR/clipping.site.all_regions.tsv' ;;
             07_chimera) description='Assess genome-wide GTDB taxonomic transitions'; input='GTDB R232 gene-taxonomy TSV'; extras='ASSEMBLY_FA, MAG_CONTIG_MAP, mapping manifest, 03_clipping result'; output='OUTPUT_DIR/GTDB_R232/clipping_defined/' ;;
-            02_circularity) description='Validate end-to-start closure of single-contig MAGs'; input='Directory of MAG FASTA files'; extras='READS, ASSEMBLER_ASSEMBLY_DIR, ASSEMBLER_FASTAS'; output='OUTPUT_DIR/MAG_circularity.final.tsv' ;;
-            04_false_closure) description='Evaluate false-closure candidates'; input='All-assemblies FASTA'; extras='READS, MAG_CONTIG_MAP, mapping, clipping, circularity results'; output='OUTPUT_DIR/MAG_false_closure.final.tsv' ;;
-            09_assembly_variants) description='Quantify assembly allele support using anvi-o'; input='All-assemblies FASTA'; extras='READS, MAG_CONTIG_MAP, mapping manifest, active MAGverify Conda environment'; output='OUTPUT_DIR/contig_assembly_allele_support.final.tsv' ;;
-            05_phantom) description='Assess zero-coverage sequences and read k-mer evidence'; input='All-assemblies FASTA'; extras='READS must be four-line FASTQ(.GZ), MAG_CONTIG_MAP, mapping manifest'; output='OUTPUT_DIR/phantom_sequences.final.tsv' ;;
-            06_repeats) description='Quantify intra- and inter-contig repeats'; input='All-assemblies FASTA'; extras='MAG_CONTIG_MAP, source assembler FASTAs'; output='OUTPUT_DIR/contig_repeat_breadth.final.tsv' ;;
-            08_false_duplication) description='Assess candidate false duplications'; input='All-assemblies FASTA'; extras='MAG_CONTIG_MAP, mapping manifest, clipping result'; output='OUTPUT_DIR/false_duplication.by_contig.tsv' ;;
-            10_summary) description='Integrate and validate enabled QC results'; input='All-assemblies FASTA'; extras='MAG_CONTIG_MAP and outputs from all enabled analyses'; output='OUTPUT_DIR/integrated_QC_summary.by_MAG.tsv' ;;
+            02_circularity) description='Validate end-to-start closure of single-contig MAGs'; input='Directory of MAG FASTA files'; extras='READS, ASSEMBLER_ASSEMBLY_DIR, ASSEMBLER_FASTAS'; output='OUTPUT_DIR/circularity.MAG.tsv' ;;
+            04_false_closure) description='Evaluate false-closure candidates'; input='All-assemblies FASTA'; extras='READS, MAG_CONTIG_MAP, mapping, clipping, circularity results'; output='OUTPUT_DIR/false_closure.MAG.tsv' ;;
+            09_assembly_variants) description='Quantify assembly allele support using anvi-o'; input='All-assemblies FASTA'; extras='READS, MAG_CONTIG_MAP, mapping manifest, active MAGverify Conda environment'; output='OUTPUT_DIR/variants.contig.tsv' ;;
+            05_phantom) description='Assess zero-coverage sequences and read k-mer evidence'; input='All-assemblies FASTA'; extras='READS must be four-line FASTQ(.GZ), MAG_CONTIG_MAP, mapping manifest'; output='OUTPUT_DIR/phantom.region.tsv' ;;
+            06_repeats) description='Quantify intra- and inter-contig repeats'; input='All-assemblies FASTA'; extras='MAG_CONTIG_MAP, assembler FASTAs'; output='OUTPUT_DIR/repeats.contig.tsv' ;;
+            08_false_duplication) description='Assess candidate false duplications'; input='All-assemblies FASTA'; extras='MAG_CONTIG_MAP, mapping manifest, clipping result'; output='OUTPUT_DIR/false_duplication.contig.tsv' ;;
+            10_summary) description='Integrate and validate enabled QC results'; input='All-assemblies FASTA'; extras='MAG_CONTIG_MAP and outputs from all enabled analyses'; output='OUTPUT_DIR/summary.MAG.tsv' ;;
             esac
             printf 'Usage: bash %s INPUT OUTPUT_DIR\n\n%s\nInput: %s\nAdditional inputs/settings: %s\nMain output: %s\n\n' \
                 "$QC_STAGE.sh" "$description" "$input" "$extras" "$output"
@@ -123,7 +123,10 @@ MAG_EXTENSIONS="fa fasta fna"
 ASSEMBLER_ASSEMBLY_DIR="${ASSEMBLER_ASSEMBLY_DIR:-}"
 ASSEMBLER_FASTAS="${ASSEMBLER_FASTAS:-hifiasm_meta.fa metaflye.fa metaMDBG.fa}"
 
-OUT="${OUT:-$CONFIG_DIR/results}"
+if [[ -z "${OUT:-}" ]]; then
+    echo "ERROR: output directory is not set; run modules through MAGverify with -o (or set OUT)" >&2
+    exit 1
+fi
 
 source "$CONFIG_DIR/stage_paths.sh"
 QC_STAGE="${QC_STAGE:-$(basename "${BASH_SOURCE[1]:-lib_config.sh}" .sh)}"
@@ -172,6 +175,7 @@ MAG_CONTIG_MAP="${MAG_CONTIG_MAP:-$PREP_DIR/MAG_contig_map.tsv}"
 
 CIRCULARITY_TSV="${CIRCULARITY_TSV:-}"
 
+GENE_CALLS_DIR="${GENE_CALLS_DIR:-$PREP_DIR/genes}"
 SCG_OUT_DIR="${SCG_OUT_DIR:-$PREP_DIR/SCG}"
 SCG_TSV="${SCG_TSV:-$SCG_OUT_DIR/SCG_from_anvio.original_contig.tsv}"
 
@@ -215,7 +219,7 @@ CIRCULARITY_ROTATED_RESULT_DIR="${CIRCULARITY_ROTATED_RESULT_DIR:-$CIRCULARITY_D
 CIRCULARITY_HIFI_ANCHOR_BP=2000
 CIRCULARITY_MIN_HIFI_QNAMES=2
 
-CIRCULARITY_THREADS="${CIRCULARITY_THREADS:-$(( THREADS < 100 ? THREADS : 100 ))}"
+CIRCULARITY_THREADS="${CIRCULARITY_THREADS:-$THREADS}"
 CIRCULARITY_SORT_THREADS="${CIRCULARITY_SORT_THREADS:-$(( THREADS < 20 ? THREADS : 20 ))}"
 CIRCULARITY_SORT_MEMORY="2G"
 CIRCULARITY_MINIMAP2_INDEX_CHUNK="$MINIMAP2_INDEX_CHUNK_SINGLE"
@@ -232,8 +236,8 @@ ASSEMBLY_VARIANT_MEMORY_BUDGET_GB="${ASSEMBLY_VARIANT_MEMORY_BUDGET_GB:-900}"
 ASSEMBLY_VARIANT_MEMORY_RESERVE_GB="${ASSEMBLY_VARIANT_MEMORY_RESERVE_GB:-64}"
 ALLELE_ANVIO_MEMORY_PER_THREAD_GB="${ALLELE_ANVIO_MEMORY_PER_THREAD_GB:-16}"
 ALLELE_ANVIO_MEMORY_POLL_SECONDS="${ALLELE_ANVIO_MEMORY_POLL_SECONDS:-5}"
-ALLELE_ANVIO_FULL_PROFILE_THREADS="${ALLELE_ANVIO_FULL_PROFILE_THREADS:-0}"  # 0 = memory-derived auto
-ALLELE_ANVIO_PREPROCESS_THREADS="${ALLELE_ANVIO_PREPROCESS_THREADS:-70}"
+ALLELE_ANVIO_FULL_PROFILE_THREADS="${ALLELE_ANVIO_FULL_PROFILE_THREADS:-$THREADS}"
+ALLELE_ANVIO_PREPROCESS_THREADS="${ALLELE_ANVIO_PREPROCESS_THREADS:-$THREADS}"
 ASSEMBLY_VARIANT_KEEP_FULL_PROFILE="${ASSEMBLY_VARIANT_KEEP_FULL_PROFILE:-N}"
 ASSEMBLY_VARIANT_REMOVE_LEGACY_BATCHES="${ASSEMBLY_VARIANT_REMOVE_LEGACY_BATCHES:-Y}"
 ASSEMBLY_VARIANT_DROP_FILE_CACHE="${ASSEMBLY_VARIANT_DROP_FILE_CACHE:-Y}"
@@ -278,24 +282,24 @@ ANVIO_CLIP_RAW="${ANVIO_CLIP_RAW:-${ANVIO_CLIP_PREFIX}-clipping.txt}"
 ANVIO_ZERO_RAW="${ANVIO_ZERO_RAW:-${ANVIO_CLIP_PREFIX}-zero_cov.txt}"
 CLIP_DEFAULT="${CLIP_DEFAULT:-${CLIPPING_DIR}/clipping.default.tsv}"
 CLIP_STRINGENT="${CLIP_STRINGENT:-${CLIPPING_DIR}/clipping.stringent.tsv}"
-CLIP_FINAL="${CLIP_FINAL:-${CLIPPING_DIR}/clipping.filtered.tsv}"
+CLIP_FINAL="${CLIP_FINAL:-${CLIPPING_DIR}/clipping.site.tsv}"
 CLIP_POSITIVE="${CLIP_POSITIVE:-${CLIPPING_DIR}/clipping.Y.tsv}"
 CLIP_MAG_SITE="${CLIP_MAG_SITE:-${CLIPPING_DIR}/MAG_clipping_sites.final.tsv}"
 CLIP_MAG_POSITIVE_SITE="${CLIP_MAG_POSITIVE_SITE:-${CLIPPING_DIR}/MAG_clipping_sites.Y.tsv}"
-CLIP_MAG_SUMMARY="${CLIP_MAG_SUMMARY:-${CLIPPING_DIR}/MAG_clipping.final.tsv}"
+CLIP_MAG_SUMMARY="${CLIP_MAG_SUMMARY:-${CLIPPING_DIR}/clipping.MAG.tsv}"
 CLIP_MAG_POSITIVE="${CLIP_MAG_POSITIVE:-${CLIPPING_DIR}/MAG_clipping.Y.tsv}"
-CLIP_CONTIG_SUMMARY="${CLIP_CONTIG_SUMMARY:-${CLIPPING_DIR}/contig_clipping.final.tsv}"
-CLIP_FINAL_CACHE_META="${CLIP_FINAL_CACHE_META:-${CLIP_FINAL}.inputs.sha256}"
+CLIP_CONTIG_SUMMARY="${CLIP_CONTIG_SUMMARY:-${CLIPPING_DIR}/clipping.contig.tsv}"
+CLIP_FINAL_CACHE_META="${CLIP_FINAL_CACHE_META:-${CLIPPING_DIR}/.cache/clipping.site.tsv.inputs.sha256}"
 CLIP_CRITERIA="${CLIP_CRITERIA:-${CLIPPING_DIR}/clipping.criteria.tsv}"
 
-CLIP_NORMALIZER_SCRIPT="${CLIP_NORMALIZER_SCRIPT:-$CONFIG_DIR/scripts/clipping_normalize_anvio_clipping.py}"
-CLIP_SPANNING_VALIDATOR="${CLIP_SPANNING_VALIDATOR:-$CONFIG_DIR/scripts/clipping_validate_clipping_spanning.py}"
-CLIP_MAG_SUMMARIZER_SCRIPT="${CLIP_MAG_SUMMARIZER_SCRIPT:-$CONFIG_DIR/scripts/clipping_summarize_clipping_by_mag.py}"
-CLIP_REGION_CLASSIFIER_SCRIPT="${CLIP_REGION_CLASSIFIER_SCRIPT:-$CONFIG_DIR/scripts/clipping_classify_clipping_regions.py}"
-CLIP_REGION_SUMMARIZER_SCRIPT="${CLIP_REGION_SUMMARIZER_SCRIPT:-$CONFIG_DIR/scripts/clipping_summarize_clipping_regions.py}"
-MAG_MAP_BUILDER="${MAG_MAP_BUILDER:-$CONFIG_DIR/scripts/prep_build_mag_contig_map.py}"
+CLIP_NORMALIZER_SCRIPT="${CLIP_NORMALIZER_SCRIPT:-$CONFIG_DIR/../scripts/clipping_normalize_anvio_clipping.py}"
+CLIP_SPANNING_VALIDATOR="${CLIP_SPANNING_VALIDATOR:-$CONFIG_DIR/../scripts/clipping_validate_clipping_spanning.py}"
+CLIP_MAG_SUMMARIZER_SCRIPT="${CLIP_MAG_SUMMARIZER_SCRIPT:-$CONFIG_DIR/../scripts/clipping_summarize_clipping_by_mag.py}"
+CLIP_REGION_CLASSIFIER_SCRIPT="${CLIP_REGION_CLASSIFIER_SCRIPT:-$CONFIG_DIR/../scripts/clipping_classify_clipping_regions.py}"
+CLIP_REGION_SUMMARIZER_SCRIPT="${CLIP_REGION_SUMMARIZER_SCRIPT:-$CONFIG_DIR/../scripts/clipping_summarize_clipping_regions.py}"
+MAG_MAP_BUILDER="${MAG_MAP_BUILDER:-$CONFIG_DIR/../scripts/prep_build_mag_contig_map.py}"
 ASSEMBLER_MAPPING_MANIFEST="${ASSEMBLER_MAPPING_MANIFEST:-${MAPPING_DIR}/mapping_manifest.tsv}"
-VALIDATION_VIEW_EXPORTER="${VALIDATION_VIEW_EXPORTER:-$CONFIG_DIR/scripts/common_export_validation_view.py}"
+VALIDATION_VIEW_EXPORTER="${VALIDATION_VIEW_EXPORTER:-$CONFIG_DIR/../scripts/common_export_validation_view.py}"
 
 GTDB_RELEASE="${GTDB_RELEASE:-GTDB_R232}"
 GTDB_GENE_TAX_DIR="${GTDB_GENE_TAX_DIR:-$PREP_DIR/gene_taxonomy/GTDB_R232}"
@@ -304,18 +308,18 @@ GTDB_CHIMERA_DIR="${GTDB_CHIMERA_DIR:-${CHIMERA_ROOT_DIR}/$GTDB_RELEASE}"
 GTDB_CHIMERA_CONTIG="${GTDB_CHIMERA_CONTIG:-$GTDB_CHIMERA_DIR/contig_structural_chimera.${GTDB_RELEASE}.final.tsv}"
 GTDB_CHIMERA_MAG_CONTIG="${GTDB_CHIMERA_MAG_CONTIG:-$GTDB_CHIMERA_DIR/MAG_contig_structural_chimera.${GTDB_RELEASE}.final.tsv}"
 GTDB_CHIMERA_MAG="${GTDB_CHIMERA_MAG:-$GTDB_CHIMERA_DIR/MAG_structural_chimera.${GTDB_RELEASE}.final.tsv}"
-MAG_GTDB_TAXONOMY_TSV="${MAG_GTDB_TAXONOMY_TSV:-}"
+MAG_GTDB_TAXONOMY_TSV="${MAG_GTDB_TAXONOMY_TSV:-$PREP_DIR/gtdb_taxonomy.MAG.tsv}"
 
 CIRCULARITY_RESULT_DIR="${CIRCULARITY_RESULT_DIR:-$CIRCULARITY_DIR}"
 FALSE_CLOSURE_RESULT_DIR="${FALSE_CLOSURE_RESULT_DIR:-$FALSE_CLOSURE_DIR}"
 
-CIRCULARITY_ONLY_FINAL="${CIRCULARITY_ONLY_FINAL:-$CIRCULARITY_RESULT_DIR/MAG_circularity.final.tsv}"
-CIRCULARITY_ONLY_AUDIT="${CIRCULARITY_ONLY_AUDIT:-$CIRCULARITY_RESULT_DIR/MAG_circularity.audit.tsv}"
+CIRCULARITY_ONLY_FINAL="${CIRCULARITY_ONLY_FINAL:-$CIRCULARITY_RESULT_DIR/circularity.MAG.tsv}"
+CIRCULARITY_ONLY_AUDIT="${CIRCULARITY_ONLY_AUDIT:-$CIRCULARITY_RESULT_DIR/circularity.MAG.audit.tsv}"
 CIRCULARITY_RUN_METADATA="${CIRCULARITY_RUN_METADATA:-$CIRCULARITY_RESULT_DIR/run_metadata.txt}"
 
-FALSE_CLOSURE_FINAL="${FALSE_CLOSURE_FINAL:-$FALSE_CLOSURE_RESULT_DIR/MAG_false_closure.final.tsv}"
-FALSE_CLOSURE_AUDIT="${FALSE_CLOSURE_AUDIT:-$FALSE_CLOSURE_RESULT_DIR/MAG_false_closure.audit.tsv}"
-FALSE_CLOSURE_CONTIG_FINAL="${FALSE_CLOSURE_CONTIG_FINAL:-$FALSE_CLOSURE_RESULT_DIR/contig_false_closure.final.tsv}"
+FALSE_CLOSURE_FINAL="${FALSE_CLOSURE_FINAL:-$FALSE_CLOSURE_RESULT_DIR/false_closure.MAG.tsv}"
+FALSE_CLOSURE_AUDIT="${FALSE_CLOSURE_AUDIT:-$FALSE_CLOSURE_RESULT_DIR/false_closure.MAG.audit.tsv}"
+FALSE_CLOSURE_CONTIG_FINAL="${FALSE_CLOSURE_CONTIG_FINAL:-$FALSE_CLOSURE_RESULT_DIR/false_closure.contig.tsv}"
 FALSE_CLOSURE_RUN_METADATA="${FALSE_CLOSURE_RUN_METADATA:-$FALSE_CLOSURE_RESULT_DIR/run_metadata.txt}"
 FALSE_CLOSURE_CANDIDATE_READS="${FALSE_CLOSURE_CANDIDATE_READS:-$FALSE_CLOSURE_RESULT_DIR/false_closure_candidate_reads.tsv}"
 FALSE_CLOSURE_EVIDENCE_TSV="${FALSE_CLOSURE_EVIDENCE_TSV:-$FALSE_CLOSURE_RESULT_DIR/false_closure.tsv}"
@@ -328,21 +332,21 @@ ALLELE_VARIANTS="${ALLELE_VARIANTS:-${VARIANT_DIR}/assembly_allele_disagreements
 ALLELE_CONTIG_ALL="${ALLELE_CONTIG_ALL:-${VARIANT_DIR}/contig_assembly_allele_support.all_contigs.tsv}"
 ALLELE_SUMMARY_ALL="${ALLELE_SUMMARY_ALL:-${VARIANT_DIR}/assembly_allele_support.all_contigs.summary.tsv}"
 ALLELE_ASSEMBLER_SUMMARY="${ALLELE_ASSEMBLER_SUMMARY:-${VARIANT_DIR}/assembly_allele_support.by_assembler.tsv}"
-ALLELE_CONTIG="${ALLELE_CONTIG:-${VARIANT_DIR}/contig_assembly_allele_support.final.tsv}"
+ALLELE_CONTIG="${ALLELE_CONTIG:-${VARIANT_DIR}/variants.contig.tsv}"
 ALLELE_SUMMARY="${ALLELE_SUMMARY:-${VARIANT_DIR}/assembly_allele_support.summary.tsv}"
 ALLELE_VARIANTS_MAG="${ALLELE_VARIANTS_MAG:-${VARIANT_DIR}/assembly_allele_disagreements.by_MAG.tsv}"
-ALLELE_MAG="${ALLELE_MAG:-${VARIANT_DIR}/assembly_allele_support.by_MAG.tsv}"
-ALLELE_CACHE_META="${ALLELE_CACHE_META:-${VARIANT_DIR}/assembly_allele_support.inputs.sha256}"
+ALLELE_MAG="${ALLELE_MAG:-${VARIANT_DIR}/variants.MAG.tsv}"
+ALLELE_CACHE_META="${ALLELE_CACHE_META:-${VARIANT_DIR}/.cache/variants.inputs.sha256}"
 
 PHANTOM_ZERO_BED="${PHANTOM_ZERO_BED:-${PHANTOM_DIR}/zero_regions.bed}"
 PHANTOM_ZERO_FA="${PHANTOM_ZERO_FA:-${PHANTOM_DIR}/zero_regions.fa}"
 PHANTOM_ZERO_TSV="${PHANTOM_ZERO_TSV:-${PHANTOM_DIR}/zero_regions.tsv}"
 PHANTOM_BLAST_DB="${PHANTOM_BLAST_DB:-${PHANTOM_DIR}/raw_reads_blastdb/reads}"
 PHANTOM_BLAST="${PHANTOM_BLAST:-${PHANTOM_DIR}/zero_regions_vs_raw_reads.tsv}"
-PHANTOM_FINAL="${PHANTOM_FINAL:-${PHANTOM_DIR}/phantom_sequences.final.tsv}"
-PHANTOM_CACHE_META="${PHANTOM_CACHE_META:-${PHANTOM_FINAL}.inputs.sha256}"
-PHANTOM_MAG_SITES="${PHANTOM_MAG_SITES:-${PHANTOM_DIR}/MAG_phantom_sequences.final.tsv}"
-PHANTOM_MAG_SUMMARY="${PHANTOM_MAG_SUMMARY:-${PHANTOM_DIR}/MAG_phantom_summary.final.tsv}"
+PHANTOM_FINAL="${PHANTOM_FINAL:-${PHANTOM_DIR}/phantom.region.tsv}"
+PHANTOM_CACHE_META="${PHANTOM_CACHE_META:-${PHANTOM_DIR}/.cache/phantom.region.tsv.inputs.sha256}"
+PHANTOM_MAG_SITES="${PHANTOM_MAG_SITES:-${PHANTOM_DIR}/phantom.MAG_region.tsv}"
+PHANTOM_MAG_SUMMARY="${PHANTOM_MAG_SUMMARY:-${PHANTOM_DIR}/phantom.MAG.tsv}"
 PHANTOM_MERYL_READ_DB="${PHANTOM_MERYL_READ_DB:-${PHANTOM_DIR}/meryl/raw_reads.k21.meryl}"
 PHANTOM_MERYL_READ_CACHE="${PHANTOM_MERYL_READ_CACHE:-${PHANTOM_MERYL_READ_DB}.inputs.sha256}"
 PHANTOM_KMER_FINAL="${PHANTOM_KMER_FINAL:-${PHANTOM_DIR}/phantom_kmer_confirmation.final.tsv}"
@@ -352,13 +356,10 @@ PHANTOM_MAG_MERYL_CATALOGUE="${PHANTOM_MAG_MERYL_CATALOGUE:-${PHANTOM_DIR}/MAG_p
 PHANTOM_MAG_MERYL_CACHE_META="${PHANTOM_MAG_MERYL_CACHE_META:-${PHANTOM_MAG_MERYL_FINAL}.inputs.sha256}"
 PHANTOM_MAG_MERYL_CATALOGUE_CACHE_META="${PHANTOM_MAG_MERYL_CATALOGUE_CACHE_META:-${PHANTOM_MAG_MERYL_CATALOGUE}.inputs.sha256}"
 
-REPEAT_SUM="${REPEAT_SUM:-${REPEAT_DIR}/contig_repeat_breadth.final.tsv}"
-REPEAT_CACHE_META="${REPEAT_CACHE_META:-${REPEAT_SUM}.inputs.sha256}"
-REPEAT_SELF_BLAST="${REPEAT_SELF_BLAST:-${REPEAT_DIR}/self_blast.paper_same_contig.filtered.tsv}"
-REPEAT_MAG_SUM="${REPEAT_MAG_SUM:-${REPEAT_DIR}/MAG_repeat_breadth.final.tsv}"
-REPEAT_DATASET_SUM="${REPEAT_DATASET_SUM:-${REPEAT_DIR}/dataset_repeat_breadth.final.tsv}"
-REPEAT_REGION_BED="${REPEAT_REGION_BED:-${REPEAT_DIR}/repeat_regions.final.bed}"
-REPEAT_REGION_TSV="${REPEAT_REGION_TSV:-${REPEAT_DIR}/repeat_regions.final.tsv}"
+REPEAT_SUM="${REPEAT_SUM:-${REPEAT_DIR}/repeats.contig.tsv}"
+REPEAT_CACHE_META="${REPEAT_CACHE_META:-${REPEAT_DIR}/.cache/repeats.contig.tsv.inputs.sha256}"
+REPEAT_MAG_SUM="${REPEAT_MAG_SUM:-${REPEAT_DIR}/repeats.MAG.tsv}"
+REPEAT_DATASET_SUM="${REPEAT_DATASET_SUM:-${REPEAT_DIR}/repeats.dataset.tsv}"
 
 FALSE_DUP_CANDIDATE_PAF="${FALSE_DUP_CANDIDATE_PAF:-${FALSE_DUP_DIR}/duplication_self_minimap2.paf.gz}"
 FALSE_DUP_CANDIDATE_PROVENANCE="${FALSE_DUP_CANDIDATE_PROVENANCE:-${FALSE_DUP_DIR}/duplication_candidate_search.provenance.tsv}"
@@ -368,17 +369,17 @@ FALSE_DUP_ALL_CONTIG_SUM="${FALSE_DUP_ALL_CONTIG_SUM:-${FALSE_DUP_DIR}/false_dup
 FALSE_DUP_ASSEMBLER_SUM="${FALSE_DUP_ASSEMBLER_SUM:-${FALSE_DUP_DIR}/false_duplication.by_assembler.tsv}"
 FALSE_DUP_PAIR_SUM="${FALSE_DUP_PAIR_SUM:-${FALSE_DUP_DIR}/false_duplication_pairs.final.tsv}"
 FALSE_DUP_BOUNDARY_SUM="${FALSE_DUP_BOUNDARY_SUM:-${FALSE_DUP_DIR}/false_duplication_boundaries.final.tsv}"
-FALSE_DUP_CONTIG_SUM="${FALSE_DUP_CONTIG_SUM:-${FALSE_DUP_DIR}/false_duplication.by_contig.tsv}"
-FALSE_DUP_MAG_SUM="${FALSE_DUP_MAG_SUM:-${FALSE_DUP_DIR}/false_duplication.by_MAG.tsv}"
+FALSE_DUP_CONTIG_SUM="${FALSE_DUP_CONTIG_SUM:-${FALSE_DUP_DIR}/false_duplication.contig.tsv}"
+FALSE_DUP_MAG_SUM="${FALSE_DUP_MAG_SUM:-${FALSE_DUP_DIR}/false_duplication.MAG.tsv}"
 FALSE_DUP_PROVENANCE="${FALSE_DUP_PROVENANCE:-${FALSE_DUP_DIR}/false_duplication.provenance.tsv}"
 FALSE_DUP_CLIPPING_BOUNDARY_SUM="${FALSE_DUP_CLIPPING_BOUNDARY_SUM:-${FALSE_DUP_DIR}/validation/clipping/false_duplication.boundaries.clipping.tsv}"
 FALSE_DUP_CLIPPING_PAIR_SUM="${FALSE_DUP_CLIPPING_PAIR_SUM:-${FALSE_DUP_DIR}/validation/clipping/false_duplication.pairs.clipping.tsv}"
-FALSE_DUP_CLIPPING_CONTIG_SUM="${FALSE_DUP_CLIPPING_CONTIG_SUM:-${FALSE_DUP_DIR}/validation/clipping/false_duplication.by_contig.clipping.tsv}"
-FALSE_DUP_CLIPPING_MAG_SUM="${FALSE_DUP_CLIPPING_MAG_SUM:-${FALSE_DUP_DIR}/validation/clipping/false_duplication.by_MAG.clipping.tsv}"
+FALSE_DUP_CLIPPING_CONTIG_SUM="${FALSE_DUP_CLIPPING_CONTIG_SUM:-${FALSE_DUP_DIR}/validation/clipping/false_duplication.contig.clipping.tsv}"
+FALSE_DUP_CLIPPING_MAG_SUM="${FALSE_DUP_CLIPPING_MAG_SUM:-${FALSE_DUP_DIR}/validation/clipping/false_duplication.MAG.clipping.tsv}"
 FALSE_DUP_CLIPPING_PROVENANCE="${FALSE_DUP_CLIPPING_PROVENANCE:-${FALSE_DUP_DIR}/validation/clipping/false_duplication.clipping.provenance.tsv}"
 
 SUMMARY_CONTIG="${SUMMARY_CONTIG:-${SUMMARY_DIR}/integrated_QC_summary.total_contigs.tsv}"
-SUMMARY_MAG_CONTIG="${SUMMARY_MAG_CONTIG:-${SUMMARY_DIR}/integrated_QC_summary.MAG_contigs.tsv}"
-SUMMARY_MAG="${SUMMARY_MAG:-${SUMMARY_DIR}/integrated_QC_summary.by_MAG.tsv}"
+SUMMARY_MAG_CONTIG="${SUMMARY_MAG_CONTIG:-${SUMMARY_DIR}/summary.contig.tsv}"
+SUMMARY_MAG="${SUMMARY_MAG:-${SUMMARY_DIR}/summary.MAG.tsv}"
 
 mkdir -p "$OUT/00_log" "$PREP_DIR"

@@ -2,7 +2,7 @@
 """Create MAG-associated phantom-region and MAG-level summary tables.
 
 This script does not recalculate coverage, BLAST, or k-mer evidence. It joins an
-existing ``phantom_sequences.final.tsv`` table to the MAG-contig ownership map
+existing ``phantom.region.tsv`` table to the MAG-contig ownership map
 and summarizes the retained phantom candidates across every mapped MAG.
 """
 
@@ -53,7 +53,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Generate MAG phantom outputs from an existing "
-            "phantom_sequences.final.tsv. No mapping, BLAST, or Meryl analysis "
+            "phantom.region.tsv. No mapping, BLAST, or Meryl analysis "
             "is rerun."
         )
     )

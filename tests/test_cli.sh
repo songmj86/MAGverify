@@ -30,7 +30,7 @@ done
 QC_STAGE=03_clipping bash -c '
   config="$1"; set -- /inputs/combined.fa /outputs/clipping
   source "$config/lib_config.sh"
-  [[ "$CLIP_FINAL" == /outputs/clipping/clipping.filtered.tsv ]]
+  [[ "$CLIP_FINAL" == /outputs/clipping/clipping.site.tsv ]]
   [[ "$OUT" == /outputs ]]
 ' _ "$HERE"
 QC_STAGE=01_mapping bash -c '
@@ -51,7 +51,7 @@ QC_STAGE=02_circularity bash -c '
 QC_STAGE=10_summary bash -c '
   config="$1"; set -- /inputs/combined.fa /outputs/summary
   source "$config/lib_config.sh"
-  [[ "$SUMMARY_MAG" == /outputs/summary/integrated_QC_summary.by_MAG.tsv ]]
+  [[ "$SUMMARY_MAG" == /outputs/summary/summary.MAG.tsv ]]
 ' _ "$HERE"
 
 # An explicit CLI input supersedes an environment-supplied per-module input.
@@ -63,12 +63,19 @@ QC_STAGE=03_clipping CLIPPING_INPUT_ASSEMBLY_FA=/other/assembly.fa bash -c '
 ' _ "$HERE"
 
 # Legacy flag-based circularity interface remains unchanged.
-QC_STAGE=02_circularity bash -c '
+QC_STAGE=02_circularity OUT="$TEST_ROOT/flag_out" bash -c '
   config="$1"; set -- --mag-dir /flag/mags --outdir /flag/out
   source "$config/lib_config.sh"
   [[ "$MAG_DIR" == "${MAG_DIR:-}" ]]
   [[ "$CIRCULARITY_DIR" == "$OUT/02_circularity" ]]
 ' _ "$HERE"
+
+# Without an output directory nothing may be created inside the code directory.
+if QC_STAGE=06_repeats bash -c 'config="$1"; unset OUT; source "$config/lib_config.sh"' _ "$HERE" >/dev/null 2>&1; then
+    echo 'ERROR: lib_config.sh accepted a missing output directory' >&2
+    exit 1
+fi
+[[ ! -e "$HERE/results" ]] || { echo "ERROR: $HERE/results was created" >&2; exit 1; }
 
 # A single positional argument for a two-argument module is a usage error.
 if QC_STAGE=03_clipping bash -c 'config="$1"; set -- /input.fa; source "$config/lib_config.sh"' _ "$HERE" >/dev/null 2>&1; then

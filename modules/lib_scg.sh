@@ -5,7 +5,8 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
     cat <<'HELP'
 Usage: bash lib_scg.sh ASSEMBLY_FASTA OUTPUT_DIR [THREADS]
 Input: all-assemblies FASTA.
-Additional software: anvi'o (anvi-script-reformat-fasta, anvi-gen-contigs-database, anvi-run-hmms).
+Additional software: pyrodigal; anvi'o (anvi-script-reformat-fasta, anvi-gen-contigs-database, anvi-run-hmms).
+Genes come from the shared Pyrodigal prediction (lib_genes.sh).
 Output: OUTPUT_DIR/SCG_from_anvio.original_contig.tsv
 HELP
     exit 0
@@ -21,10 +22,11 @@ if [[ -n "${ANVIO_ENV_PREFIX:-}" && -d "$ANVIO_ENV_PREFIX/bin" ]]; then
 fi
 
 SCG_SOURCE_REGEX="${SCG_SOURCE_REGEX:-^(Bacteria_71|Archaea_76)$}"
+GENE_CALLS_DIR="${GENE_CALLS_DIR:-$(dirname "$OUT_DIR")/genes}"
 
 mkdir -p "$OUT_DIR"
 
-for t in anvi-script-reformat-fasta anvi-gen-contigs-database anvi-run-hmms python3; do
+for t in pyrodigal anvi-script-reformat-fasta anvi-gen-contigs-database anvi-run-hmms python3; do
     command -v "$t" >/dev/null 2>&1 || {
         echo "ERROR: $t not found. Activate the MAGverify Conda environment first."
         echo "Example: conda activate MAGverify"
@@ -39,6 +41,7 @@ done
 
 REFORMATTED="$OUT_DIR/Contig.anvio_simple.fa"
 NAME_MAP="$OUT_DIR/Contig.anvio_simple.name_map.tsv"
+GENE_CALLS="$OUT_DIR/Contig.anvio_simple.gene_calls.tsv"
 DB="$OUT_DIR/contigs.db"
 OUT_TSV="$OUT_DIR/SCG_from_anvio.original_contig.tsv"
 LOG="$OUT_DIR/00_SCG.log"
@@ -53,10 +56,13 @@ echo "[00_SCG] Started: $(date)"
 echo "Input assembly : $ASSEMBLY_FA"
 echo "Output dir     : $OUT_DIR"
 echo "Threads        : $THREADS"
-echo "SCG sources    : $SCG_SOURCE_REGEX"
+echo "HMM collections: $SCG_SOURCE_REGEX"
 echo
 
-INPUT_FP="$(python3 - "$ASSEMBLY_FA" <<'PY_FP'
+bash "$SCRIPT_DIR/lib_genes.sh" "$ASSEMBLY_FA" "$GENE_CALLS_DIR" "$THREADS"
+GENES_FP="$(<"$GENE_CALLS_DIR/.cache/genes.inputs.sha256")"
+
+INPUT_FP="$(python3 - "$ASSEMBLY_FA" "$GENES_FP" <<'PY_FP'
 import hashlib
 import json
 import os
@@ -69,10 +75,11 @@ def stat(path):
 
 payload = {
     'assembly': stat(sys.argv[1]),
+    'genes': sys.argv[2],
     'reformat_binary': stat(shutil.which('anvi-script-reformat-fasta')),
     'contigs_db_binary': stat(shutil.which('anvi-gen-contigs-database')),
     'hmms_binary': stat(shutil.which('anvi-run-hmms')),
-    'method': 'simplify_names|contigs_db|run_hmms_v2',
+    'method': 'simplify_names|external_pyrodigal_genes|contigs_db|run_hmms_v3',
 }
 print(hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest())
 PY_FP
@@ -80,13 +87,13 @@ PY_FP
 
 PREP_REUSED=0
 if [[ -s "$CACHE_META" && "$(<"$CACHE_META")" == "$INPUT_FP" \
-      && -s "$REFORMATTED" && -s "$NAME_MAP" && -s "$DB" ]]; then
+      && -s "$REFORMATTED" && -s "$NAME_MAP" && -s "$GENE_CALLS" && -s "$DB" ]]; then
     PREP_REUSED=1
     echo "Fingerprint-matched anvi'o DB/HMM preparation found."
     echo "Reusing: $DB"
 else
     echo "Removing stale or incomplete anvi'o preparation outputs."
-    rm -f "$REFORMATTED" "$NAME_MAP" "$DB" "$CACHE_META" "$OUT_TSV"
+    rm -f "$REFORMATTED" "$NAME_MAP" "$GENE_CALLS" "$DB" "$CACHE_META" "$OUT_TSV"
 fi
 
 if (( PREP_REUSED == 0 )); then
@@ -97,12 +104,18 @@ if (( PREP_REUSED == 0 )); then
         --report-file "$NAME_MAP" \
         -o "$REFORMATTED"
 
+    python3 "$SCRIPT_DIR/../scripts/prep_genes_to_anvio_gene_calls.py" \
+        "$GENE_CALLS_DIR/genes.gff" "$GENE_CALLS_DIR/genes.faa" "$NAME_MAP" "$GENE_CALLS" \
+        --version "$(bash "$SCRIPT_DIR/lib_genes.sh" --version)"
+
     echo
-    echo "[2/4] Generating anvi'o contigs.db"
+    echo "[2/4] Generating anvi'o contigs.db with the shared Pyrodigal genes"
+    rm -f "$DB"
     anvi-gen-contigs-database \
         -f "$REFORMATTED" \
         -o "$DB" \
         -n "LR_assembly" \
+        --external-gene-calls "$GENE_CALLS" \
         -T "$THREADS"
 
     echo
@@ -305,7 +318,7 @@ print(f'gene table used       : {gene_table}')
 print(f'gene table columns    : {", ".join(gene_cols)}')
 print(f'name_map entries      : {len(name_map)}')
 print(f'SCG/HMM hits written  : {len(rows)}')
-print(f'HMM hits excluded by source filter: {skipped_source}')
+print(f'HMM hits excluded by collection filter: {skipped_source}')
 print(f'Wrote                 : {OUT_TSV}')
 
 PY

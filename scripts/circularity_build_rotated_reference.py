@@ -131,7 +131,7 @@ with open(output_reference, "w") as reference_out:
     for header, sequence in fasta_records(assembly_path):
         contig_id = fasta_id(header)
         if contig_id in seen_assembly_ids:
-            raise SystemExit(f"ERROR: Duplicate contig ID in full assembly: {contig_id}")
+            raise SystemExit(f"ERROR: Duplicate contig ID in the assembler assembly: {contig_id}")
         seen_assembly_ids.add(contig_id)
 
         if contig_id not in candidates:
@@ -141,7 +141,7 @@ with open(output_reference, "w") as reference_out:
         candidate = candidates[contig_id]
         if len(sequence) != candidate["length"] or md5_sequence(sequence) != candidate["md5"]:
             raise SystemExit(
-                "ERROR: The single-contig MAG sequence does not exactly match the full assembly "
+                "ERROR: The single-contig MAG sequence does not exactly match the assembler assembly "
                 f"for {candidate['mag_id']} / {contig_id}"
             )
         if len(sequence) < 2 * hifi_anchor + 2:
@@ -187,7 +187,7 @@ with open(output_reference, "w") as reference_out:
 missing = [contig_id for contig_id, data in candidates.items() if not data["found"]]
 if missing:
     shown = ", ".join(missing[:10])
-    raise SystemExit(f"ERROR: {len(missing)} single-contig MAG contigs were absent from the full assembly: {shown}")
+    raise SystemExit(f"ERROR: {len(missing)} single-contig MAG contigs were absent from the assembler assembly: {shown}")
 
 manifest_rows.sort(key=lambda row: (row[0], row[1]))
 with open(manifest_path, "w") as out:
@@ -211,5 +211,5 @@ with open(candidate_bed_path, "w") as bed_out, open(junction_bed_path, "w") as j
         region_end = min(int(length), junction0 + flank)
         junction_out.write(f"{contig_id}\t{region_start}\t{region_end}\n")
 
-print(f"Eligible single-contig MAGs: {len(manifest_rows)}")
+print(f"Single-contig MAGs: {len(manifest_rows)}")
 print(f"Rotated reference: {output_reference}")

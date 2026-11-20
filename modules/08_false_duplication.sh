@@ -136,9 +136,9 @@ ensure_bam_index() {
 
 while IFS=$'\t' read -r assembler assembly hifi_bam; do
     [[ -n "$assembler" && -s "$assembly" && -s "${assembly}.fai" ]] || {
-        echo "ERROR: source assembler FASTA/FAI missing for $assembler: $assembly"; exit 1;
+        echo "ERROR: assembler FASTA/FAI missing for $assembler: $assembly"; exit 1;
     }
-    [[ -s "$hifi_bam" ]] || { echo "ERROR: source HiFi BAM missing for $assembler: $hifi_bam"; exit 1; }
+    [[ -s "$hifi_bam" ]] || { echo "ERROR: HiFi BAM missing for $assembler: $hifi_bam"; exit 1; }
     samtools quickcheck -v "$hifi_bam" || { echo "ERROR: HiFi BAM failed quickcheck: $hifi_bam"; exit 1; }
     qc_bam_matches_fai "$hifi_bam" "${assembly}.fai" || { echo "ERROR: HiFi BAM/reference mismatch for $assembler"; exit 1; }
     ensure_bam_index "$hifi_bam"
@@ -214,7 +214,7 @@ else
     {
         printf 'key\tvalue\n'
         printf 'fingerprint\t%s\n' "$CANDIDATE_FP"
-        printf 'candidate_source\t%s\n' 'Minimap2 assembly self-alignment'
+        printf 'candidate_method\t%s\n' 'Minimap2 assembly self-alignment'
         printf 'minimap2_preset\t%s\n' "$FALSE_DUP_MINIMAP_PRESET"
         printf 'minimap2_options\t%s\n' '-DP'
         printf 'index_chunk\t%s\n' "$FALSE_DUP_MINIMAP_INDEX_CHUNK"

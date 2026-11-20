@@ -178,7 +178,7 @@ def load_source_calls(mapping_manifest: str, flye_info: str) -> Tuple[Dict[str, 
             if not assembler or not fasta:
                 continue
             if not os.path.isfile(fasta):
-                fail(f"source assembly FASTA missing for {assembler}: {fasta}")
+                fail(f"assembly FASTA missing for {assembler}: {fasta}")
             fasta_of[assembler] = fasta
             header_calls = parse_header_circularity(fasta, assembler)
             names = []
@@ -186,7 +186,7 @@ def load_source_calls(mapping_manifest: str, flye_info: str) -> Tuple[Dict[str, 
                 names.append(contig)
                 prev = source_of.get(contig)
                 if prev is not None and prev != assembler:
-                    fail(f"contig occurs in multiple source assemblers: {contig} ({prev}, {assembler})")
+                    fail(f"contig occurs in multiple assemblers: {contig} ({prev}, {assembler})")
                 source_of[contig] = assembler
             for contig, value in header_calls.items():
                 calls[contig] = value
@@ -213,7 +213,7 @@ def load_source_calls(mapping_manifest: str, flye_info: str) -> Tuple[Dict[str, 
                         if contig in name_set:
                             calls[contig] = value
     if not source_of:
-        fail("mapping manifest/source FASTAs contain no contigs")
+        fail("mapping manifest/assembler FASTAs contain no contigs")
     return source_of, calls, fasta_of
 
 
@@ -250,7 +250,7 @@ def main() -> None:
 
     missing_mag_contigs = sorted(set(contig_to_mag) - set(source_of))
     if missing_mag_contigs:
-        fail(f"MAG contigs absent from all source assemblies: {missing_mag_contigs[:10]}")
+        fail(f"MAG contigs absent from all assemblies: {missing_mag_contigs[:10]}")
 
     rows: List[List[object]] = []
     single_conflicts: List[str] = []

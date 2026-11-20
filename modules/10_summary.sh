@@ -6,7 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib_config.sh"
 source "$SCRIPT_DIR/lib_qc.sh"
 
-GTDB_CHIMERA_REPORT_CONTIG="${GTDB_CHIMERA_REPORT_CONTIG:-$GTDB_CHIMERA_DIR/clipping_defined/contig_taxonomic_chimera.${GTDB_RELEASE}.final.tsv}"
+GTDB_CHIMERA_REPORT_CONTIG="${GTDB_CHIMERA_REPORT_CONTIG:-$GTDB_CHIMERA_DIR/clipping_defined/chimera.contig.tsv}"
 
 mkdir -p "$OUT/00_log" "$(dirname "$SUMMARY_CONTIG")" \
     "$(dirname "$SUMMARY_MAG_CONTIG")" "$(dirname "$SUMMARY_MAG")"

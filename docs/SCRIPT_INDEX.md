@@ -10,7 +10,7 @@ Python helper filenames begin with the analysis module responsible for their exe
 | `clipping_` | Clipped-read assessment and validation | 6 |
 | `false_closure_` | False closure and contig connections | 5 |
 | `phantom_` | Phantom sequence evidence | 1 |
-| `repeats_` | Repeat regions and evidence summaries | 3 |
+| `repeats_` | Repeat regions and evidence summaries | 4 |
 | `chimera_` | Gene taxonomy and taxonomic chimera assessment | 9 |
 | `false_duplication_` | False duplication and clipping integration | 2 |
 | `variants_` | Assembly allele support | 3 |
@@ -32,16 +32,18 @@ These are internal Python script interfaces. The ten `MAGverify MODULE` commands
 
 ### prep
 
+- `prep_assembler_circularity.py`
 - `prep_build_mag_contig_map.py`
+- `prep_genes_to_anvio_gene_calls.py`
 - `prep_gtdbtk_summary_to_mag_taxonomy.py`
 
 ### circularity
 
 - `circularity_build_rotated_reference.py`
 - `circularity_integrate_circularity_results.py`
-- `circularity_merge_circularity_sources.py`
+- `circularity_merge_assembler_groups.py`
 - `circularity_refresh_circularity_compat.py`
-- `circularity_select_circularity_sources.py`
+- `circularity_match_mags_to_assemblers.py`
 - `circularity_summarize_circularity_junctions.py`
 
 ### clipping
@@ -67,6 +69,7 @@ These are internal Python script interfaces. The ten `MAGverify MODULE` commands
 
 ### repeats
 
+- `repeats_consolidate_outputs.py`
 - `repeats_normalize_repeat_tables.py`
 - `repeats_summarize_repeat_by_assembler.py`
 - `repeats_summarize_repeat_evidence.py`

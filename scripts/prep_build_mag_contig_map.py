@@ -90,7 +90,7 @@ def main():
             found = True
             if contig not in assembly or assembly[contig] != length:
                 raise SystemExit(
-                    f'ERROR: MAG/full-assembly name or length mismatch: {mag}/{contig}'
+                    f'ERROR: MAG/assembly contig name or length mismatch: {mag}/{contig}'
                 )
             if contig in target_owner and target_owner[contig] != mag:
                 raise SystemExit(f'ERROR: contig occurs in multiple MAG files: {contig}')

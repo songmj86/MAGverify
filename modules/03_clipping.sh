@@ -18,7 +18,7 @@ CLIP_TERMINAL_DEFAULT="${CLIPPING_DIR}/clipping.terminal.default.tsv"
 CLIP_ALL_STRINGENT="${CLIPPING_DIR}/clipping.all_regions.stringent.tsv"
 CLIP_INTERNAL_STRINGENT="${CLIPPING_DIR}/clipping.internal.stringent.tsv"
 CLIP_TERMINAL_STRINGENT="${CLIPPING_DIR}/clipping.terminal.stringent.tsv"
-CLIP_ALL_FINAL="${CLIPPING_DIR}/clipping.all_regions.filtered.tsv"
+CLIP_ALL_FINAL="${CLIPPING_DIR}/clipping.site.all_regions.tsv"
 CLIP_INTERNAL_FINAL="${CLIPPING_DIR}/clipping.internal.filtered.tsv"
 CLIP_TERMINAL_FINAL="${CLIPPING_DIR}/clipping.terminal.filtered.tsv"
 CLIP_ALL_POSITIVE="${CLIPPING_DIR}/clipping.all_regions.Y.tsv"
@@ -26,7 +26,7 @@ CLIP_INTERNAL_POSITIVE="${CLIPPING_DIR}/clipping.internal.Y.tsv"
 CLIP_TERMINAL_POSITIVE="${CLIPPING_DIR}/clipping.terminal.Y.tsv"
 CLIP_REGION_SUMMARY="${CLIPPING_DIR}/clipping.region_density.tsv"
 CLIP_REGION_RATIO="${CLIPPING_DIR}/clipping.region_density_ratio.tsv"
-CLIP_SOURCE_MANIFEST="${CLIPPING_DIR}/clipping.source_mapping_manifest.tsv"
+CLIP_SOURCE_MANIFEST="${CLIPPING_DIR}/clipping.mapping_manifest.tsv"
 
 mkdir -p "$OUT/00_log" "${CLIPPING_DIR}" "${CLIPPING_DIR}/by_assembler"
 
@@ -143,15 +143,18 @@ done
 [[ -s "$ASSEMBLY_FA" ]] || fail "required input missing or empty: $ASSEMBLY_FA"
 [[ -s "$MAG_MAP_BUILDER" ]] || fail "MAG-map builder missing: $MAG_MAP_BUILDER"
 
-samtools faidx "$ASSEMBLY_FA"
-if [[ ! -s "$MAG_CONTIG_MAP" ]]; then
-    echo "[03_clipping] MAG_CONTIG_MAP is absent; creating shared prep map."
-fi
+[[ -s "${ASSEMBLY_FA}.fai" && "${ASSEMBLY_FA}.fai" -nt "$ASSEMBLY_FA" ]] || samtools faidx "$ASSEMBLY_FA"
+mkdir -p "$(dirname "$MAG_CONTIG_MAP")"
 python3 "$MAG_MAP_BUILDER" \
     --mag-dir "$MAG_DIR" \
     --extensions "$MAG_EXTENSIONS" \
     --assembly-fai "${ASSEMBLY_FA}.fai" \
-    --output "$MAG_CONTIG_MAP"
+    --output "${MAG_CONTIG_MAP}.new.$$"
+if [[ -s "$MAG_CONTIG_MAP" ]] && cmp -s "${MAG_CONTIG_MAP}.new.$$" "$MAG_CONTIG_MAP"; then
+    rm -f "${MAG_CONTIG_MAP}.new.$$"
+else
+    mv -f "${MAG_CONTIG_MAP}.new.$$" "$MAG_CONTIG_MAP"
+fi
 
 if [[ ! -s "$ASSEMBLER_MAPPING_MANIFEST" ]]; then
     fail "assembler mapping manifest is missing: $ASSEMBLER_MAPPING_MANIFEST. Run 01_mapping.sh before 03_clipping.sh."
@@ -198,14 +201,14 @@ PY_MANIFEST_SCHEMA
 copy_atomic "$ASSEMBLER_MAPPING_MANIFEST" "$CLIP_SOURCE_MANIFEST"
 
 while IFS=$'\t' read -r assembler assembly hifi_all; do
-    [[ -s "$assembly" ]] || fail "source assembly missing: $assembly"
+    [[ -s "$assembly" ]] || fail "assembly missing: $assembly"
     samtools faidx "$assembly"
     [[ -s "$hifi_all" && -s "$(qc_bam_cache "$hifi_all")" ]] \
-        || fail "source-assembler HiFi mapping missing for $assembler; rerun 01_mapping.sh"
+        || fail "HiFi mapping missing for $assembler; rerun 01_mapping.sh"
     samtools quickcheck -v "$hifi_all" \
         || fail "samtools quickcheck failed: $hifi_all"
     qc_bam_matches_fai "$hifi_all" "${assembly}.fai" \
-        || fail "HiFi BAM/source assembly mismatch: $assembler"
+        || fail "HiFi BAM/assembly mismatch: $assembler"
     ensure_bam_index "$hifi_all"
 done < <(qc_manifest_columns "$ASSEMBLER_MAPPING_MANIFEST" Assembler Assembly_FASTA HiFi_all_BAM)
 
@@ -236,7 +239,7 @@ with open(manifest, encoding='utf-8-sig', newline='') as handle:
         source = fai(row['Assembly_FASTA'].strip() + '.fai')
         for contig, length in source.items():
             if contig in union:
-                raise SystemExit(f'ERROR: contig ID occurs in multiple source assemblers: {contig}')
+                raise SystemExit(f'ERROR: contig ID occurs in multiple assemblers: {contig}')
             union[contig] = (assembler, length)
 if set(union) != set(combined):
     missing = sorted(set(combined) - set(union))[:20]
@@ -247,8 +250,8 @@ if set(union) != set(combined):
     )
 for contig, length in combined.items():
     if union[contig][1] != length:
-        raise SystemExit(f'ERROR: source/concatenated contig length mismatch: {contig}')
-print(f'Validated source-assembler contig union: {len(combined)} contigs')
+        raise SystemExit(f'ERROR: assembler/all-assemblies contig length mismatch: {contig}')
+print(f'Validated assembler contig union: {len(combined)} contigs')
 PY_SOURCE_UNION
 
 if [[ -n "$ANVIO_ENV_PREFIX" && -x "$ANVIO_ENV_PREFIX/bin/python" ]]; then
@@ -277,17 +280,17 @@ clip_one_assembler() {
     local asm_final_fp output
 
     echo
-    echo "[03_clipping][$assembler] Source assembly: $assembly"
-    [[ -s "$assembly" ]] || fail "source assembly missing: $assembly"
+    echo "[03_clipping][$assembler] Assembly: $assembly"
+    [[ -s "$assembly" ]] || fail "assembly missing: $assembly"
     samtools faidx "$assembly"
     source_fai="${assembly}.fai"
 
-    [[ -s "$hifi_all" ]] || fail "source-assembler HiFi_all_BAM missing: $hifi_all"
+    [[ -s "$hifi_all" ]] || fail "HiFi_all_BAM missing: $hifi_all"
     [[ -s "$(qc_bam_cache "$hifi_all")" ]] \
-        || fail "source-assembler HiFi BAM cache missing: $(qc_bam_cache "$hifi_all"); rerun map"
+        || fail "HiFi BAM cache missing: $(qc_bam_cache "$hifi_all"); rerun map"
     samtools quickcheck -v "$hifi_all" || fail "samtools quickcheck failed: $hifi_all"
     qc_bam_matches_fai "$hifi_all" "$source_fai" \
-        || fail "HiFi BAM/source assembly mismatch: $assembler"
+        || fail "HiFi BAM/assembly mismatch: $assembler"
     ensure_bam_index "$hifi_all"
 
     asm_dir="${CLIPPING_DIR}/by_assembler/$assembler"
@@ -298,7 +301,7 @@ clip_one_assembler() {
     asm_raw_meta="${asm_raw}.inputs.sha256"
     asm_default="$asm_dir/clipping.default.tsv"
     asm_stringent="$asm_dir/clipping.stringent.tsv"
-    asm_final="$asm_dir/clipping.filtered.tsv"
+    asm_final="$asm_dir/clipping.site.tsv"
     asm_final_meta="${asm_final}.inputs.sha256"
 
     raw_base_fp="$(qc_compute_anvio_clipping_raw_fingerprint \
@@ -312,7 +315,7 @@ clip_one_assembler() {
 
     if [[ "$CLIPPING_POSTPROCESS_ONLY" == "Y" ]]; then
         [[ -s "$asm_raw" && -s "$asm_zero" ]] \
-            || fail "postprocess-only mode requires existing source raw outputs for $assembler"
+            || fail "postprocess-only mode requires existing raw outputs for $assembler"
         qc_write_result_cache_atomic "$asm_raw_meta" "$raw_fp" "$asm_raw"
         echo "[03_clipping][$assembler] Reusing raw anvi'o output by explicit postprocess-only request."
     elif [[ "$FORCE_RERUN_CLIPPING" == "Y" ]] \
@@ -366,7 +369,7 @@ clip_one_assembler() {
     fi
 
     for output in "$asm_default" "$asm_stringent" "$asm_final"; do
-        [[ -s "$output" ]] || fail "source clipping output missing: $output"
+        [[ -s "$output" ]] || fail "assembler clipping output missing: $output"
     done
 
     : > "$asm_dir/.clipping_done"
@@ -395,12 +398,12 @@ for row in "${CLIP_ROWS[@]}"; do
     [[ -e "$asm_dir/.clipping_done" ]] || fail "clipping failed for $assembler"
     DEFAULT_INPUTS+=("$assembler=$asm_dir/clipping.default.tsv")
     STRINGENT_INPUTS+=("$assembler=$asm_dir/clipping.stringent.tsv")
-    FINAL_INPUTS+=("$assembler=$asm_dir/clipping.filtered.tsv")
+    FINAL_INPUTS+=("$assembler=$asm_dir/clipping.site.tsv")
     RAW_CLIP_FILES+=("$asm_dir/anvio_find_misassemblies-clipping.txt")
     RAW_ZERO_FILES+=("$asm_dir/anvio_find_misassemblies-zero_cov.txt")
 done
 
-(( ${#FINAL_INPUTS[@]} > 0 )) || fail "no source assembler rows were processed"
+(( ${#FINAL_INPUTS[@]} > 0 )) || fail "no assembler rows were processed"
 
 combine_tsvs "$ANVIO_CLIP_RAW" "${RAW_CLIP_FILES[@]}"
 combine_tsvs "$ANVIO_ZERO_RAW" "${RAW_ZERO_FILES[@]}"
@@ -456,7 +459,7 @@ python3 "$CLIP_REGION_SUMMARIZER_SCRIPT" \
 
 cat > "$CLIP_CRITERIA" <<EOF_CRITERIA
 field	definition	alignment_population	counting_unit
-source_reference	Full original co-assembly from the assembler that produced the evaluated contig	assembler-specific	contig
+reference	All contigs of the assembler that produced the evaluated contig	assembler-specific	contig
 clipping_candidate	Position reported by anvi-script-find-misassemblies with its documented default clipping-ratio threshold >0.8; --min-dist-to-end is intentionally set to 0 and no minimum coverage is imposed	HiFi ALL mapped	exact base
 region_type	TERMINAL for the first/last ${TERMINAL_CLIPPING_WINDOW_BP} bp of a contig; INTERNAL otherwise; classification occurs after identical clipping detection/validation	NA	exact base
 reference_boundary	Y only at exact first/last reference base; retained for raw terminal statistics but two-sided spanning is impossible and Clipping cannot become Y	NA	exact base
@@ -497,12 +500,12 @@ qc_write_result_cache_atomic "$CLIP_FINAL_CACHE_META" "$GLOBAL_FINAL_FP" "$CLIP_
 write_mag_outputs
 
 echo
-echo "[03_clipping] Source-specific clipping analysis complete: $(date)"
+echo "[03_clipping] Per-assembler clipping analysis complete: $(date)"
 echo "SCRIPT_ID              : $SCRIPT_ID"
 echo "Candidate ratio             : anvi'o documented default >$ANVIO_DEFAULT_CLIPPING_RATIO"
 echo "Terminal exclusion          : disabled (--min-dist-to-end $MIN_DIST_TO_END)"
 echo "Terminal classification     : first/last $TERMINAL_CLIPPING_WINDOW_BP bp"
-echo "HiFi mapping context        : source-assembler full assembly, ALL mapped"
+echo "HiFi mapping context        : all contigs of each assembler, all mapped reads"
 echo "Permissive clipping audit    : Clipping_ge1=Y requires >=1 distinct clipped HiFi read + zero spanning reads"
 echo "Final clipping criterion     : Clipping=Y requires >=2 distinct clipped HiFi reads + zero spanning reads"
 echo "I/D/N policy                 : audit only; spanning requires mapped reference sequence on both sides regardless of I/D/N pattern"

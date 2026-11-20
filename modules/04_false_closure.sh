@@ -10,7 +10,7 @@ RESOLVE_CONTIG_CIRCULARITY="$SCRIPT_DIR/../scripts/false_closure_resolve_false_c
 DETECTOR="$SCRIPT_DIR/../scripts/false_closure_detect_false_closure.py"
 SUMMARIZER="$SCRIPT_DIR/../scripts/false_closure_summarize_false_closure.py"
 CONTIG_SUMMARIZER="$SCRIPT_DIR/../scripts/false_closure_summarize_false_closure_by_contig.py"
-CLIP_ALL_FINAL="${CLIP_ALL_FINAL:-${CLIPPING_DIR}/clipping.all_regions.filtered.tsv}"
+CLIP_ALL_FINAL="${CLIP_ALL_FINAL:-${CLIPPING_DIR}/clipping.site.all_regions.tsv}"
 FALSE_CLOSURE_LARGE_INSERTION_MIN_BP="${FALSE_CLOSURE_LARGE_INSERTION_MIN_BP:-100}"
 FALSE_CLOSURE_LARGE_INSERTION_MIN_QNAMES="${FALSE_CLOSURE_LARGE_INSERTION_MIN_QNAMES:-2}"
 FALSE_CLOSURE_LARGE_INSERTION_TSV="${FALSE_CLOSURE_LARGE_INSERTION_TSV:-$FALSE_CLOSURE_RESULT_DIR/false_closure.large_insertion_sensitivity.tsv}"
@@ -61,18 +61,18 @@ for row in rows:
     ps_bam = (row.get('HiFi_primary_supplementary_BAM') or '').strip()
     for p, label in ((assembly, 'assembly'), (assembly + '.fai', 'FAI'), (bam, 'HiFi_all_BAM'), (ps_bam, 'HiFi_primary_supplementary_BAM')):
         if not p or not os.path.isfile(p) or os.path.getsize(p) == 0:
-            raise SystemExit(f'ERROR: {assembler} source {label} missing: {p}')
+            raise SystemExit(f'ERROR: {assembler} {label} missing: {p}')
 PY_VALIDATE_MANIFEST
 
     while IFS=$'\t' read -r assembler assembly hifi_all hifi_primary_supplementary; do
         samtools quickcheck -v "$hifi_all" >/dev/null 2>&1 \
-            || fail "source HiFi all-mapped BAM failed quickcheck: $hifi_all"
+            || fail "HiFi all-mapped BAM failed quickcheck: $hifi_all"
         samtools quickcheck -v "$hifi_primary_supplementary" >/dev/null 2>&1 \
-            || fail "source HiFi primary+supplementary BAM failed quickcheck: $hifi_primary_supplementary"
+            || fail "HiFi primary+supplementary BAM failed quickcheck: $hifi_primary_supplementary"
         qc_bam_matches_fai "$hifi_all" "${assembly}.fai" \
-            || fail "source HiFi all-mapped BAM/reference mismatch: $assembler"
+            || fail "HiFi all-mapped BAM/reference mismatch: $assembler"
         qc_bam_matches_fai "$hifi_primary_supplementary" "${assembly}.fai" \
-            || fail "source HiFi primary+supplementary BAM/reference mismatch: $assembler"
+            || fail "HiFi primary+supplementary BAM/reference mismatch: $assembler"
     done < <(qc_manifest_columns "$ASSEMBLER_MAPPING_MANIFEST" Assembler Assembly_FASTA HiFi_all_BAM HiFi_primary_supplementary_BAM)
 }
 [[ "$FALSE_CLOSURE_LARGE_INSERTION_MIN_BP" =~ ^[1-9][0-9]*$ ]] \
@@ -98,8 +98,8 @@ if [[ -n "$FALSE_CLOSURE_FLYE_ASSEMBLY_INFO" ]]; then
 fi
 mkdir -p "$OUT/00_log" "$FALSE_CLOSURE_RESULT_DIR" "$FALSE_CLOSURE_HIFI_VALIDATION_DIR"
 rm -f \
-    "$FALSE_CLOSURE_RESULT_DIR/MAG_contig_false_closure.final.tsv" \
-    "$FALSE_CLOSURE_RESULT_DIR/source_contig_circularity.resolved.tsv" \
+    "$FALSE_CLOSURE_RESULT_DIR/false_closure.MAG_contig.tsv" \
+    "$FALSE_CLOSURE_RESULT_DIR/contig_circularity.resolved.tsv" \
     "$FALSE_CLOSURE_RESULT_DIR/false_closure.cross_assembler_sensitivity.tsv"
 require_tools python3 samtools
 
@@ -168,20 +168,20 @@ if bad_region:
     raise SystemExit(f'ERROR: invalid region_type in all-region clipping result: {bad_region[0]!r}')
 PY_VALIDATE
 
-echo "Candidate source: $CLIP_ALL_FINAL"
-echo "Candidate admission: every final HiFi Clipping=Y site across all source-assembly contigs"
+echo "Candidate clipping table: $CLIP_ALL_FINAL"
+echo "Candidate admission: every final HiFi Clipping=Y site across all assembly contigs"
 echo "Clipping regions: TERMINAL + INTERNAL; region_type is annotation only"
 echo "Exact physical reference boundary: excluded as BOUNDARY_UNRESOLVED"
-echo "HiFi mapping context: source-assembler-specific original total assembly"
+echo "HiFi mapping context: per-assembler original assembly"
 echo "HiFi structural alignment input: HiFi_primary_supplementary_BAM (primary + supplementary only)"
 echo "Structural connection: split alignment involving >=1 supplementary segment"
 echo "Secondary alignments in structural evidence: excluded"
 echo "Read counting: unique QNAME"
 echo "Minimum cross-contig connected QNAMEs per side: $FALSE_CLOSURE_MIN_LINKED_READS_PER_SIDE"
 echo "Same target contig on both sides required: N"
-echo "False-closure circularity gate: source-assembler contig-level circularity; MAG-level circularity is single-contig fallback/audit only"
-echo "Source circularity metadata: metaMDBG FASTA circular=yes/no; hifiasm-meta contig suffix c/l; metaFlye assembly_info.txt when available"
-echo "Contig-level scope: all assembler-reported circular source contigs, independent of MAG membership"
+echo "False-closure circularity gate: assembler contig-level circularity; MAG-level circularity is single-contig fallback/audit only"
+echo "Assembler circularity metadata: metaMDBG FASTA circular=yes/no; hifiasm-meta contig suffix c/l; metaFlye assembly_info.txt when available"
+echo "Contig-level scope: all assembler-reported circular contigs, independent of MAG membership"
 echo "MAG-level scope: final MAG subset summarized after contig-level classification"
 echo "Premature-circularization candidate MAG: single-contig MAG only"
 echo "Large-insertion sensitivity: >=${FALSE_CLOSURE_LARGE_INSERTION_MIN_QNAMES} exact-spanning HiFi QNAMEs with per-QNAME insertion length >=${FALSE_CLOSURE_LARGE_INSERTION_MIN_BP} bp"
@@ -243,17 +243,17 @@ python3 "$VALIDATION_VIEW_EXPORTER" \
 
 cat >> "$FALSE_CLOSURE_RUN_METADATA" <<EOF_METADATA
 script_id\t$SCRIPT_ID
-candidate_source\t$CLIP_ALL_FINAL
+candidate_table\t$CLIP_ALL_FINAL
 clipping_regions\tTERMINAL_AND_INTERNAL_ANALYZED_IDENTICALLY
-candidate_rule\tall_final_HiFi_Clipping_Y_sites_across_complete_source_assemblies
+candidate_rule\tall_final_HiFi_Clipping_Y_sites_across_all_assembler_contigs
 exact_reference_boundary\tBOUNDARY_UNRESOLVED_EXCLUDED
-source_reference\tsource_assembler_original_total_coassembly
+reference\tall_contigs_of_the_producing_assembler
 alignment_population_main\tHiFi_primary_supplementary_BAM
 structural_connection_rule\tcross_contig_split_alignment_involving_supplementary
 secondary_alignments_structural_evidence\texcluded
 read_counting\tunique_QNAME
 minimum_connected_QNAMEs_per_side\t$FALSE_CLOSURE_MIN_LINKED_READS_PER_SIDE
-false_closure_analyzability\tpositive_structural_evidence_is_definitive; otherwise source_contig_circularity_Y_AND_no_unresolved_clipping_candidate_on_that_contig
+false_closure_analyzability\tpositive_structural_evidence_is_definitive; otherwise contig_circularity_Y_AND_no_unresolved_clipping_candidate_on_that_contig
 target_contig_matching_between_sides\tnot_required
 contig_level_scope\tall_assembler_reported_circular_source_contigs
 MAG_level_scope\tfinal_MAG_subset_after_contig_level_call
@@ -262,7 +262,7 @@ large_insertion_sensitivity_min_bp\t$FALSE_CLOSURE_LARGE_INSERTION_MIN_BP
 large_insertion_sensitivity_min_QNAMEs\t$FALSE_CLOSURE_LARGE_INSERTION_MIN_QNAMES
 large_insertion_sensitivity_rule\texact_spanning_HiFi_QNAMEs_with_candidate_local_read_side_insertion_MIN_length_threshold
 large_insertion_sensitivity_changes_false_closure_call\tN
-source_contig_circularity_table\t$FALSE_CLOSURE_CONTIG_CIRCULARITY_TSV
+contig_circularity_table\t$FALSE_CLOSURE_CONTIG_CIRCULARITY_TSV
 additional_depth_filter\tnone
 additional_clipping_fraction_filter\tnone
 identity_filter\tnone

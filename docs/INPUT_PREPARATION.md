@@ -4,12 +4,12 @@ Activate the `MAGverify` Conda environment before running the preparation steps.
 
 | Step | Command | Output | Used by |
 | --- | --- | --- | --- |
-| 1 | `MAGverify prep-chimera` | `DB_DIR/GTDB_R232*` | `chimera --database` |
-| 2 | `prep_gtdbtk_summary_to_mag_taxonomy.py` | `DB_DIR/MAG_taxonomy.tsv` | `chimera --mag-taxonomy` |
+| 1 | `MAGverify prep-chimera` | `OUTPUT/00_prep/GTDB_R232*` | `chimera` (found automatically) |
+| 2 | `MAGverify prep-taxonomy` | `OUTPUT/00_prep/gtdb_taxonomy.MAG.tsv` | `chimera` (found automatically) |
 | 3 | `MAGverify prep-scg` | `OUTPUT/00_prep/SCG/` | `false-closure`, `chimera` (found automatically) |
 | 4 | `MAGverify prep-circularity` | `OUTPUT/00_prep/assembler_circularity.MAG.tsv` | `circularity` (optional), `false-closure` (found automatically) |
 
-Steps 1 and 2 write to a database directory (`DB_DIR`) that can be reused across projects. Steps 3 and 4 write to the analysis output directory (`OUTPUT`, the same `-o` as the analysis modules).
+All steps write to `OUTPUT/00_prep/`, where `OUTPUT` is the same `-o` as the analysis modules, so the modules find these outputs automatically.
 
 ## 1. GTDB R232 MMseqs2 protein taxonomy database
 
@@ -35,60 +35,55 @@ aria2c -c -d "$GTDB_DIR" "$BASE/bac120_taxonomy_r232.tsv"
 aria2c -c -d "$GTDB_DIR" "$BASE/ar53_taxonomy_r232.tsv"
 ```
 
-**Build the MMseqs2 taxonomy database.** Steps 1 and 2 write to the same database directory (`-o`):
+**Build the MMseqs2 taxonomy database**, using the same `-o` as the analysis modules:
 
 ```bash
-DB_OUT=/path/to/MAGverify_db          # database directory: shared by steps 1 and 2
+OUTPUT=/path/to/MAGverify_output
 
 MAGverify prep-chimera \
   --gtdb-dir "$GTDB_DIR" \
-  -o "$DB_OUT" \
+  -o "$OUTPUT" \
   -t 100
 
-ls -lh "$DB_OUT"/GTDB_R232.dbtype "$DB_OUT"/GTDB_R232_mapping "$DB_OUT"/GTDB_R232_taxonomy
+ls -lh "$OUTPUT"/00_prep/GTDB_R232.dbtype "$OUTPUT"/00_prep/GTDB_R232_mapping "$OUTPUT"/00_prep/GTDB_R232_taxonomy
 ```
 
 | Option | Input or output |
 | --- | --- |
 | `--gtdb-dir DIR` | Directory containing `gtdb_proteins_aa_reps_r232.tar.gz`, `bac120_taxonomy_r232.tsv` and `ar53_taxonomy_r232.tsv` |
-| `-o DIR` | Output directory. The database is written as `DIR/GTDB_R232*`; temporary files go to `DIR/tmp_prep_chimera/` |
+| `-o DIR` | Analysis output directory. The database is written as `DIR/00_prep/GTDB_R232*`; temporary files go to `DIR/00_prep/tmp_prep_chimera/` |
 
-Use `DIR/GTDB_R232` as `MAGverify chimera --database`. `DIR/tmp_prep_chimera/` needs substantially more disk space than the compressed archive and can be deleted once the database is built.
+`chimera` finds the database automatically; a database built in another directory can be given with `chimera --database PREFIX`. `DIR/00_prep/tmp_prep_chimera/` needs substantially more disk space than the compressed archive and can be deleted once the database is built.
 
 ## 2. MAG taxonomy TSV
 
-For domain-matched SCG annotation, `MAGverify chimera --mag-taxonomy` takes a tab-separated table with one row per MAG:
+For domain-matched SCG annotation, `MAGverify chimera` reads a tab-separated table with one row per MAG:
 
 ```text
 ID	GTDB_Domain	GTDB_Phylum	GTDB_Class	GTDB_Order
 ExampleMAG	d__Bacteria	p__Nitrospirota	c__Nitrospiria	o__Nitrospirales
 ```
 
-`ID` must match the MAG FASTA file name without its extension (`ExampleMAG.fa` → `ExampleMAG`). Unassigned ranks keep the bare prefix (for example, `o__`). A compatible table can be used directly.
+`ID` must match the MAG FASTA file name without its extension (`ExampleMAG.fa` → `ExampleMAG`). Unassigned ranks keep the bare prefix (for example, `o__`). A compatible table made elsewhere can be given with `chimera --mag-taxonomy TSV`.
 
-To build it from existing GTDB-Tk results, write it into the same output directory as step 1:
+Build it from existing GTDB-Tk results, using the same `-o` as the analysis modules:
 
 ```bash
-python /path/to/MAGverify/scripts/prep_gtdbtk_summary_to_mag_taxonomy.py \
-  --gtdbtk-dir /path/to/GTDBTk_results \
+MAGverify prep-taxonomy \
+  -d /path/to/GTDBTk_results \
   -g /path/to/MAGs \
-  -o "$DB_OUT"
+  -o /path/to/MAGverify_output
 ```
 
 | Option | Input or output |
 | --- | --- |
-| `--gtdbtk-dir DIR` | GTDB-Tk `classify_wf` output directory containing `gtdbtk.bac120.summary.tsv` and/or `gtdbtk.ar53.summary.tsv` |
+| `-d DIR` | GTDB-Tk `classify_wf` output directory containing `gtdbtk.bac120.summary.tsv` and/or `gtdbtk.ar53.summary.tsv` |
 | `-g DIR` | Directory of MAG FASTA files (`.fa`, `.fna`, `.fasta`; file name = MAG ID). Only these MAGs are written; other genomes in the GTDB-Tk results are ignored. Every MAG must have a Bacteria or Archaea classification |
-| `-o DIR` | Output directory. The table is written as `DIR/MAG_taxonomy.tsv` |
+| `-o DIR` | Analysis output directory. The table is written as `DIR/00_prep/gtdb_taxonomy.MAG.tsv`, where `chimera` finds it |
 
 If no GTDB-Tk result is available, classify the MAGs first with `gtdbtk classify_wf`, then convert its summary files as above. GTDB-Tk is not installed with MAGverify; see [GTDB-Tk](https://github.com/ecogenomics/gtdbtk) for installation, reference data and options.
 
-After steps 1 and 2, `$DB_OUT` contains both chimera inputs:
-
-```text
-$DB_OUT/GTDB_R232*            -> MAGverify chimera --database $DB_OUT/GTDB_R232
-$DB_OUT/MAG_taxonomy.tsv      -> MAGverify chimera --mag-taxonomy $DB_OUT/MAG_taxonomy.tsv
-```
+Without this table, `chimera` still runs and skips SCG redundancy annotation with a warning.
 
 ## 3. Single-copy gene annotation (anvi'o)
 
@@ -106,7 +101,7 @@ MAGverify prep-scg \
 | `-a DIR` | Directory of the original assembler FASTA files (`.fa`, `.fna`, `.fasta`) |
 | `-o DIR` | Analysis output directory. All assemblies are written to `DIR/00_prep/all_assemblies.fasta` and the SCG table to `DIR/00_prep/SCG/SCG_from_anvio.original_contig.tsv` |
 
-The command builds an anvi'o contigs database and runs `anvi-run-hmms` with the Bacteria_71 and Archaea_76 collections. `false-closure` stops if the table is missing; `chimera` runs without SCG annotation and prints a warning. A completed table is reused when the assemblies have not changed.
+The command predicts genes with Pyrodigal (`-p meta`), builds an anvi'o contigs database from those genes and runs `anvi-run-hmms` with the Bacteria_71 and Archaea_76 collections. The gene predictions are kept in `DIR/00_prep/genes/` and reused by `chimera` and `variants`, so all modules work from the same genes and the prediction runs only once. `false-closure` stops if the table is missing; `chimera` runs without SCG annotation and prints a warning. A completed table is reused when the assemblies have not changed.
 
 ## 4. Assembler circularity table
 
@@ -132,5 +127,5 @@ The format and assembler are detected from the file content, gzip-compressed fil
 | File | Content |
 | --- | --- |
 | `assembler_circularity.MAG.tsv` | `MAG_ID`, `Assembler`, `Assembler_circularity` (`Y` when the MAG is one contig that its assembler reported as circular), `Number_of_contigs`, `Contig` |
-| `assembler_circularity.contig.tsv` | `Contig`, `Assembler`, `Assembler_circularity`, `Source_file` for every contig in the given files |
+| `assembler_circularity.contig.tsv` | `Contig`, `Assembler`, `Assembler_circularity`, `File` for every contig in the given files |
 

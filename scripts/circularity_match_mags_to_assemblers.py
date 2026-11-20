@@ -67,20 +67,20 @@ def md5_sequence(sequence):
 
 assembly_names = assembly_fasta_names.split()
 if not assembly_names:
-    raise SystemExit("ERROR: No source assembly FASTA names were configured")
+    raise SystemExit("ERROR: No assembler FASTA names were configured")
 
 assemblies = []
 seen_labels = set()
 for name in assembly_names:
     path = os.path.realpath(os.path.join(assembly_dir, name))
     if not os.path.isfile(path) or os.path.getsize(path) == 0:
-        raise SystemExit(f"ERROR: Source assembly missing or empty: {path}")
+        raise SystemExit(f"ERROR: Assembler FASTA missing or empty: {path}")
     label = Path(name).name
     if label.lower().endswith(".gz"):
         label = label[:-3]
     label = Path(label).stem
     if label in seen_labels:
-        raise SystemExit(f"ERROR: Duplicate source assembly label: {label}")
+        raise SystemExit(f"ERROR: Duplicate assembler FASTA label: {label}")
     seen_labels.add(label)
     assemblies.append((label, path))
 
@@ -123,7 +123,7 @@ for mag_path in mag_files:
     candidate_by_contig[contig_id] = mag_id
 
 if not eligible:
-    raise SystemExit("ERROR: No eligible single-contig MAGs were found")
+    raise SystemExit("ERROR: No single-contig MAGs were found")
 
 matches = defaultdict(list)
 for label, assembly_path in assemblies:
@@ -132,7 +132,7 @@ for label, assembly_path in assemblies:
         contig_id = fasta_id(header)
         if contig_id in seen_ids:
             raise SystemExit(
-                f"ERROR: Duplicate contig ID in source assembly {assembly_path}: {contig_id}"
+                f"ERROR: Duplicate contig ID in assembly {assembly_path}: {contig_id}"
             )
         seen_ids.add(contig_id)
         mag_id = candidate_by_contig.get(contig_id)
@@ -146,13 +146,13 @@ for mag_id, item in sorted(eligible.items()):
     source_matches = matches.get(mag_id, [])
     if not source_matches:
         raise SystemExit(
-            "ERROR: Eligible MAG contig was not found by exact ID and sequence in any "
-            f"configured source assembly: {mag_id} / {item['contig']}"
+            "ERROR: Single-contig MAG contig was not found by exact ID and sequence in any "
+            f"configured assembly: {mag_id} / {item['contig']}"
         )
     if len(source_matches) > 1:
         sources = ", ".join(label for label, _ in source_matches)
         raise SystemExit(
-            f"ERROR: MAG contig matches multiple source assemblies: {mag_id} / {sources}"
+            f"ERROR: MAG contig matches multiple assemblies: {mag_id} / {sources}"
         )
     item["assembler"], item["assembly"] = source_matches[0]
 
@@ -216,5 +216,5 @@ with open(validation_path, "w") as out:
     for row in sorted(validation_rows, key=lambda value: value[0]):
         out.write("\t".join(map(str, row)) + "\n")
 
-print(f"Eligible source-matched MAGs: {len(plan_rows)}")
-print(f"Source groups: {len(group_counts)}")
+print(f"Single-contig MAGs matched to an assembler FASTA: {len(plan_rows)}")
+print(f"Assembler groups: {len(group_counts)}")

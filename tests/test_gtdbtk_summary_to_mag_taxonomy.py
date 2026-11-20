@@ -27,13 +27,13 @@ class GtdbtkConversionTests(unittest.TestCase):
         self.mags = root / 'MAGs'
         self.mags.mkdir()
         self.outdir = root / 'db'
-        self.out = self.outdir / 'MAG_taxonomy.tsv'
+        self.out = self.outdir / 'gtdb_taxonomy.MAG.tsv'
 
     def run_tool(self, *mags):
         for mag in mags:
             (self.mags / f'{mag}.fa').write_text('>c\nACGT\n')
         return subprocess.run([sys.executable, '-I', str(SCRIPT), '--gtdbtk-dir', str(self.gtdbtk),
-                               '-g', str(self.mags), '-o', str(self.outdir)],
+                               '-g', str(self.mags), '-o', str(self.out)],
                               text=True, capture_output=True)
 
     def test_subset_of_gtdbtk_genomes(self):

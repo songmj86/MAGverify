@@ -2,8 +2,8 @@
 """Refresh MAG-level circularity compatibility outputs from canonical HiFi results.
 
 This script performs no read mapping and no junction re-analysis. It only
-rebuilds MAG_circularity.final.tsv, and optionally MAG_circularity.audit.tsv,
-from MAG_END_START_closure.final.tsv plus assembler-reported circularity calls.
+rebuilds circularity.MAG.tsv, and optionally circularity.MAG.audit.tsv,
+from circularity.MAG.junction.tsv plus assembler-reported circularity calls.
 """
 
 from __future__ import annotations
@@ -263,11 +263,11 @@ def validate_expected_structure(rows: Sequence[Mapping[str, str]]) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--canonical", required=True, help="MAG_END_START_closure.final.tsv")
+    parser.add_argument("--canonical", required=True, help="circularity.MAG.junction.tsv")
     parser.add_argument("--assembler-circularity", default="",
                         help="Assembler circularity TSV or directory; if empty, calls are NA")
-    parser.add_argument("--final", required=True, help="MAG_circularity.final.tsv")
-    parser.add_argument("--audit", help="Optional MAG_circularity.audit.tsv")
+    parser.add_argument("--final", required=True, help="circularity.MAG.tsv")
+    parser.add_argument("--audit", help="Optional circularity.MAG.audit.tsv")
     args = parser.parse_args()
 
     fields, canonical_rows = read_tsv(args.canonical)
