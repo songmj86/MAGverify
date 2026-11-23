@@ -20,7 +20,7 @@ MAGverify list displays the available commands and analysis modules with brief d
 
 ## 2. Preparation
 
-Run the four preparation commands before analysis using the same -o (not included in end-to-end module).
+Run the four preparation commands before analysis using the same -o to store their outputs in 00_prep/ for reuse by subsequent modules. These commands are not included in end-to-end.
 
 | Command | Required | Output in `00_prep/` | Used by |
 | --- | --- | --- | --- |
@@ -67,7 +67,7 @@ Collects the circularity that each assembler reported for its contigs. `false-cl
 MAGverify prep-circularity \
   -c /path/to/hifiasm_meta/Read.p_ctg.gfa \
   -c /path/to/metaMDBG/contigs.fasta.gz \
-  -c /path/to/metaflye/assembly_info.txt \
+  -c /path/to/metaFlye/assembly_info.txt \
   -g /path/to/MAGs \
   -o /path/to/MAGverify_output
 ```
@@ -78,7 +78,7 @@ MAGverify prep-circularity \
 
 ### 2.4 `prep-taxonomy`: MAG taxonomy
 
-Converts GTDB-Tk results into a MAG taxonomy table. `chimera` uses the MAG domain to select the SCG collection and compares the taxa on both sides of a transition with the MAG taxon. Optional: without it, `chimera` runs without SCG redundancy.
+Converts GTDB-Tk results into a MAG taxonomy table. `chimera` uses the MAG domain to select the SCG collection and compares the taxa on both sides of a transition with the MAG taxon. 
 
 ```bash
 MAGverify prep-taxonomy -d /path/to/GTDBTk_results -g /path/to/MAGs -o /path/to/MAGverify_output
@@ -109,15 +109,15 @@ MAGverify end-to-end \
 
 Steps, in order: `map` → `circularity` → `clipping` → `false-closure` → `phantom` → `repeats` → `false-duplication` → `variants` → `chimera` → `summary`.
 
-- **Before anything starts**, the preparation results are checked; if one is missing, the run stops at once and names the `prep-` command to run (or `--skip` to leave the module out).
-- **Finished steps are reused.** Each step keeps fingerprints of its inputs, so an interrupted run is restarted with the same command and continues where it stopped.
+- **Preparation check**: Before analysis, MAGverify checks for missing preparation outputs and identifies the necessary prep- commands.
+- **Resuming analysis** : Rerun the same command after interruption. Completed modules with unchanged inputs are skipped automatically.
 - The preparation outputs are read from `-o DIR/00_prep/` automatically, including the GTDB database of `prep-chimera`. Only a database built under another `-o` needs `--database PREFIX` (for example `--database /path/to/other_output/00_prep/GTDB_R232`).
+- `-t` sets the threads 
+- `-m` sets the memory limit (GB)
 - **`--skip MODULES`** leaves out modules, for example `--skip chimera,variants`; `summary` then reports only the modules that ran.
-- `-t` sets the threads and `-m` (GB) the memory limit of `map`, `circularity`, `repeats` and `variants`.
-- **Progress and remaining time** are printed at the start of each step and every 5 minutes (`PROGRESS_INTERVAL=SECONDS` changes the interval): the progress (%), elapsed and remaining time of the current step and of the whole run. The estimate comes from the earlier run time of each step in the same `-o` (kept in `.cache/run_times.tsv`), so it is available from the second run on; read mapping (`map`, `circularity`) and the BLAST steps of `repeats` also report their own progress from the first run. Each step ends with its run time (`Elapsed`).
-- `MAGVERIFY_DRY_RUN=1 MAGverify end-to-end ...` only prints the step commands.
 
-Each module can also be run on its own, for example to rerun one step with other settings; see [Modules](docs/MODULES.md) for every command, what each module tests and its options.
+Each module can also be run separately. See Modules for detailed descriptions and options.
+
 
 ## 4. Results
 
