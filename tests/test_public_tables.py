@@ -83,19 +83,21 @@ class PublicTableTests(unittest.TestCase):
         self.assertFalse((self.root / '10_summary').exists())
         pt.publish(self.root)
         c = read(self.root / 'summary.contig.tsv')[0]
-        self.assertEqual((c['Clipping'], c['Taxonomic_chimera'], c['Phantom'], c['Checks_not_run']),
-                         ('Y', 'NA', 'Y', 'taxonomic_chimera'))
+        self.assertEqual((c['Clipping'], c['Chimera'], c['Phantom'], c['n_checks_not_run']),
+                         ('Y', 'NA', 'Y', '1'))
         for removed in ('QC_call', 'MAG_integrated_QC_call', 'integrated_interpretation', 'excessive_repeat_call',
                         'false_duplication_clipping_summary', 'Circularity_eligibility'):
             self.assertNotIn(removed, c)
         m = read(self.root / 'summary.MAG.tsv')[0]
-        self.assertEqual(list(m)[:3], ['MAG_ID', 'n_contigs', 'n_flagged_checks'])
+        self.assertEqual(list(m), pt.SUMMARY_MAG_FIELDS)
+        self.assertEqual(list(c), pt.SUMMARY_CONTIG_FIELDS)
         self.assertEqual(m['n_flagged_checks'], '2')
         for removed in ('QC_call', 'MAG_integrated_QC_call', 'Circularity_eligibility', 'excessive_repeat_call',
                         'false_duplication_clipping_summary'):
             self.assertNotIn(removed, m)
-        self.assertEqual((m['Taxonomic_chimera'], m['Circular'], m['False_closure']), ('NA', 'NA', 'NA'))
-        self.assertIn('circularity', m['Checks_not_run'])
+        self.assertEqual((m['Chimera'], m['Read_supported_circularity'], m['Premature_circularization']), ('NA', 'NA', 'NA'))
+        self.assertEqual(m['n_checks_not_run'], '3')
+        self.assertIn('circularity', read(self.root / 'summary_detail.MAG.tsv')[0]['Checks_not_run'])
 
     def test_summary_has_yes_no_and_full_versions(self):
         self.test_summary_tables_go_to_the_top()
@@ -109,9 +111,11 @@ class PublicTableTests(unittest.TestCase):
         m = read(self.root / 'summary.MAG.tsv')[0]
         for detail in ('n_clipping_sites', 'Repeat_fraction', 'False_closure_partner_contigs'):
             self.assertNotIn(detail, m)
-        self.assertTrue(all(m[k] in ('Y', 'N', 'NA') for k in ('Clipping', 'Phantom', 'Circular')))
+        self.assertTrue(all(m[k] in ('Y', 'N', 'NA') for k in ('Clipping', 'Phantom', 'Read_supported_circularity')))
         full = read(self.root / 'summary_detail.MAG.tsv')[0]
         self.assertEqual(list(full)[:len(m)], list(m))
+        self.assertEqual(list(full)[:len(pt.SUMMARY_MAG_FIELDS) + len(pt.SUMMARY_MAG_DETAILS)],
+                         pt.SUMMARY_MAG_FIELDS + pt.SUMMARY_MAG_DETAILS)
         self.assertEqual((full['n_clipping_sites'], full['clipping.Clipping'], full['clipping.n_clipping_sites']),
                          ('NA', 'Y', '2'))
         self.assertNotIn('clipping.MAG_ID', full)
@@ -120,6 +124,80 @@ class PublicTableTests(unittest.TestCase):
         self.assertEqual((contigs[0]['clipping.Clipping'], contigs[0]['phantom.Phantom'], contigs[0]['n_clipping_sites']),
                          ('Y', 'Y', '2'))
         self.assertNotIn('Chimera_ranks', read(self.root / 'summary.contig.tsv')[0])
+
+    def test_module_order_and_summary_counts(self):
+        self.assertEqual(pt.SUMMARY_MAG_FIELDS, [
+            'MAG_ID', 'n_contigs', 'Assembler_reported_circularity',
+            'Read_supported_circularity', 'High_confidence_circular',
+            'Clipping', 'Premature_circularization', 'Phantom', 'Excessive_repeat',
+            'False_duplication', 'Assembly_variant', 'Chimera',
+            'n_flagged_checks', 'n_checks_not_run'])
+        self.assertEqual(pt.SUMMARY_CONTIG_FIELDS, [
+            'Contig', 'MAG_ID', 'Length_bp', 'Clipping', 'Phantom',
+            'Excessive_repeat', 'False_duplication', 'Assembly_variant',
+            'Chimera', 'n_flagged_checks', 'n_checks_not_run'])
+        self.assertEqual([name for name, _ in pt.FULL_MODULES], [
+            'circularity', 'clipping', 'false_closure', 'phantom', 'repeats',
+            'false_duplication', 'variants', 'chimera'])
+        # Changing the column order does not change which flags enter the count.
+        self.assertEqual(len(pt.MAG_CHECKS), 7)
+
+    def test_existing_summary_republished_when_header_order_changes(self):
+        self.test_summary_tables_go_to_the_top()
+        old_path = self.root / 'summary.MAG.tsv'
+        with open(old_path, encoding='utf-8', newline='') as h:
+            rows = list(csv.DictReader(h, delimiter='\t'))
+        old_fields = ['MAG_ID', 'n_contigs', 'n_flagged_checks', 'Taxonomic_chimera',
+                      'Clipping', 'False_closure', 'Premature_circularization', 'Circular',
+                      'Checks_not_run']
+        pt.write(old_path, old_fields, rows)
+        self.assertFalse(pt.summary_headers_current(self.root))
+        # All cached tables are unchanged. Publishing must still update the headers.
+        pt.publish(self.root)
+        self.assertTrue(pt.summary_headers_current(self.root))
+        self.assertEqual(read(old_path)[0]['n_flagged_checks'], '2')
+
+    def test_three_circularity_evidence_columns_preserve_na_and_independent_support(self):
+        self.test_summary_tables_go_to_the_top()
+        path = self.root / '02_circularity/.cache/circularity.MAG.tsv'
+        write(path, ['ID', 'Assembler_reported_circularity',
+                     'Read_supported_circular_topology', 'High_confidence_circular'],
+              [['B1', 'N', 'Y', 'N']])
+        pt.publish(self.root)
+        row = read(self.root / 'summary.MAG.tsv')[0]
+        self.assertEqual((row['Assembler_reported_circularity'],
+                          row['Read_supported_circularity'],
+                          row['High_confidence_circular']), ('N', 'Y', 'N'))
+        # The old final Circular could be Y when assembler evidence was unavailable.
+        # The new both-supported column must remain NA, not copy that old alias.
+        write(path, ['ID', 'Assembler_reported_circularity',
+                     'Read_supported_circular_topology', 'High_confidence_circular'],
+              [['B1', 'NA', 'Y', 'NA']])
+        pt.publish(self.root, force=True)
+        row = read(self.root / 'summary.MAG.tsv')[0]
+        self.assertEqual((row['Assembler_reported_circularity'],
+                          row['Read_supported_circularity'],
+                          row['High_confidence_circular']), ('NA', 'Y', 'NA'))
+        write(path, ['ID', 'Assembler_reported_circularity',
+                     'Read_supported_circular_topology', 'High_confidence_circular'],
+              [['B1', 'Y', 'Y', 'Y']])
+        pt.publish(self.root, force=True)
+        row = read(self.root / 'summary.MAG.tsv')[0]
+        self.assertEqual((row['Assembler_reported_circularity'],
+                          row['Read_supported_circularity'],
+                          row['High_confidence_circular']), ('Y', 'Y', 'Y'))
+
+    def test_basic_summary_does_not_conflate_distinct_diagnostic_calls(self):
+        self.test_summary_tables_go_to_the_top()
+        public = read(self.root / 'summary.MAG.tsv')[0]
+        detailed = read(self.root / 'summary_detail.MAG.tsv')[0]
+        self.assertNotIn('False_closure', public)
+        self.assertNotIn('Premature_circularization_screen', public)
+        self.assertNotIn('False_duplication_with_clipping', public)
+        self.assertIn('False_closure', detailed)
+        self.assertIn('Premature_circularization_screen', detailed)
+        self.assertIn('False_duplication_with_clipping', detailed)
+        self.assertIn('Checks_not_run', detailed)
 
     def test_previous_full_summary_names_migrate_to_detail(self):
         for level in ('contig', 'MAG'):

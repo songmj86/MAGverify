@@ -1,143 +1,103 @@
 # Result tables
 
-Every module writes its tables to its own folder as `MODULE.LEVEL.tsv`, where `LEVEL` is the unit of one row (`MAG`, `contig`, `site`, `region`, `pair`, ...). The two summary tables are at the top of the output folder. The full internal tables, intermediate files and fingerprints are in each hidden `.cache/` folder; the modules read those, so do not delete them.
+MAGverify writes four integrated summary tables to the output directory and module-specific tables to numbered subdirectories. This document defines every reported column, including diagnostic calls, supporting read evidence and measurements. See the [README](../README.md#4-results) for the output overview and [Modules](MODULES.md) for the corresponding commands.
 
-Conventions used in all tables:
+**Table naming:** `MODULE.LEVEL.tsv`, where `LEVEL` identifies one row (for example, `MAG`, `contig`, `site`, `region`, `pair` or `assembler`). The four integrated `summary*.tsv` files are saved at the top of the output directory.
 
-- `Y` / `N` / `NA`: yes / no / not assessable (or not run). A Y/N column is a call; `n_*` columns are counts.
-- Read counts (`*_reads`) count distinct read names. Unless stated otherwise, read evidence uses the HiFi primary and supplementary alignments to the assembly the contig comes from; `HiFi_all_*` columns also include secondary alignments.
-- I / D / N: an insertion, deletion or reference skip (CIGAR operation) in a read alignment at the tested position.
-- Positions are 1-based unless the column name says `0based`. Lists in one cell are separated by `;`.
-- INTERNAL / TERMINAL: a position more than / within 100 bp from a contig end.
+**Shared conventions**
+
+- `Y` / `N` / `NA`: positive / negative / not assessable or not run. Columns with these values are calls; `n_*` fields are counts.
+- Read counts (`*_reads`) count distinct read names. Unless noted otherwise, read evidence uses primary and supplementary HiFi alignments to the assembly of the contig. Fields beginning with `HiFi_all_*` also include secondary alignments.
+- `I` / `D` / `N`: insertion, deletion or reference skip (CIGAR operation) in a read alignment at the tested position.
+- Positions are 1-based unless the column name says `0based`. Lists within one cell are separated by `;`.
+- `INTERNAL` / `TERMINAL`: more than 100 bp from a contig end / within 100 bp of an end.
+
+**Keep the `.cache/` directories.** They store intermediate files, fingerprints and other data reused by the analysis modules. Deleting them can prevent normal resumption or reuse.
 
 ## Contents
 
-- [Summary](#summary)
-- [Read mapping (`map`)](#read-mapping)
-- [Circularity (`circularity`)](#circularity)
-- [Clipping (`clipping`)](#clipping)
-- [False closure (`false-closure`)](#false-closure)
-- [Phantom sequences (`phantom`)](#phantom-sequences)
-- [Repeats (`repeats`)](#repeats)
-- [Taxonomic chimera (`chimera`)](#taxonomic-chimera)
-- [False duplication (`false-duplication`)](#false-duplication)
-- [Assembly variants (`variants`)](#assembly-variants)
+| Section | Tables |
+| --- | --- |
+| [1. Summary](#1-summary) | [`summary.MAG.tsv`](#summarymagtsv), [`summary.contig.tsv`](#summarycontigtsv), [`summary_detail.MAG.tsv`](#detailed-summaries), [`summary_detail.contig.tsv`](#detailed-summaries) |
+| [2. Read mapping](#2-read-mapping) | [`mapping.assembler.tsv`](#mappingassemblertsv) |
+| [3. Circularity](#3-circularity) | [`circularity.MAG.tsv`](#circularitymagtsv), [`circularity.contig.tsv`](#circularitycontigtsv) |
+| [4. Clipping](#4-clipping) | [`clipping.site.tsv`](#clippingsitetsv), [`clipping.contig.tsv`](#clippingcontigtsv), [`clipping.MAG.tsv`](#clippingmagtsv), [`clipping.assembler.tsv`](#clippingassemblertsv) |
+| [5. False closure](#5-false-closure) | [`false_closure.contig.tsv`](#false_closurecontigtsv), [`false_closure.MAG.tsv`](#false_closuremagtsv) |
+| [6. Phantom sequences](#6-phantom-sequences) | [`phantom.region.tsv`](#phantomregiontsv), [`phantom.contig.tsv`](#phantomcontigtsv), [`phantom.MAG.tsv`](#phantommagtsv) |
+| [7. Repeats](#7-repeats) | [`repeats.contig.tsv`](#repeatscontigtsv), [`repeats.MAG.tsv`](#repeatsmagtsv), [`repeats.region.tsv`](#repeatsregiontsv), [`repeats.HSP.tsv`](#repeatshsptsv) |
+| [8. False duplication](#8-false-duplication) | [`false_duplication.pair.tsv`](#false_duplicationpairtsv), [`false_duplication.contig.tsv`](#false_duplicationcontigtsv), [`false_duplication.MAG.tsv`](#false_duplicationmagtsv) |
+| [9. Assembly variants](#9-assembly-variants) | [`variants.site.tsv`](#variantssitetsv), [`variants.contig.tsv`](#variantscontigtsv), [`variants.MAG.tsv`](#variantsmagtsv) |
+| [10. Taxonomic chimera](#10-taxonomic-chimera) | [`chimera.region.tsv`](#chimeraregiontsv), [`chimera.contig.tsv`](#chimeracontigtsv), [`chimera.MAG.tsv`](#chimeramagtsv) |
 
-## Summary
+## 1. Summary
 
-The summary comes in two versions, both at the top of the output folder:
+Four integrated summary files are written at the top of the output directory:
 
-- `summary.MAG.tsv`, `summary.contig.tsv`: the **Y/N version**. One Y/N/NA column per check, so that the MAGs and contigs flagged by any check can be found at once. Start here.
-- `summary_detail.MAG.tsv`, `summary_detail.contig.tsv`: the **detailed version**. The same columns, then key counts, then every column of each module table of the same level, named `MODULE.COLUMN` (for example `clipping.n_candidate_sites` is `n_candidate_sites` of `03_clipping/clipping.MAG.tsv`). Those columns are defined in the section of each module below; a module that was not run has no columns, and rows missing from a module table are NA.
+- `summary.MAG.tsv` and `summary.contig.tsv`: concise Y/N/NA flags grouped by module, followed by `n_flagged_checks` and `n_checks_not_run`.
+- `summary_detail.MAG.tsv` and `summary_detail.contig.tsv`: the same summary fields, diagnostic annotations, and module tables joined as `MODULE.COLUMN`.
 
-The module in parentheses holds the full evidence of each check.
+`Y` indicates a positive call, `N` a negative call, and `NA` a check that was unavailable or not assessable. Circularity support fields describe positive circularity evidence rather than a defect. The two `n_*` columns are at the end of each concise summary table.
 
-#### `summary.MAG.tsv`
+### `summary.MAG.tsv`
 
-Y/N version, one row per MAG.
+One row per MAG; columns appear in the following order.
 
 | Column | Definition |
 |---|---|
-| `MAG_ID` | MAG ID (MAG FASTA file name without extension); `NA` for unbinned contigs |
+| `MAG_ID` | MAG identifier |
 | `n_contigs` | Number of contigs in the MAG |
-| `n_flagged_checks` | Number of checks with Y (MAG table: the checks from `Clipping` to `Premature_circularization`) |
-| `Clipping` | Y when >= 1 `Clipping` Y site (clipping) |
-| `Taxonomic_chimera` | `Taxonomic_chimera` (chimera) |
-| `Assembly_variant` | Y when >= 1 minority or unsupported assembly variant (variants) |
-| `Phantom` | Y when >= 1 phantom region (phantom) |
-| `Excessive_repeat` | Contig: `Excessive_repeat_contig`; MAG: `Excessive_repeat_MAG` (repeats) |
-| `False_duplication` | `False_duplication` (false-duplication) |
-| `False_closure` | `False_closure` (false-closure) |
-| `Premature_circularization` | `Premature_circularization_candidate` (false-closure) |
-| `Circular` | `Circular` (circularity) |
-| `Small_genome_proxy` | `Small_genome_proxy` (false-closure) |
-| `Premature_circularization_screen` | `Premature_circularization_screen` (false-closure) |
-| `False_duplication_with_clipping` | Y when a boundary of a false-duplication pair has a `Clipping` Y site; NA without false duplication |
-| `Checks_not_run` | Checks whose module was not run (their columns are NA) |
+| `Assembler_reported_circularity` | Y/N/NA call from `prep-circularity` |
+| `Read_supported_circularity` | HiFi read evidence supporting circular topology, from `Read_supported_circular_topology` |
+| `High_confidence_circular` | High-confidence circularity: both assembler-reported and read-supported calls are Y; NA when the assembler call is unavailable |
+| `Clipping` | At least one validated clipping site |
+| `Premature_circularization` | Single-contig MAG reported circular by its assembler with false-closure evidence |
+| `Phantom` | At least one phantom region |
+| `Excessive_repeat` | MAG-level excessive repeat flag |
+| `False_duplication` | At least one false-duplication event |
+| `Assembly_variant` | At least one assembly-allele disagreement |
+| `Chimera` | Taxonomic chimera flag from the chimera module |
+| `n_flagged_checks` | Count of Y calls among the seven diagnostic flags from `Clipping` through `Chimera`; circularity support is not counted as a defect |
+| `n_checks_not_run` | Number of unavailable or skipped check groups (see `Checks_not_run` in the detailed summary) |
 
-#### `summary.contig.tsv`
+### `summary.contig.tsv`
 
-Y/N version, one row per contig of every assembly (`MAG_ID` NA for unbinned contigs).
+One row per contig across all assemblies. `MAG_ID` is `NA` for unbinned contigs.
 
 | Column | Definition |
 |---|---|
-| `Contig` | Contig ID (first word of the FASTA header) |
-| `MAG_ID` | MAG ID (MAG FASTA file name without extension); `NA` for unbinned contigs |
-| `Length_bp` | Contig length (bp) |
-| `n_flagged_checks` | Number of checks with Y (MAG table: the checks from `Clipping` to `Premature_circularization`) |
-| `Clipping` | Y when >= 1 `Clipping` Y site (clipping) |
-| `Taxonomic_chimera` | `Taxonomic_chimera` (chimera) |
-| `Assembly_variant` | Y when >= 1 minority or unsupported assembly variant (variants) |
-| `Phantom` | Y when >= 1 phantom region (phantom) |
-| `Excessive_repeat` | Contig: `Excessive_repeat_contig`; MAG: `Excessive_repeat_MAG` (repeats) |
-| `False_duplication` | `False_duplication` (false-duplication) |
-| `False_duplication_with_clipping` | Y when a boundary of a false-duplication pair has a `Clipping` Y site; NA without false duplication |
-| `Checks_not_run` | Checks whose module was not run (their columns are NA) |
+| `Contig` | Contig identifier |
+| `MAG_ID` | Associated MAG identifier, or `NA` |
+| `Length_bp` | Contig length in base pairs |
+| `Clipping` | At least one validated clipping site |
+| `Phantom` | Phantom sequence flag |
+| `Excessive_repeat` | Intra-contig excessive repeat flag |
+| `False_duplication` | False-duplication flag |
+| `Assembly_variant` | Assembly-allele disagreement flag |
+| `Chimera` | Taxonomic chimera flag |
+| `n_flagged_checks` | Number of positive diagnostic flags |
+| `n_checks_not_run` | Number of skipped or unavailable check groups |
 
-#### `summary_detail.MAG.tsv`
+### Detailed summaries
 
-Full version, one row per MAG: these columns, then `MODULE.COLUMN` columns from `circularity`, `clipping`, `false_closure`, `phantom`, `repeats`, `chimera`, `false_duplication` and `variants` `*.MAG.tsv`.
+`summary_detail.MAG.tsv` includes the MAG summary columns, followed by diagnostic annotations and the available `MODULE.COLUMN` fields from module MAG tables. `summary_detail.contig.tsv` similarly includes only contigs assigned to MAGs and the available contig-level module fields. For the full meanings of `MODULE.COLUMN`, consult the relevant module table section below.
 
-| Column | Definition |
-|---|---|
-| `MAG_ID` | MAG ID (MAG FASTA file name without extension); `NA` for unbinned contigs |
-| `n_contigs` | Number of contigs in the MAG |
-| `n_flagged_checks` | Number of checks with Y (MAG table: the checks from `Clipping` to `Premature_circularization`) |
-| `Clipping` | Y when >= 1 `Clipping` Y site (clipping) |
-| `Taxonomic_chimera` | `Taxonomic_chimera` (chimera) |
-| `Assembly_variant` | Y when >= 1 minority or unsupported assembly variant (variants) |
-| `Phantom` | Y when >= 1 phantom region (phantom) |
-| `Excessive_repeat` | Contig: `Excessive_repeat_contig`; MAG: `Excessive_repeat_MAG` (repeats) |
-| `False_duplication` | `False_duplication` (false-duplication) |
-| `False_closure` | `False_closure` (false-closure) |
-| `Premature_circularization` | `Premature_circularization_candidate` (false-closure) |
-| `Circular` | `Circular` (circularity) |
-| `Small_genome_proxy` | `Small_genome_proxy` (false-closure) |
-| `Premature_circularization_screen` | `Premature_circularization_screen` (false-closure) |
-| `False_duplication_with_clipping` | Y when a boundary of a false-duplication pair has a `Clipping` Y site; NA without false duplication |
-| `Checks_not_run` | Checks whose module was not run (their columns are NA) |
-| `False_closure_partner_contigs` | `Partner_contigs` of false-closure breakpoints |
-| `n_clipping_sites` | `Clipping` Y sites |
-| `n_chimera_contigs` | Contigs with `Taxonomic_chimera` Y |
-| `n_variant_contigs` | Contigs with `Assembly_variant` Y |
-| `n_phantom_contigs` | Contigs with `Phantom` Y |
-| `Repeat_fraction` | Contig: `Intra_repeat_fraction`; MAG: `Total_repeat_fraction` |
-| `n_excessive_repeat_contigs` | Contigs with `Excessive_repeat_contig` Y |
-| `n_false_duplication_contigs` | Contigs with `False_duplication` Y |
-| `n_duplicated_pairs` | Duplicated pairs |
-| `n_unresolved_duplicated_pairs` | Pairs with call NA |
-
-#### `summary_detail.contig.tsv`
-
-Full version, one row per MAG contig (unbinned contigs are in `summary.contig.tsv` and the module tables): these columns, then `MODULE.COLUMN` columns from the `*.contig.tsv` table of each module.
+The detailed files retain the following additional summary-level fields that are omitted from the concise summaries:
 
 | Column | Definition |
 |---|---|
-| `Contig` | Contig ID (first word of the FASTA header) |
-| `MAG_ID` | MAG ID (MAG FASTA file name without extension); `NA` for unbinned contigs |
-| `Length_bp` | Contig length (bp) |
-| `Assembler` | Assembly file (assembler) the contig comes from |
-| `n_flagged_checks` | Number of checks with Y (MAG table: the checks from `Clipping` to `Premature_circularization`) |
-| `Clipping` | Y when >= 1 `Clipping` Y site (clipping) |
-| `Taxonomic_chimera` | `Taxonomic_chimera` (chimera) |
-| `Assembly_variant` | Y when >= 1 minority or unsupported assembly variant (variants) |
-| `Phantom` | Y when >= 1 phantom region (phantom) |
-| `Excessive_repeat` | Contig: `Excessive_repeat_contig`; MAG: `Excessive_repeat_MAG` (repeats) |
-| `False_duplication` | `False_duplication` (false-duplication) |
-| `False_duplication_with_clipping` | Y when a boundary of a false-duplication pair has a `Clipping` Y site; NA without false duplication |
-| `Checks_not_run` | Checks whose module was not run (their columns are NA) |
-| `n_clipping_sites` | `Clipping` Y sites |
-| `Chimera_ranks` | Ranks of the taxonomic transitions |
-| `Repeat_fraction` | Contig: `Intra_repeat_fraction`; MAG: `Total_repeat_fraction` |
-| `n_duplicated_pairs` | Duplicated pairs |
-| `n_false_duplication_pairs` | Pairs with false-duplication call Y |
-| `n_unresolved_duplicated_pairs` | Pairs with call NA |
+| `False_closure` | General false-closure check, distinct from `Premature_circularization` |
+| `Premature_circularization_screen` | Combined screen for premature circularization or the small-genome proxy, not identical to the final premature-circularization flag |
+| `Small_genome_proxy` | Small-genome indicator from false closure |
+| `False_duplication_with_clipping` | Co-occurrence of false duplication and validated clipping; additional evidence, not a separate primary diagnostic flag |
+| `Checks_not_run` | Names of check groups not run, or `NA` if none |
 
-## Read mapping
+Other detailed annotations include supporting counts, affected contigs, and repeat fractions. The module analysis algorithms and original call criteria are unchanged.
 
-Folder `01_mapping/`. Command: `map`.
+## 2. Read mapping
 
-#### `mapping.assembler.tsv`
+**Directory:** `01_mapping/` · **Command:** `map`
+
+### `mapping.assembler.tsv`
 
 One row per assembler. `samtools flagstat` counts of the BAM with all mapped HiFi alignments (unmapped reads are not kept).
 
@@ -149,11 +109,11 @@ One row per assembler. `samtools flagstat` counts of the BAM with all mapped HiF
 | `Secondary_alignments` | Secondary alignment records |
 | `Supplementary_alignments` | Supplementary alignment records (split parts of chimeric/split reads) |
 
-## Circularity
+## 3. Circularity
 
-Folder `02_circularity/`. Command: `circularity`.
+**Directory:** `02_circularity/` · **Command:** `circularity`
 
-#### `circularity.MAG.tsv`
+### `circularity.MAG.tsv`
 
 One row per MAG. Only single-contig MAGs can be evaluated: the contig is rotated so that its END|START junction lies in the middle, HiFi reads of its assembler are mapped to it, and the reads crossing the junction are counted. Columns from `Terminal_overlap_bp` on are NA for multi-contig MAGs.
 
@@ -161,8 +121,8 @@ One row per MAG. Only single-contig MAGs can be evaluated: the contig is rotated
 |---|---|
 | `MAG_ID` | MAG ID (MAG FASTA file name without extension); `NA` for unbinned contigs |
 | `Assembler_reported_circularity` | Circularity reported by the assembler (`prep-circularity` table): Y, N, or NA when not available |
-| `Circularity_evaluable` | Y when the MAG is a single contig and both contig ends are reached by >= 2 HiFi reads (primary + supplementary), so the END|START junction can be tested |
-| `Read_supported_circular_topology` | Y when >= 2 HiFi reads (primary + supplementary) span the END|START junction with >= 2,000 bp aligned on each side and no deletion/skip across it; N when evaluable but not spanned; NA when not evaluable |
+| `Circularity_evaluable` | Y when the MAG is a single contig and both contig ends are reached by >= 2 HiFi reads (primary + supplementary), so the END\|START junction can be tested |
+| `Read_supported_circular_topology` | Y when >= 2 HiFi reads (primary + supplementary) span the END\|START junction with >= 2,000 bp aligned on each side and no deletion/skip across it; N when evaluable but not spanned; NA when not evaluable |
 | `High_confidence_circular` | Y when the assembler reports the contig circular **and** the reads support the junction; NA without the assembler circularity table |
 | `Additional_circular_candidate` | Y when the reads support the junction but the assembler did not report the contig circular; NA without the assembler circularity table |
 | `Circular` | Final call: `High_confidence_circular` with the assembler table, otherwise `Read_supported_circular_topology` |
@@ -206,7 +166,7 @@ One row per MAG. Only single-contig MAGs can be evaluated: the contig is rotated
 | `HiFi_all_max_junction_D_bp` | As `HiFi_max_junction_D_bp`, counting all alignments |
 | `HiFi_all_max_junction_N_bp` | As `HiFi_max_junction_N_bp`, counting all alignments |
 
-#### `circularity.contig.tsv`
+### `circularity.contig.tsv`
 
 One row per contig of every assembly. The read evidence columns are filled for the contig of a single-contig MAG and NA for the other contigs.
 
@@ -218,8 +178,8 @@ One row per contig of every assembly. The read evidence columns are filled for t
 | `Length_bp` | Contig length (bp) |
 | `n_contigs` | Number of contigs in the MAG of this contig (0 for unbinned contigs) |
 | `Assembler_reported_circularity` | Circularity reported by the assembler (`prep-circularity` table): Y, N, or NA when not available |
-| `Circularity_evaluable` | Y when the MAG is a single contig and both contig ends are reached by >= 2 HiFi reads (primary + supplementary), so the END|START junction can be tested |
-| `Read_supported_circular_topology` | Y when >= 2 HiFi reads (primary + supplementary) span the END|START junction with >= 2,000 bp aligned on each side and no deletion/skip across it; N when evaluable but not spanned; NA when not evaluable |
+| `Circularity_evaluable` | Y when the MAG is a single contig and both contig ends are reached by >= 2 HiFi reads (primary + supplementary), so the END\|START junction can be tested |
+| `Read_supported_circular_topology` | Y when >= 2 HiFi reads (primary + supplementary) span the END\|START junction with >= 2,000 bp aligned on each side and no deletion/skip across it; N when evaluable but not spanned; NA when not evaluable |
 | `High_confidence_circular` | Y when the assembler reports the contig circular **and** the reads support the junction; NA without the assembler circularity table |
 | `Additional_circular_candidate` | Y when the reads support the junction but the assembler did not report the contig circular; NA without the assembler circularity table |
 | `Circular` | Final call: `High_confidence_circular` with the assembler table, otherwise `Read_supported_circular_topology` |
@@ -261,11 +221,11 @@ One row per contig of every assembly. The read evidence columns are filled for t
 | `HiFi_all_max_junction_D_bp` | As `HiFi_max_junction_D_bp`, counting all alignments |
 | `HiFi_all_max_junction_N_bp` | As `HiFi_max_junction_N_bp`, counting all alignments |
 
-## Clipping
+## 4. Clipping
 
-Folder `03_clipping/`. Command: `clipping`.
+**Directory:** `03_clipping/` · **Command:** `clipping`
 
-#### `clipping.site.tsv`
+### `clipping.site.tsv`
 
 One row per clipping candidate reported by `anvi-script-find-misassemblies` (default clipping ratio > 0.8, no minimum coverage, `--min-dist-to-end 0`) on the HiFi reads of each assembler, for all contigs and both region types.
 
@@ -320,7 +280,7 @@ One row per clipping candidate reported by `anvi-script-find-misassemblies` (def
 | `Mixed_clipping` | Y when the position has both clipped and spanning reads |
 | `Exact_position_validation` | PASS: >= 2 clipped reads and no spanning read; INSUFFICIENT_CLIPPED_QNAMES: only one clipped read; FAIL: spanned or not clipped; BOUNDARY_UNRESOLVED at a reference boundary |
 
-#### `clipping.contig.tsv`
+### `clipping.contig.tsv`
 
 One row per contig of every assembly; counts and calls from `clipping.site.tsv`.
 
@@ -360,7 +320,7 @@ One row per contig of every assembly; counts and calls from `clipping.site.tsv`.
 | `Candidate` | Y when >= 1 candidate |
 | `Stringent_candidate` | Y when >= 1 stringent candidate |
 
-#### `clipping.MAG.tsv`
+### `clipping.MAG.tsv`
 
 One row per MAG; counts and calls over the MAG contigs.
 
@@ -408,7 +368,7 @@ One row per MAG; counts and calls over the MAG contigs.
 | `Candidate` | Y when >= 1 candidate |
 | `Stringent_candidate` | Y when >= 1 stringent candidate |
 
-#### `clipping.assembler.tsv`
+### `clipping.assembler.tsv`
 
 One row per assembler and one `ALL` row: site densities in INTERNAL and TERMINAL regions.
 
@@ -443,11 +403,11 @@ One row per assembler and one `ALL` row: site densities in INTERNAL and TERMINAL
 | `Terminal_candidate_clipped_alignment_records_per_Mbp` | TERMINAL clipped alignment records at candidates (anvi'o clipping counts) per Mbp of TERMINAL bases |
 | `Terminal_to_internal_candidate_clipped_alignment_records_density_ratio` | TERMINAL per-Mbp density / INTERNAL per-Mbp density (enrichment at contig ends) |
 
-## False closure
+## 5. False closure
 
-Folder `04_false_closure/`. Command: `false-closure`.
+**Directory:** `04_false_closure/` · **Command:** `false-closure`
 
-#### `false_closure.contig.tsv`
+### `false_closure.contig.tsv`
 
 One row per contig reported circular by its assembler. A false closure is a contig reported circular whose sequence is not one continuous genome: at a validated clipping site (`Clipping` Y), >= 2 reads on **each** side are split between this contig and another contig (primary + supplementary alignments).
 
@@ -482,9 +442,9 @@ One row per contig reported circular by its assembler. A false closure is a cont
 | `Premature_circularization_candidate` | Contig table: Y when `False_closure` is Y. MAG table: Y for a single-contig MAG reported circular with false-closure evidence |
 | `Premature_circularization_screen` | Y when `Premature_circularization_candidate` or `Small_genome_proxy` is Y |
 | `Validated_clipping_breakpoints` | Number of `Clipping` Y sites tested on the contig |
-| `Breakpoint_details` | Every tested breakpoint, `;`-separated: `REGION@position(distance to end)|L=connected/clipped reads[target contig:reads]|R=...|cov=,clip=,frac=|spanning=|evidence=Y/N|reason` |
+| `Breakpoint_details` | Every tested breakpoint, `;`-separated: `REGION@position(distance to end)\|L=connected/clipped reads[target contig:reads]\|R=...\|cov=,clip=,frac=\|spanning=\|evidence=Y/N\|reason` |
 
-#### `false_closure.MAG.tsv`
+### `false_closure.MAG.tsv`
 
 One row per MAG. A false closure is a contig reported circular whose sequence is not one continuous genome: at a validated clipping site (`Clipping` Y), >= 2 reads on **each** side are split between this contig and another contig (primary + supplementary alignments).
 
@@ -508,7 +468,7 @@ One row per MAG. A false closure is a contig reported circular whose sequence is
 | `Large_insertion_sensitivity_analyzable` | Y when `Large_insertion_sensitivity_support` is Y or N |
 | `Large_insertion_sensitivity_support` | Sensitivity screen: Y when a circular contig has a position spanned by >= 2 reads that each carry an insertion >= 100 bp |
 | `Large_insertion_sensitivity_site_count` | Number of such positions |
-| `Large_insertion_sensitivity_sites` | Those positions as `contig|REGION:position[n=reads,minI=shortest insertion]` |
+| `Large_insertion_sensitivity_sites` | Those positions as `contig\|REGION:position[n=reads,minI=shortest insertion]` |
 | `Partner_contigs` | Other contigs joined to the false-closure breakpoints by split reads |
 | `Partner_MAGs` | MAGs of the partner contigs |
 | `Validated_clipping_present` | Y when a circular MAG contig has >= 1 `Clipping` Y site |
@@ -518,14 +478,14 @@ One row per MAG. A false closure is a contig reported circular whose sequence is
 | `Terminal_false_closure_evidence` | Y when >= 1 TERMINAL false-closure breakpoint |
 | `False_closure_evidence` | Y when >= 1 false-closure breakpoint |
 | `False_closure` | Y when a circular MAG contig has >= 1 false-closure breakpoint; N when none and the MAG has circular contigs whose candidates were all testable; NA otherwise |
-| `False_closure_breakpoints` | False-closure breakpoints as `contig|REGION:position` |
+| `False_closure_breakpoints` | False-closure breakpoints as `contig\|REGION:position` |
 | `False_closure_regions` | Region types (INTERNAL, TERMINAL) of the false-closure breakpoints |
 
-## Phantom sequences
+## 6. Phantom sequences
 
-Folder `05_phantom/`. Command: `phantom`.
+**Directory:** `05_phantom/` · **Command:** `phantom`
 
-#### `phantom.region.tsv`
+### `phantom.region.tsv`
 
 One row per phantom region. A phantom region is a stretch >= 501 bp with zero depth of all HiFi alignments (secondary included) of its own assembler, no BLASTN hit to the raw reads, and no ambiguous base.
 
@@ -537,7 +497,7 @@ One row per phantom region. A phantom region is a stretch >= 501 bp with zero de
 | `End_0based` | Region end (0-based, exclusive, BED) |
 | `Region_length_bp` | Region length (bp) |
 
-#### `phantom.contig.tsv`
+### `phantom.contig.tsv`
 
 One row per contig of every assembly. A phantom region is a stretch >= 501 bp with zero depth of all HiFi alignments (secondary included) of its own assembler, no BLASTN hit to the raw reads, and no ambiguous base.
 
@@ -554,7 +514,7 @@ One row per contig of every assembly. A phantom region is a stretch >= 501 bp wi
 | `Phantom_region_ids` | Region IDs |
 | `Phantom` | Y when >= 1 phantom region |
 
-#### `phantom.MAG.tsv`
+### `phantom.MAG.tsv`
 
 One row per MAG. A phantom region is a stretch >= 501 bp with zero depth of all HiFi alignments (secondary included) of its own assembler, no BLASTN hit to the raw reads, and no ambiguous base.
 
@@ -572,11 +532,11 @@ One row per MAG. A phantom region is a stretch >= 501 bp with zero depth of all 
 | `Absent_from_reads_distinct_kmers` | Of these, 21-mers absent from the HiFi reads |
 | `Absent_kmer_fraction` | `Absent_from_reads_distinct_kmers` / `Candidate_distinct_kmers` (NA without phantom regions); a measurement, not a call |
 
-## Repeats
+## 7. Repeats
 
-Folder `06_repeats/`. Command: `repeats`.
+**Directory:** `06_repeats/` · **Command:** `repeats`
 
-#### `repeats.contig.tsv`
+### `repeats.contig.tsv`
 
 One row per contig of every assembly. Repeats are BLASTN alignments >= 200 bp with >= 80% identity: within a contig (INTRA, self-alignment off the diagonal) or between contigs of the same MAG (INTER).
 
@@ -593,7 +553,7 @@ One row per contig of every assembly. Repeats are BLASTN alignments >= 200 bp wi
 | `n_intra_repeat_hsps` | INTRA repeat alignments (HSPs) |
 | `Excessive_repeat_contig` | Y when `Intra_repeat_fraction` >= 0.70 |
 
-#### `repeats.MAG.tsv`
+### `repeats.MAG.tsv`
 
 One row per MAG. Repeats are BLASTN alignments >= 200 bp with >= 80% identity: within a contig (INTRA, self-alignment off the diagonal) or between contigs of the same MAG (INTER).
 
@@ -617,7 +577,7 @@ One row per MAG. Repeats are BLASTN alignments >= 200 bp with >= 80% identity: w
 | `Has_excessive_intra_repeat_contig` | Y when `n_excessive_repeat_contigs` > 0 |
 | `Excessive_repeat_MAG` | Y when `Total_repeat_fraction` >= 0.70 |
 
-#### `repeats.region.tsv`
+### `repeats.region.tsv`
 
 One row per merged repeat region.
 
@@ -632,7 +592,7 @@ One row per merged repeat region.
 | `End_1based` | Region end (1-based, inclusive) |
 | `Repeat_region_bp` | Region length (bp) |
 
-#### `repeats.HSP.tsv`
+### `repeats.HSP.tsv`
 
 One row per repeat alignment (HSP).
 
@@ -652,11 +612,170 @@ One row per repeat alignment (HSP).
 | `Subject_length_bp` | Subject contig length |
 | `Orientation` | direct or inverted |
 
-## Taxonomic chimera
+## 8. False duplication
 
-Folder `07_chimera/`. Command: `chimera`.
+**Directory:** `08_false_duplication/` · **Command:** `false-duplication`
 
-#### `chimera.region.tsv`
+### `false_duplication.pair.tsv`
+
+One row per duplicated pair. Duplicated pairs are BLASTN copies >= 1,000 bp with >= 95% identity inside a MAG. Each copy boundary is tested with HiFi reads (primary + supplementary, 500-bp anchors): supported (Y) when >= 2 reads span it, N when >= 2 reads reach each side but none spans it, NA otherwise. A false duplication is a pair where one copy is spanned at both boundaries and the other at neither (for tandem copies: both outer boundaries spanned and the junction between the copies not).
+
+| Column | Definition |
+|---|---|
+| `MAG_ID` | MAG ID (MAG FASTA file name without extension); `NA` for unbinned contigs |
+| `Assembler` | Assembly file (assembler) the contig comes from |
+| `Pair_id` | Pair ID |
+| `Pair_scope` | INTRA_CONTIG (both copies on one contig) or INTER_CONTIG |
+| `Duplication_type` | TANDEM (adjacent copies), INTERSPERSED, or OVERLAPPING |
+| `Orientation` | DIRECT or INVERTED |
+| `Copy1_contig` | Contig of copy 1 |
+| `Copy1_contig_length` | Length of that contig |
+| `Copy1_start` | Copy 1 start (1-based) |
+| `Copy1_end` | Copy 1 end |
+| `Copy2_contig` | Contig of copy 2 |
+| `Copy2_contig_length` | Length of that contig |
+| `Copy2_start` | Copy 2 start (1-based) |
+| `Copy2_end` | Copy 2 end |
+| `Identity_percent` | BLASTN identity (%) |
+| `Alignment_length` | BLASTN alignment length (bp) |
+| `Candidate_cluster_size` | Near-identical alignments merged into this pair |
+| `Copy1_left_supported` | Left boundary of copy 1: Y/N/NA as above |
+| `Copy1_right_supported` | Right boundary of copy 1 |
+| `Copy2_left_supported` | Left boundary of copy 2 |
+| `Copy2_right_supported` | Right boundary of copy 2 |
+| `Assessment` | Call and reason: Y_false_duplication_pattern, N_no_false_duplication_pattern, N_tandem_junction_spanned, NA_insufficient_reads, NA_inverted_tandem, NA_overlapping_copies |
+| `Assessment_complete` | Y when the call is Y or N |
+| `False_duplication` | Pair call: Y, N or NA |
+
+### `false_duplication.contig.tsv`
+
+One row per MAG contig.
+
+| Column | Definition |
+|---|---|
+| `Contig` | Contig ID (first word of the FASTA header) |
+| `MAG_ID` | MAG ID (MAG FASTA file name without extension); `NA` for unbinned contigs |
+| `Assembler` | Assembly file (assembler) the contig comes from |
+| `Length_bp` | Contig length (bp) |
+| `n_duplicated_pairs` | Duplicated pairs involving the contig (MAG: in the MAG) |
+| `n_intra_contig_pairs` | INTRA_CONTIG pairs |
+| `n_inter_contig_pairs` | INTER_CONTIG pairs |
+| `n_tandem_pairs` | TANDEM pairs |
+| `n_direct_tandem_pairs` | DIRECT TANDEM pairs |
+| `n_inverted_tandem_pairs` | INVERTED TANDEM pairs |
+| `n_interspersed_pairs` | INTERSPERSED pairs |
+| `n_direct_pairs` | DIRECT pairs |
+| `n_inverted_pairs` | INVERTED pairs |
+| `Assessment_complete` | Y when every pair has a Y or N call (also Y without pairs) |
+| `Analyzable` | Y when `False_duplication` is Y or N |
+| `False_duplication` | Y when >= 1 pair is Y; NA when >= 1 pair is NA and none Y; N otherwise |
+| `n_analyzable_pairs` | Pairs with a Y or N call |
+| `n_false_duplication_pairs` | Pairs with call Y |
+| `n_no_false_duplication_pairs` | Pairs with call N |
+| `n_not_analyzable_pairs` | Pairs with call NA |
+
+### `false_duplication.MAG.tsv`
+
+One row per MAG.
+
+| Column | Definition |
+|---|---|
+| `MAG_ID` | MAG ID (MAG FASTA file name without extension); `NA` for unbinned contigs |
+| `n_contigs` | Number of contigs in the MAG |
+| `n_duplicated_pairs` | Duplicated pairs involving the contig (MAG: in the MAG) |
+| `n_intra_contig_pairs` | INTRA_CONTIG pairs |
+| `n_inter_contig_pairs` | INTER_CONTIG pairs |
+| `n_tandem_pairs` | TANDEM pairs |
+| `n_direct_tandem_pairs` | DIRECT TANDEM pairs |
+| `n_inverted_tandem_pairs` | INVERTED TANDEM pairs |
+| `n_interspersed_pairs` | INTERSPERSED pairs |
+| `n_false_duplication_pairs` | Pairs with call Y |
+| `n_no_false_duplication_pairs` | Pairs with call N |
+| `n_not_analyzable_pairs` | Pairs with call NA |
+| `Assessment_complete` | Y when every pair has a Y or N call (also Y without pairs) |
+| `Analyzable` | Y when `False_duplication` is Y or N |
+| `False_duplication` | Y when >= 1 pair is Y; NA when >= 1 pair is NA and none Y; N otherwise |
+
+## 9. Assembly variants
+
+**Directory:** `09_assembly_variants/` · **Command:** `variants`
+
+### `variants.site.tsv`
+
+One row per minority or unsupported assembly variant. anvi'o profiles the HiFi reads on each assembly and reports variable positions and indels. A site is a **minority** assembly variant when the assembly allele is supported by some reads but another allele (SNV) or the indel is carried by > 50% of reads, and an **unsupported** assembly variant when no read supports the assembly allele.
+
+| Column | Definition |
+|---|---|
+| `Contig` | Contig ID (first word of the FASTA header) |
+| `Assembler` | Assembly file (assembler) the contig comes from |
+| `Position` | Variant position (1-based) |
+| `Variant_type` | SNV or INDEL |
+| `Assembly_allele` | Base (or sequence) in the assembly |
+| `Dominant_alternative_allele` | Most frequent other allele in the reads |
+| `Assembly_support_count` | Reads supporting the assembly allele |
+| `Alternative_support_count` | Reads supporting the alternative allele |
+| `Coverage` | Read depth at the position |
+| `Assembly_support_fraction` | `Assembly_support_count` / `Coverage` |
+| `Alternative_support_fraction` | `Alternative_support_count` / `Coverage` |
+| `Assembly_support_class` | Minority or Unsupported |
+| `Corresponding_gene_call` | anvi'o gene call at the position (NA outside genes) |
+| `Anvio_table` | anvi'o table the row comes from (variable nucleotides or indels) |
+
+### `variants.contig.tsv`
+
+One row per MAG contig. anvi'o profiles the HiFi reads on each assembly and reports variable positions and indels. A site is a **minority** assembly variant when the assembly allele is supported by some reads but another allele (SNV) or the indel is carried by > 50% of reads, and an **unsupported** assembly variant when no read supports the assembly allele.
+
+| Column | Definition |
+|---|---|
+| `Contig` | Contig ID (first word of the FASTA header) |
+| `MAG_ID` | MAG ID (MAG FASTA file name without extension); `NA` for unbinned contigs |
+| `Length_bp` | Contig length (bp) |
+| `Assembly_variant` | Y when >= 1 minority or unsupported variant |
+| `Anvio_variable_nucleotide_rows_examined` | anvi'o variable-nucleotide rows read |
+| `Anvio_indel_rows_examined` | anvi'o indel rows read |
+| `Minority_assembly_snv_count` | Minority SNVs |
+| `Unsupported_assembly_snv_count` | Unsupported SNVs |
+| `Minority_assembly_indel_count` | Minority indels |
+| `Unsupported_assembly_indel_count` | Unsupported indels |
+| `Minority_impacted_gene_count` | Genes with >= 1 minority variant |
+| `Unsupported_impacted_gene_count` | Genes with >= 1 unsupported variant |
+| `Assembly_variant_count` | All minority and unsupported variants |
+| `Assembly_variant_class` | Unsupported when >= 1 unsupported variant, otherwise Minority when >= 1 minority variant, otherwise None |
+
+### `variants.MAG.tsv`
+
+One row per MAG.
+
+| Column | Definition |
+|---|---|
+| `MAG_ID` | MAG ID (MAG FASTA file name without extension); `NA` for unbinned contigs |
+| `Assembly_variant` | Y when >= 1 minority or unsupported variant |
+| `Minority_assembly_variant` | Y when >= 1 minority variant |
+| `Unsupported_assembly_variant` | Y when >= 1 unsupported variant |
+| `n_contigs` | Number of contigs in the MAG |
+| `MAG_length_bp` | Sum of the MAG contig lengths (bp) |
+| `n_contigs_with_assembly_allele_disagreement` | Contigs with >= 1 variant |
+| `n_contigs_classified_as_minority_assembly_variant` | Contigs whose class is Minority |
+| `n_contigs_classified_as_unsupported_assembly_variant` | Contigs whose class is Unsupported |
+| `Minority_assembly_snv_count` | Minority SNVs |
+| `Minority_assembly_snv_per_Mbp` | `Minority_assembly_snv_count` per Mbp of MAG |
+| `Unsupported_assembly_snv_count` | Unsupported SNVs |
+| `Unsupported_assembly_snv_per_Mbp` | `Unsupported_assembly_snv_count` per Mbp of MAG |
+| `Minority_assembly_indel_count` | Minority indels |
+| `Minority_assembly_indel_per_Mbp` | `Minority_assembly_indel_count` per Mbp of MAG |
+| `Unsupported_assembly_indel_count` | Unsupported indels |
+| `Unsupported_assembly_indel_per_Mbp` | `Unsupported_assembly_indel_count` per Mbp of MAG |
+| `Minority_impacted_gene_count` | Genes with >= 1 minority variant |
+| `Unsupported_impacted_gene_count` | Genes with >= 1 unsupported variant |
+| `Assembly_variant_count` | All minority and unsupported variants |
+| `Assembly_variant_per_Mbp` | `Assembly_variant_count` per Mbp of MAG |
+| `Assembly_variant_class` | Unsupported when >= 1 unsupported variant, otherwise Minority when >= 1 minority variant, otherwise None |
+
+## 10. Taxonomic chimera
+
+**Directory:** `07_chimera/` · **Command:** `chimera`
+
+### `chimera.region.tsv`
 
 One row per taxonomic transition. Genes are classified against GTDB R232 (MMseqs2). At each gene boundary, up to 10 predicted genes are searched on each side and the nearest 5 classified genes form a block (>= 4 required). A taxonomic transition is a boundary where both blocks have >= 80% dominance at one rank (domain, phylum, class or order) and their dominant taxa differ. A transition becomes a taxonomic chimera when a validated clipping site (`Clipping` Y) lies in its interval (+/- 1 bp), and a high-confidence chimera when that site is also `Stringent_clipping` Y. The HiFi structural check (primary + supplementary, 500-bp anchors, >= 2 reads) is reported alongside.
 
@@ -709,13 +828,13 @@ One row per taxonomic transition. Genes are classified against GTDB R232 (MMseqs
 | `Right_block_span_bp` | Length of the right block (bp) |
 | `Left_GC_percent` | GC content of the left block (%) |
 | `Right_GC_percent` | GC content of the right block (%) |
-| `Delta_GC_percentage_points` | |`Left_GC_percent` - `Right_GC_percent`| |
+| `Delta_GC_percentage_points` | \|`Left_GC_percent` - `Right_GC_percent`\| |
 | `Left_GC_callable_bases` | A/C/G/T bases used for `Left_GC_percent` |
 | `Right_GC_callable_bases` | A/C/G/T bases used for `Right_GC_percent` |
 | `Left_mean_depth` | Mean HiFi depth (primary alignments, `samtools bedcov`) over the left block |
 | `Right_mean_depth` | Mean HiFi depth (primary alignments, `samtools bedcov`) over the right block |
 | `Depth_right_over_left` | `Right_mean_depth` / `Left_mean_depth` |
-| `Abs_log2_depth_ratio` | |log2(`Depth_right_over_left`)| |
+| `Abs_log2_depth_ratio` | \|log2(`Depth_right_over_left`)\| |
 | `Junction_left_boundary_1based` | Left boundary of the junction tested with HiFi reads |
 | `Junction_right_boundary_1based` | Right boundary of that junction |
 | `HiFi_left_anchor_reads` | Reads with >= 500 bp aligned left of the junction |
@@ -737,7 +856,7 @@ One row per taxonomic transition. Genes are classified against GTDB R232 (MMseqs
 | `High_confidence_taxonomic_chimera` | Y when `Stringent_clipping_support` is Y |
 | `Taxonomic_assessment` | HIGH_CONFIDENCE_TAXONOMIC_CHIMERA, TAXONOMIC_CHIMERA or TAXONOMIC_SHIFT_ONLY (transition without validated clipping) |
 
-#### `chimera.contig.tsv`
+### `chimera.contig.tsv`
 
 One row per contig of every assembly. Genes are classified against GTDB R232 (MMseqs2). At each gene boundary, up to 10 predicted genes are searched on each side and the nearest 5 classified genes form a block (>= 4 required). A taxonomic transition is a boundary where both blocks have >= 80% dominance at one rank (domain, phylum, class or order) and their dominant taxa differ. A transition becomes a taxonomic chimera when a validated clipping site (`Clipping` Y) lies in its interval (+/- 1 bp), and a high-confidence chimera when that site is also `Stringent_clipping` Y. The HiFi structural check (primary + supplementary, 500-bp anchors, >= 2 reads) is reported alongside.
 
@@ -757,7 +876,7 @@ One row per contig of every assembly. Genes are classified against GTDB R232 (MM
 | `Taxonomic_shift_ranks` | Ranks of the transitions |
 | `Taxonomic_shift_positions_1based` | Positions of the transitions |
 | `Max_delta_GC_percentage_points` | Largest GC difference across a transition |
-| `Max_abs_log2_depth_ratio` | Largest |log2 depth ratio| across a transition |
+| `Max_abs_log2_depth_ratio` | Largest \|log2 depth ratio\| across a transition |
 | `Taxonomic_shift` | Y when >= 1 transition; N when assessable without one; NA when not assessable |
 | `High_confidence_taxonomic_chimera` | Y when >= 1 region is `High_confidence_taxonomic_chimera` Y |
 | `Taxonomic_assessment` | HIGH_CONFIDENCE_TAXONOMIC_CHIMERA, TAXONOMIC_CHIMERA, TAXONOMIC_SHIFT_ONLY, NO_TAXONOMIC_SHIFT, or NA |
@@ -787,7 +906,7 @@ One row per contig of every assembly. Genes are classified against GTDB R232 (MM
 | `High_confidence_taxonomic_chimera_positions_1based` | Positions of high-confidence regions |
 | `Taxonomic_shift_only_positions_1based` | Positions of regions without validated clipping |
 
-#### `chimera.MAG.tsv`
+### `chimera.MAG.tsv`
 
 One row per MAG; counts and calls over its contigs.
 
@@ -825,162 +944,3 @@ One row per MAG; counts and calls over its contigs.
 | `High_confidence_taxonomic_chimera_contig_ids` | Contigs with `High_confidence_taxonomic_chimera` Y |
 | `Taxonomic_shift_only_contig_ids` | Contigs with a transition only |
 | `High_confidence_taxonomic_chimera` | Y when >= 1 contig has `High_confidence_taxonomic_chimera` Y |
-
-## False duplication
-
-Folder `08_false_duplication/`. Command: `false-duplication`.
-
-#### `false_duplication.pair.tsv`
-
-One row per duplicated pair. Duplicated pairs are BLASTN copies >= 1,000 bp with >= 95% identity inside a MAG. Each copy boundary is tested with HiFi reads (primary + supplementary, 500-bp anchors): supported (Y) when >= 2 reads span it, N when >= 2 reads reach each side but none spans it, NA otherwise. A false duplication is a pair where one copy is spanned at both boundaries and the other at neither (for tandem copies: both outer boundaries spanned and the junction between the copies not).
-
-| Column | Definition |
-|---|---|
-| `MAG_ID` | MAG ID (MAG FASTA file name without extension); `NA` for unbinned contigs |
-| `Assembler` | Assembly file (assembler) the contig comes from |
-| `Pair_id` | Pair ID |
-| `Pair_scope` | INTRA_CONTIG (both copies on one contig) or INTER_CONTIG |
-| `Duplication_type` | TANDEM (adjacent copies), INTERSPERSED, or OVERLAPPING |
-| `Orientation` | DIRECT or INVERTED |
-| `Copy1_contig` | Contig of copy 1 |
-| `Copy1_contig_length` | Length of that contig |
-| `Copy1_start` | Copy 1 start (1-based) |
-| `Copy1_end` | Copy 1 end |
-| `Copy2_contig` | Contig of copy 2 |
-| `Copy2_contig_length` | Length of that contig |
-| `Copy2_start` | Copy 2 start (1-based) |
-| `Copy2_end` | Copy 2 end |
-| `Identity_percent` | BLASTN identity (%) |
-| `Alignment_length` | BLASTN alignment length (bp) |
-| `Candidate_cluster_size` | Near-identical alignments merged into this pair |
-| `Copy1_left_supported` | Left boundary of copy 1: Y/N/NA as above |
-| `Copy1_right_supported` | Right boundary of copy 1 |
-| `Copy2_left_supported` | Left boundary of copy 2 |
-| `Copy2_right_supported` | Right boundary of copy 2 |
-| `Assessment` | Call and reason: Y_false_duplication_pattern, N_no_false_duplication_pattern, N_tandem_junction_spanned, NA_insufficient_reads, NA_inverted_tandem, NA_overlapping_copies |
-| `Assessment_complete` | Y when the call is Y or N |
-| `False_duplication` | Pair call: Y, N or NA |
-
-#### `false_duplication.contig.tsv`
-
-One row per MAG contig.
-
-| Column | Definition |
-|---|---|
-| `Contig` | Contig ID (first word of the FASTA header) |
-| `MAG_ID` | MAG ID (MAG FASTA file name without extension); `NA` for unbinned contigs |
-| `Assembler` | Assembly file (assembler) the contig comes from |
-| `Length_bp` | Contig length (bp) |
-| `n_duplicated_pairs` | Duplicated pairs involving the contig (MAG: in the MAG) |
-| `n_intra_contig_pairs` | INTRA_CONTIG pairs |
-| `n_inter_contig_pairs` | INTER_CONTIG pairs |
-| `n_tandem_pairs` | TANDEM pairs |
-| `n_direct_tandem_pairs` | DIRECT TANDEM pairs |
-| `n_inverted_tandem_pairs` | INVERTED TANDEM pairs |
-| `n_interspersed_pairs` | INTERSPERSED pairs |
-| `n_direct_pairs` | DIRECT pairs |
-| `n_inverted_pairs` | INVERTED pairs |
-| `Assessment_complete` | Y when every pair has a Y or N call (also Y without pairs) |
-| `Analyzable` | Y when `False_duplication` is Y or N |
-| `False_duplication` | Y when >= 1 pair is Y; NA when >= 1 pair is NA and none Y; N otherwise |
-| `n_analyzable_pairs` | Pairs with a Y or N call |
-| `n_false_duplication_pairs` | Pairs with call Y |
-| `n_no_false_duplication_pairs` | Pairs with call N |
-| `n_not_analyzable_pairs` | Pairs with call NA |
-
-#### `false_duplication.MAG.tsv`
-
-One row per MAG.
-
-| Column | Definition |
-|---|---|
-| `MAG_ID` | MAG ID (MAG FASTA file name without extension); `NA` for unbinned contigs |
-| `n_contigs` | Number of contigs in the MAG |
-| `n_duplicated_pairs` | Duplicated pairs involving the contig (MAG: in the MAG) |
-| `n_intra_contig_pairs` | INTRA_CONTIG pairs |
-| `n_inter_contig_pairs` | INTER_CONTIG pairs |
-| `n_tandem_pairs` | TANDEM pairs |
-| `n_direct_tandem_pairs` | DIRECT TANDEM pairs |
-| `n_inverted_tandem_pairs` | INVERTED TANDEM pairs |
-| `n_interspersed_pairs` | INTERSPERSED pairs |
-| `n_false_duplication_pairs` | Pairs with call Y |
-| `n_no_false_duplication_pairs` | Pairs with call N |
-| `n_not_analyzable_pairs` | Pairs with call NA |
-| `Assessment_complete` | Y when every pair has a Y or N call (also Y without pairs) |
-| `Analyzable` | Y when `False_duplication` is Y or N |
-| `False_duplication` | Y when >= 1 pair is Y; NA when >= 1 pair is NA and none Y; N otherwise |
-
-## Assembly variants
-
-Folder `09_assembly_variants/`. Command: `variants`.
-
-#### `variants.site.tsv`
-
-One row per minority or unsupported assembly variant. anvi'o profiles the HiFi reads on each assembly and reports variable positions and indels. A site is a **minority** assembly variant when the assembly allele is supported by some reads but another allele (SNV) or the indel is carried by > 50% of reads, and an **unsupported** assembly variant when no read supports the assembly allele.
-
-| Column | Definition |
-|---|---|
-| `Contig` | Contig ID (first word of the FASTA header) |
-| `Assembler` | Assembly file (assembler) the contig comes from |
-| `Position` | Variant position (1-based) |
-| `Variant_type` | SNV or INDEL |
-| `Assembly_allele` | Base (or sequence) in the assembly |
-| `Dominant_alternative_allele` | Most frequent other allele in the reads |
-| `Assembly_support_count` | Reads supporting the assembly allele |
-| `Alternative_support_count` | Reads supporting the alternative allele |
-| `Coverage` | Read depth at the position |
-| `Assembly_support_fraction` | `Assembly_support_count` / `Coverage` |
-| `Alternative_support_fraction` | `Alternative_support_count` / `Coverage` |
-| `Assembly_support_class` | Minority or Unsupported |
-| `Corresponding_gene_call` | anvi'o gene call at the position (NA outside genes) |
-| `Anvio_table` | anvi'o table the row comes from (variable nucleotides or indels) |
-
-#### `variants.contig.tsv`
-
-One row per MAG contig. anvi'o profiles the HiFi reads on each assembly and reports variable positions and indels. A site is a **minority** assembly variant when the assembly allele is supported by some reads but another allele (SNV) or the indel is carried by > 50% of reads, and an **unsupported** assembly variant when no read supports the assembly allele.
-
-| Column | Definition |
-|---|---|
-| `Contig` | Contig ID (first word of the FASTA header) |
-| `MAG_ID` | MAG ID (MAG FASTA file name without extension); `NA` for unbinned contigs |
-| `Length_bp` | Contig length (bp) |
-| `Assembly_variant` | Y when >= 1 minority or unsupported variant |
-| `Anvio_variable_nucleotide_rows_examined` | anvi'o variable-nucleotide rows read |
-| `Anvio_indel_rows_examined` | anvi'o indel rows read |
-| `Minority_assembly_snv_count` | Minority SNVs |
-| `Unsupported_assembly_snv_count` | Unsupported SNVs |
-| `Minority_assembly_indel_count` | Minority indels |
-| `Unsupported_assembly_indel_count` | Unsupported indels |
-| `Minority_impacted_gene_count` | Genes with >= 1 minority variant |
-| `Unsupported_impacted_gene_count` | Genes with >= 1 unsupported variant |
-| `Assembly_variant_count` | All minority and unsupported variants |
-| `Assembly_variant_class` | Unsupported when >= 1 unsupported variant, otherwise Minority when >= 1 minority variant, otherwise None |
-
-#### `variants.MAG.tsv`
-
-One row per MAG.
-
-| Column | Definition |
-|---|---|
-| `MAG_ID` | MAG ID (MAG FASTA file name without extension); `NA` for unbinned contigs |
-| `Assembly_variant` | Y when >= 1 minority or unsupported variant |
-| `Minority_assembly_variant` | Y when >= 1 minority variant |
-| `Unsupported_assembly_variant` | Y when >= 1 unsupported variant |
-| `n_contigs` | Number of contigs in the MAG |
-| `MAG_length_bp` | Sum of the MAG contig lengths (bp) |
-| `n_contigs_with_assembly_allele_disagreement` | Contigs with >= 1 variant |
-| `n_contigs_classified_as_minority_assembly_variant` | Contigs whose class is Minority |
-| `n_contigs_classified_as_unsupported_assembly_variant` | Contigs whose class is Unsupported |
-| `Minority_assembly_snv_count` | Minority SNVs |
-| `Minority_assembly_snv_per_Mbp` | `Minority_assembly_snv_count` per Mbp of MAG |
-| `Unsupported_assembly_snv_count` | Unsupported SNVs |
-| `Unsupported_assembly_snv_per_Mbp` | `Unsupported_assembly_snv_count` per Mbp of MAG |
-| `Minority_assembly_indel_count` | Minority indels |
-| `Minority_assembly_indel_per_Mbp` | `Minority_assembly_indel_count` per Mbp of MAG |
-| `Unsupported_assembly_indel_count` | Unsupported indels |
-| `Unsupported_assembly_indel_per_Mbp` | `Unsupported_assembly_indel_count` per Mbp of MAG |
-| `Minority_impacted_gene_count` | Genes with >= 1 minority variant |
-| `Unsupported_impacted_gene_count` | Genes with >= 1 unsupported variant |
-| `Assembly_variant_count` | All minority and unsupported variants |
-| `Assembly_variant_per_Mbp` | `Assembly_variant_count` per Mbp of MAG |
-| `Assembly_variant_class` | Unsupported when >= 1 unsupported variant, otherwise Minority when >= 1 minority variant, otherwise None |

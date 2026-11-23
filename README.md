@@ -1,10 +1,10 @@
 # MAGverify
 
-MAGverify assesses the integrity of metagenome assemblies and metagenome-assembled genomes (MAGs) using PacBio HiFi reads. Its modules cover read mapping, circularity, clipping, false closure, phantom sequences, repeats, taxonomic chimeras, false duplication, assembly variants and an integrated QC summary.
+MAGverify assesses the integrity of metagenome assemblies and metagenome-assembled genomes (MAGs) using PacBio HiFi reads. Its modules cover read mapping, circularity, clipping, false closure, phantom sequences, repeats, taxonomic chimeras, false duplication, assembly variants and an integrated summary.
 
 ## 1. Installation
 
-MAGverify supports Linux with Conda or Mamba. Create the environment from the repository root:
+Install MAGverify on Linux using Conda or Mamba from the repository root:
 
 ```bash
 git clone https://github.com/songmj86/MAGverify.git
@@ -33,12 +33,15 @@ See [Input preparation](docs/INPUT_PREPARATION.md) for commands, download links 
 
 ## 3. Quick start
 
-After the preparation, one command runs all analysis modules in order. Inputs and output:
+After preparation, run all analysis modules using end-to-end with the following options:
 
 - `-a DIR`: Input directory of contig files (`.fa`, `.fasta`, or `.fna`). Contig IDs must be unique across assembly files.
 - `-g DIR`: Input directory of MAG files (one file per MAG). MAG contig IDs must match those in the assembly files.
 - `-r DIR`: Input directory of PacBio HiFi read files (`.fastq`, `.fq`, `.fastq.gz`, or `.fq.gz`). Multiple files are merged into `00_prep/hifi_reads.fastq[.gz]` and reused by subsequent modules without `-r`.
 - `-o DIR`: Output directory. Use the same directory across all modules to reuse completed results.
+- `-t N`: Number of threads.
+- `-m N`: Memory limit (GB) for memory-managed modules.
+- `--skip MODULES`: Comma-separated modules to exclude (e.g., `--skip chimera,variants`).
 
 
 ```bash
@@ -50,25 +53,16 @@ MAGverify end-to-end \
   -t 100 -m 900
 ```
 
-Steps, in order: `map` → `circularity` → `clipping` → `false-closure` → `phantom` → `repeats` → `false-duplication` → `variants` → `chimera` → `summary`.
+**Note:** `end-to-end` runs the modules in the following order: `map` → `circularity` → `clipping` → `false-closure` → `phantom` → `repeats` → `false-duplication` → `variants` → `chimera` → `summary`. Before analysis, MAGverify checks for missing preparation outputs in `00_prep/` and identifies the necessary `prep-` commands. Interrupted analyses can be resumed by rerunning the same command, automatically skipping completed modules with unchanged inputs.
 
-- **Preparation check**: Before analysis, MAGverify checks for missing preparation outputs and identifies the necessary prep- commands. The preparation outputs are read from `-o DIR/00_prep/` automatically
-- **Resuming analysis** : Rerun the same command after interruption. Completed modules with unchanged inputs are skipped automatically.
-- `-t` sets the threads 
-- `-m` sets the memory limit (GB)
-- **`--skip MODULES`** leaves out modules, for example `--skip chimera,variants`; `summary` then reports only the modules that ran.
-
-Each module can also be run separately. See Modules for detailed descriptions and options.
+Each module can also be run separately. See [Modules](docs/MODULES.md) for detailed descriptions and options.
 
 
 ## 4. Results
 
-The summary is written in two versions at the top of the output directory:
+MAGverify generates two summary formats: `summary.MAG.tsv` and `summary.contig.tsv` provide `Y`/`N`/`NA` flags for each analysis, whereas `summary_detail.MAG.tsv` and `summary_detail.contig.tsv` additionally include detailed results from each module.
 
-- **`summary.MAG.tsv` (Y/N version) — start here:** one row per MAG, the number of checks that flagged it (`n_flagged_checks`) and one `Y`/`N`/`NA` column per check (`NA`: not assessable or not run; `Checks_not_run` names the checks that were not run). `summary.contig.tsv` has the same checks for every contig (`MAG_ID` is `NA` for unbinned contigs).
-- **`summary_detail.MAG.tsv` (detailed version):** the same columns, then key counts, then every column of every module MAG table in one row per MAG, named `MODULE.COLUMN` (for example `clipping.n_candidate_sites`). `summary_detail.contig.tsv` does the same for every MAG contig.
-
-Each module writes its tables to its own directory as `MODULE.LEVEL.tsv`, where `LEVEL` is the unit of one row. The modules themselves read the complete internal tables in each hidden `.cache/` directory, which also holds intermediate files and fingerprints that later runs reuse; do not delete it. Keep `01_mapping/` (BAMs, `.csi` indexes and `.cache/`) together when moving results.
+Each module saves its results in a separate directory, as listed below. Intermediate files are stored in hidden `.cache/` directories for reuse in subsequent runs. Keep these directories to enable analysis resumption.
 
 | Module | Directory | Tables |
 | --- | --- | --- |
@@ -82,9 +76,10 @@ Each module writes its tables to its own directory as `MODULE.LEVEL.tsv`, where 
 | Taxonomic chimera | `07_chimera/` | `chimera.region.tsv`, `chimera.contig.tsv`, `chimera.MAG.tsv` |
 | False duplication | `08_false_duplication/` | `false_duplication.pair.tsv`, `false_duplication.contig.tsv`, `false_duplication.MAG.tsv` |
 | Assembly variants | `09_assembly_variants/` | `variants.site.tsv`, `variants.contig.tsv`, `variants.MAG.tsv` |
-| Integrated QC summary | top of the output directory | `summary.MAG.tsv`, `summary.contig.tsv` (Y/N); `summary_detail.MAG.tsv`, `summary_detail.contig.tsv` (detailed) |
+| Integrated summary | top of the output directory | `summary.MAG.tsv`, `summary.contig.tsv` (Y/N); `summary_detail.MAG.tsv`, `summary_detail.contig.tsv` (detailed) |
 
-Every column of every table is defined in [Result tables](docs/OUTPUTS.md).
+See [Result tables](docs/OUTPUTS.md) for detailed descriptions of all output columns.
+
 
 ## Citation
 

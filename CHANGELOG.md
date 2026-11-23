@@ -1,5 +1,7 @@
 ## Single-environment installation
 
+- Renamed `Both_supported_circularity` to `High_confidence_circular` in `summary.MAG.tsv` (same criteria).
+
 - Use `conda env create -f environment.yml` followed by `conda activate MAGverify` once for all modules.
 - Install anvi'o v9 from Bioconda as `anvio-minimal=9` and install the MAGverify CLI through the YAML `pip:` section.
 - Remove the separate anvi'o environment file; no module command needs an anvi'o environment argument.
@@ -8,6 +10,11 @@
 # Changelog
 
 ## Unreleased
+
+- Clarified circularity evidence in `summary.MAG.tsv` using separate assembler-reported, read-supported, and both-supported flags. Replaced the ambiguous `Circular` summary alias; circularity algorithm unchanged.
+- Simplified public summary flags in module order, renamed `Taxonomic_chimera` to `Chimera`, moved `n_flagged_checks` and `n_checks_not_run` to the end, and retained skipped-check names and complementary diagnostics in the detailed summary. The public MAG flagged-check count now covers only the seven displayed diagnostic checks, rather than the previously separate false-closure check.
+
+- Public summary tables (`summary.MAG.tsv`, `summary.contig.tsv`, and `summary_detail.*.tsv`) list checks in end-to-end module order, with aggregate columns retained near the start/end. Detailed module columns follow the same order. Existing public summary tables are automatically republished from cached results when the previous column order is detected. No QC calls or values change.
 
 - Documentation: `docs/` keeps `INPUT_PREPARATION.md` and `OUTPUTS.md` (result table columns). Installation is in the README; `INSTALL.md`, `MODULES.md`, `ARCHITECTURE.md`, `INPUT_FORMATS.md`, `TOOL_VERSIONS.md` and `SCRIPT_INDEX.md` were removed or merged.
 - `00_prep/all_assemblies.fasta` renamed `00_prep/all_assemblies.fa` (FASTA outputs use `.fa`; Pyrodigal outputs keep `.faa`/`.gff`). Existing files are renamed automatically.

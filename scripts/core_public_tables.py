@@ -255,7 +255,7 @@ def to_yn(value, yes=(), no=()):
 
 
 CONTIG_CALLS = (
-    ('Taxonomic_chimera', 'Taxonomic_chimera', (), ()),
+    ('Chimera', 'Taxonomic_chimera', (), ()),
     ('Assembly_variant', 'assembly_allele_support_call',
      ('Unsupported_assembly_variant', 'Minority_assembly_variant'), ('Assembly_allele_supported',)),
     ('Phantom', 'phantom_sequence_call', ('Phantom_sequence_candidate',), ()),
@@ -294,21 +294,52 @@ def summary_contig(internal, public):
         if clip == 'NA':
             missing.append('clipping')
         new['Checks_not_run'] = ','.join(sorted(set(missing))) or 'NA'
+        new['n_checks_not_run'] = str(len(set(missing)))
         out.append(new)
     write(public, SUMMARY_CONTIG_FIELDS, out)
     return {row['contig']: row for row in rows}, out
 
 
+# The public check count includes only the diagnostic flags in summary.MAG.tsv.
+# False_closure remains available in summary_detail.MAG.tsv and in the
+# false-closure module, because it is not synonymous with premature circularization.
 MAG_CHECKS = (
     ('Clipping', 'Clipping_Y_N', None),
-    ('Taxonomic_chimera', 'Taxonomic_chimera_Y_N', 'Taxonomic_chimera'),
-    ('Assembly_variant', 'Assembly_allele_disagreement_Y_N', 'assembly_allele_support_call'),
+    ('Premature_circularization', 'Premature_circularization_Y_N', None),
     ('Phantom', 'Phantom_sequence_Y_N', 'phantom_sequence_call'),
     ('Excessive_repeat', 'Excessive_repeat_Y_N', 'excessive_repeat_call'),
     ('False_duplication', 'False_duplication_Y_N', 'false_duplication_call'),
-    ('False_closure', 'False_closure_Y_N', None),
-    ('Premature_circularization', 'Premature_circularization_Y_N', None),
+    ('Assembly_variant', 'Assembly_allele_disagreement_Y_N', 'assembly_allele_support_call'),
+    ('Chimera', 'Taxonomic_chimera_Y_N', 'Taxonomic_chimera'),
 )
+
+
+def circularity_summary_calls(root):
+    """Use existing circularity evidence; never infer read support from a final flag."""
+    root = Path(root)
+    for path in (root / '02_circularity/circularity.MAG.tsv',
+                 root / '02_circularity/.cache/circularity.MAG.tsv'):
+        if not path.is_file():
+            continue
+        fields, rows = read(path)
+        key = 'MAG_ID' if 'MAG_ID' in fields else 'ID' if 'ID' in fields else None
+        if not key or not {'Assembler_reported_circularity',
+                           'Read_supported_circular_topology',
+                           'High_confidence_circular'} <= set(fields):
+            continue
+        calls = {}
+        for row in rows:
+            mag = row[key]
+            if mag in calls:
+                raise ValueError(f'Duplicate circularity MAG ID: {mag}')
+            assembler = row['Assembler_reported_circularity']
+            read_support = row['Read_supported_circular_topology']
+            both = row['High_confidence_circular']
+            if any(v not in ('Y', 'N', 'NA') for v in (assembler, read_support, both)):
+                raise ValueError(f'Invalid circularity flag for MAG {mag}')
+            calls[mag] = (assembler, read_support, both)
+        return calls
+    return {}
 
 
 def summary_mag(internal, public, contigs):
@@ -316,6 +347,7 @@ def summary_mag(internal, public, contigs):
     by_mag = {}
     for contig in contigs.values():
         by_mag.setdefault(contig['MAG_ID'], []).append(contig)
+    circularity = circularity_summary_calls(Path(public).parent)
     out = []
     for row in rows:
         members = by_mag.get(row['MAG_ID'], [])
@@ -329,17 +361,22 @@ def summary_mag(internal, public, contigs):
             if name == 'Clipping' and members and all(m.get('validated_clipping_breakpoints') == 'NA'
                                                       for m in members):
                 ran = False
-            if name in ('False_closure', 'Premature_circularization') and row['False_closure_evidence'] in NOT_RUN:
+            if name == 'Premature_circularization' and row['False_closure_evidence'] in NOT_RUN:
                 ran = False
             if not ran:
                 not_run.append(name.lower())
             new[name] = value if ran else 'NA'
-        circular = row['Circular']
         new['n_flagged_checks'] = str(sum(new[name] == 'Y' for name, _c, _r in MAG_CHECKS))
-        new['Circular'] = circular if circular in ('Y', 'N') else 'NA'
-        if circular in NOT_RUN:
+        assembly, read_support, both = circularity.get(row['MAG_ID'], ('NA', 'NA', 'NA'))
+        new.update({
+            'Assembler_reported_circularity': assembly,
+            'Read_supported_circularity': read_support,
+            'High_confidence_circular': both,
+        })
+        if row['Circular'] in NOT_RUN:
             not_run.append('circularity')
         new.update({
+            'False_closure': row['False_closure_Y_N'] if row['False_closure_Y_N'] in ('Y', 'N') else 'NA',
             'Small_genome_proxy': row['Paper_small_genome_proxy'] if row['Paper_small_genome_proxy'] in ('Y', 'N') else 'NA',
             'Premature_circularization_screen': row['Premature_circularization_screen']
             if row['Premature_circularization_screen'] in ('Y', 'N') else 'NA',
@@ -356,28 +393,48 @@ def summary_mag(internal, public, contigs):
             'n_unresolved_duplicated_pairs': row['n_false_duplication_insufficient_pairs'],
             'False_duplication_with_clipping': row['false_duplication_with_validated_clipping_Y_N_NA'],
             'Checks_not_run': ','.join(sorted(set(not_run))) or 'NA',
+            'n_checks_not_run': str(len(set(not_run))),
         })
         out.append(new)
     write(public, SUMMARY_MAG_FIELDS, out)
     return out
 
 
-SUMMARY_CONTIG_FIELDS = ['Contig', 'MAG_ID', 'Length_bp', 'n_flagged_checks', 'Clipping', 'Taxonomic_chimera',
-                         'Assembly_variant', 'Phantom', 'Excessive_repeat', 'False_duplication',
-                         'False_duplication_with_clipping', 'Checks_not_run']
-SUMMARY_CONTIG_DETAILS = ['Assembler', 'n_clipping_sites', 'Chimera_ranks', 'Repeat_fraction', 'n_duplicated_pairs',
-                          'n_false_duplication_pairs', 'n_unresolved_duplicated_pairs']
-SUMMARY_MAG_FIELDS = ['MAG_ID', 'n_contigs', 'n_flagged_checks'] + [name for name, _c, _r in MAG_CHECKS] + [
-    'Circular', 'Small_genome_proxy', 'Premature_circularization_screen', 'False_duplication_with_clipping',
-    'Checks_not_run']
-SUMMARY_MAG_DETAILS = ['False_closure_partner_contigs', 'n_clipping_sites', 'n_chimera_contigs', 'n_variant_contigs',
-                       'n_phantom_contigs', 'Repeat_fraction', 'n_excessive_repeat_contigs',
-                       'n_false_duplication_contigs', 'n_duplicated_pairs', 'n_unresolved_duplicated_pairs']
+# Public flags follow end-to-end module order. Counters are the last two columns.
+SUMMARY_CONTIG_FIELDS = [
+    'Contig', 'MAG_ID', 'Length_bp', 'Clipping', 'Phantom', 'Excessive_repeat',
+    'False_duplication', 'Assembly_variant', 'Chimera',
+    'n_flagged_checks', 'n_checks_not_run',
+]
+SUMMARY_CONTIG_DETAILS = [
+    'Assembler', 'n_clipping_sites', 'Repeat_fraction', 'n_duplicated_pairs',
+    'n_false_duplication_pairs', 'n_unresolved_duplicated_pairs', 'Chimera_ranks',
+    'False_duplication_with_clipping', 'Checks_not_run',
+]
+SUMMARY_MAG_FIELDS = [
+    'MAG_ID', 'n_contigs',
+    'Assembler_reported_circularity', 'Read_supported_circularity',
+    'High_confidence_circular', 'Clipping', 'Premature_circularization',
+    'Phantom', 'Excessive_repeat', 'False_duplication',
+    'Assembly_variant', 'Chimera', 'n_flagged_checks', 'n_checks_not_run',
+]
+SUMMARY_MAG_DETAILS = [
+    'False_closure', 'Small_genome_proxy', 'Premature_circularization_screen',
+    'False_duplication_with_clipping', 'Checks_not_run',
+    'n_clipping_sites', 'False_closure_partner_contigs', 'n_phantom_contigs',
+    'Repeat_fraction', 'n_excessive_repeat_contigs',
+    'n_false_duplication_contigs', 'n_duplicated_pairs',
+    'n_unresolved_duplicated_pairs', 'n_variant_contigs', 'n_chimera_contigs',
+]
 FULL_MODULES = (
-    ('circularity', '02_circularity/circularity'), ('clipping', '03_clipping/clipping'),
-    ('false_closure', '04_false_closure/false_closure'), ('phantom', '05_phantom/phantom'),
-    ('repeats', '06_repeats/repeats'), ('chimera', '07_chimera/chimera'),
-    ('false_duplication', '08_false_duplication/false_duplication'), ('variants', '09_assembly_variants/variants'),
+    ('circularity', '02_circularity/circularity'),
+    ('clipping', '03_clipping/clipping'),
+    ('false_closure', '04_false_closure/false_closure'),
+    ('phantom', '05_phantom/phantom'),
+    ('repeats', '06_repeats/repeats'),
+    ('false_duplication', '08_false_duplication/false_duplication'),
+    ('variants', '09_assembly_variants/variants'),
+    ('chimera', '07_chimera/chimera'),
 )
 FULL_SKIP = {'MAG': {'MAG_ID', 'n_contigs', 'MAG_length_bp', 'Assembler'},
              'contig': {'Contig', 'MAG_ID', 'Assembler', 'Length_bp', 'n_contigs'}}
@@ -431,10 +488,31 @@ def write_full_tables(root, contig_rows, mag_rows):
     return [str(root / 'summary_detail.contig.tsv'), str(root / 'summary_detail.MAG.tsv')]
 
 
+def header_matches(path, expected):
+    """Check the public table's column order without reading its data rows."""
+    path = Path(path)
+    if not path.is_file():
+        return False
+    with open(path, encoding='utf-8-sig', newline='') as handle:
+        header = next(csv.reader(handle, delimiter='\t'), [])
+    return header[:len(expected)] == expected
+
+
+def summary_headers_current(root):
+    root = Path(root)
+    return (header_matches(root / 'summary.contig.tsv', SUMMARY_CONTIG_FIELDS)
+            and header_matches(root / 'summary.MAG.tsv', SUMMARY_MAG_FIELDS))
+
+
 def full_tables_current(root):
     root = Path(root)
     targets = [root / 'summary_detail.contig.tsv', root / 'summary_detail.MAG.tsv']
     if not all(path.is_file() for path in targets):
+        return False
+    detailed_contig_prefix = (SUMMARY_CONTIG_FIELDS[:3] + ['Assembler']
+                              + SUMMARY_CONTIG_FIELDS[3:] + SUMMARY_CONTIG_DETAILS[1:])
+    if not (header_matches(targets[0], detailed_contig_prefix)
+            and header_matches(targets[1], SUMMARY_MAG_FIELDS + SUMMARY_MAG_DETAILS)):
         return False
     oldest = min(path.stat().st_mtime_ns for path in targets)
     sources = [root / '.cache/summary/summary.contig.tsv', root / '.cache/summary/summary.MAG.tsv']
@@ -482,7 +560,8 @@ def publish(root, force=False):
         if not source.is_file():
             continue
         if kind in ('summary_contig', 'summary_mag') and force_summary is None:
-            force_summary = all(path.is_file() for path in summary_internal) and not full_tables_current(root)
+            force_summary = (all(path.is_file() for path in summary_internal)
+                             and (not full_tables_current(root) or not summary_headers_current(root)))
         if kind == 'summary_mag' and contigs is None:
             contig_internal = root / '.cache/summary/summary.contig.tsv'
             contigs = {r['contig']: r for r in read(contig_internal)[1]} if contig_internal.is_file() else {}
