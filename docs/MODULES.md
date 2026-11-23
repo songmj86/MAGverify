@@ -1,6 +1,6 @@
 # Modules
 
-`MAGverify end-to-end` runs all steps below in this order (see the [README](../README.md#3-run)). Each step can also be run on its own with the commands here, for example to rerun one module or to run only some of them. Use the **same `-o`** for every command: each module finds the results of earlier steps (mapping manifest, clipping tables, preparation tables) there automatically. The column definitions of every output table are in [Result tables](OUTPUTS.md).
+Run the [preparation](#preparation) commands first. `MAGverify end-to-end` then runs analysis steps 1–10 below in this order (see the [README](../README.md#4-analysis-end-to-end)). Each step can also be run on its own with the commands here, for example to rerun one module or to run only some of them. Use the **same `-o`** for every command: each module finds the results of earlier steps (mapping manifest, clipping tables, preparation tables) there automatically. The column definitions of every output table are in [Result tables](OUTPUTS.md).
 
 The examples use these variables:
 
@@ -13,7 +13,7 @@ Out=/path/to/MAGverify_output
 
 | Step | Command | Needs first |
 | --- | --- | --- |
-| Preparation | `prep-circularity`, `prep-taxonomy`, `prep-scg` (and `prep-chimera` once) | — |
+| Preparation (separately, first) | `prep-chimera` (once), `prep-scg`, `prep-circularity`, `prep-taxonomy` | — |
 | 1 | `map` | — |
 | 2 | `circularity` | `map` |
 | 3 | `clipping` | `map` |
@@ -28,6 +28,8 @@ Out=/path/to/MAGverify_output
 **Threads and memory.** `-t N` sets the threads (default: all available CPUs, at most 100). Read mapping (`map`, `circularity`) and anvi'o profiling (`variants`) process one assembler at a time with all threads; `clipping`, `phantom` and `false-duplication` process assemblers in parallel and divide `-t` between them (`PARALLEL_JOBS=N` before the command runs fewer at once). `-m N` (GB) keeps `map`, `circularity`, `repeats` and `variants` within a memory limit. Read mapping and the BLAST steps of `repeats` print progress with the remaining time every 5 minutes (`PROGRESS_INTERVAL=SECONDS` changes the interval).
 
 ## Preparation
+
+Not part of `end-to-end`; run these first with the same `-o`.
 
 ```bash
 MAGverify prep-circularity -c FILE [-c FILE ...] -g $In_MAG -o $Out

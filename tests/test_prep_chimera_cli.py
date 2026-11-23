@@ -105,7 +105,7 @@ class PrepChimeraCLITests(unittest.TestCase):
     def test_prep_appears_separately_in_list(self):
         result = self.run_cli('list')
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn('Preparation:', result.stdout)
+        self.assertIn('Preparation (run before the analysis modules):', result.stdout)
         self.assertIn('  prep-chimera', result.stdout)
         self.assertIn('Analysis modules:', result.stdout)
         self.assertIn('  end-to-end ', result.stdout)

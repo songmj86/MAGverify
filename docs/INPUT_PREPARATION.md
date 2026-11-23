@@ -1,6 +1,6 @@
 # Input preparation
 
-Activate the `MAGverify` Conda environment before running the preparation steps. These steps build the reference data and annotations that the analysis modules read. `MAGverify end-to-end` runs steps 2–4 itself (step 2 when given `-d`, step 4 when given `-c`); step 1 builds the GTDB database once and is run separately. The analysis modules do not download data.
+Activate the `MAGverify` Conda environment before running the preparation steps. These steps build the reference data and annotations that the analysis modules read. Run them before `MAGverify end-to-end` (or the individual analysis modules) with the same `-o`; `end-to-end` checks that their results are present before it starts. The analysis modules do not download data or run these steps themselves.
 
 | Step | Command | Output | Used by |
 | --- | --- | --- | --- |

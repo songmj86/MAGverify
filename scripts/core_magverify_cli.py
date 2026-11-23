@@ -1176,14 +1176,15 @@ def doctor():
     return 0
 
 
-PIPELINE_STEPS = ('prep-circularity', 'prep-taxonomy', 'prep-scg', 'map', 'circularity', 'clipping',
-                  'false-closure', 'phantom', 'repeats', 'false-duplication', 'variants', 'chimera', 'summary')
+PIPELINE_STEPS = ('map', 'circularity', 'clipping', 'false-closure', 'phantom', 'repeats',
+                  'false-duplication', 'variants', 'chimera', 'summary')
 
 
 def add_run_parser(subparsers):
     p = subparsers.add_parser('end-to-end', formatter_class=help_formatter,
-        help='Run all preparation and analysis modules in order',
-        description='Run all preparation and analysis modules in order with one set of inputs. '
+        help='Run all analysis modules in order',
+        description='Run all analysis modules in order with one set of inputs, after the preparation commands '
+                    '(prep-chimera, prep-scg, prep-circularity, prep-taxonomy) with the same -o. '
                     'Finished steps are reused, so an interrupted run can be restarted with the same command.',
         add_help=False)
     p.add_argument('-h', action='help', help=argparse.SUPPRESS)
@@ -1195,12 +1196,6 @@ def add_run_parser(subparsers):
     p.add_argument('-o', dest='output_directory', required=True, metavar='DIR', help='Directory of base output')
     p.add_argument('-t', dest='threads', type=int, metavar='N', help='Number of threads')
     p.add_argument('-m', dest='memory_gb', type=int, metavar='N', help='Memory limit (GB)')
-    p.add_argument('-c', dest='sources', action='append', metavar='FILE',
-                   help='Assembler circularity file for prep-circularity; repeat for each assembler '
-                        '(not needed when 00_prep/assembler_circularity.MAG.tsv exists)')
-    p.add_argument('-d', dest='gtdbtk_dir', metavar='DIR',
-                   help='Directory of GTDB-Tk classify_wf results for prep-taxonomy '
-                        '(not needed when 00_prep/gtdbtk_taxonomy.MAG.tsv exists)')
     p.add_argument('--database', metavar='PREFIX',
                    help='MMseqs2 database prefix for chimera (prep-chimera output; default: 00_prep/GTDB_R232)')
     p.add_argument('--skip', metavar='MODULES', default='',
@@ -1220,46 +1215,31 @@ def pipeline_plan(args):
     dir_input(args.source_assemblies, '-a')
     dir_input(args.reads, '-r')
     dir_input(args.mag_dir, '-g')
-    for path in args.sources or ():
-        file_input(path, '-c')
-    if args.gtdbtk_dir:
-        dir_input(args.gtdbtk_dir, '-d')
     root = Path(args.output_directory).expanduser().resolve()
     if root.name in {'00_prep', '10_summary'} | {folder for _script, folder, _text in STAGES.values()}:
         root = root.parent
     have = lambda key: (root / RESULTS[key]).is_file() and (root / RESULTS[key]).stat().st_size > 0
-    common = ['-o', str(root)] + (['-t', str(args.threads)] if args.threads else [])
-    memory = ['-m', str(args.memory_gb)] if args.memory_gb else []
-    if args.sources:
-        pass
-    elif have('assembler_circularity'):
-        skip.add('prep-circularity')
-    elif 'false-closure' not in skip:
-        raise UsageError('false-closure needs the assembler circularity table: pass -c FILE for each assembler '
-                         '(hifiasm-meta p_ctg.gfa, metaMDBG contigs.fasta.gz, metaFlye assembly_info.txt), '
-                         'or --skip false-closure')
-    else:
-        skip.add('prep-circularity')
-    if not args.gtdbtk_dir:
-        skip.add('prep-taxonomy')
-    if {'false-closure', 'chimera'} <= skip:
-        skip.add('prep-scg')
+    missing = []
+    if 'false-closure' not in skip:
+        for key, command in (('assembler_circularity', 'prep-circularity -c FILE [-c FILE ...] -g DIR'),
+                             ('scg_table', 'prep-scg -a DIR')):
+            if not have(key):
+                missing.append(f'  false-closure: {root / RESULTS[key]} (run MAGverify {command} -o {root})')
     if 'chimera' not in skip and not have('taxonomy'):
         prefix = (Path(args.database).expanduser().resolve() if args.database else root / RESULTS['database'])
         if not Path(str(prefix) + '.dbtype').is_file():
-            raise UsageError(f'chimera needs the MMseqs2 database ({prefix}): pass --database PREFIX '
-                             '(MAGverify prep-chimera output), or --skip chimera')
+            missing.append(f'  chimera: MMseqs2 database {prefix} (run MAGverify prep-chimera -d DIR -o DIR, '
+                           'then pass --database PREFIX)')
+    if missing:
+        raise UsageError('preparation results are missing:\n' + '\n'.join(missing)
+                         + '\nRun the preparation commands first, or leave the module out with --skip')
+    common = ['-o', str(root)] + (['-t', str(args.threads)] if args.threads else [])
+    memory = ['-m', str(args.memory_gb)] if args.memory_gb else []
     plan = []
     for step in PIPELINE_STEPS:
         if step in skip:
             continue
-        if step == 'prep-circularity':
-            argv = [step, '-g', args.mag_dir, '-o', str(root)] + [x for f in args.sources for x in ('-c', f)]
-        elif step == 'prep-taxonomy':
-            argv = [step, '-d', args.gtdbtk_dir, '-g', args.mag_dir, '-o', str(root)]
-        elif step == 'prep-scg':
-            argv = [step, '-a', args.source_assemblies] + common
-        elif step == 'map':
+        if step == 'map':
             argv = [step, '-a', args.source_assemblies, '-r', args.reads] + common + memory
         elif step == 'summary':
             done = [name for name in FLAGS if name not in skip]
@@ -1326,14 +1306,13 @@ def main(argv=None):
     args = parser.parse_args(argv)
     args.dry_run = DRY_RUN
     if args.module == 'list':
-        print('All modules in one command:')
-        print('  end-to-end         Run the preparation and analysis modules below in order')
-        print('Preparation:')
+        print('Preparation (run before the analysis modules):')
         print('  prep-chimera       Build MMseqs2 taxonomy database from local GTDB R232 files (once)')
         print('  prep-taxonomy      Build the MAG taxonomy table from GTDB-Tk results')
         print('  prep-circularity   Build the assembler circularity table')
         print("  prep-scg           Annotate single-copy genes with anvi'o")
         print('Analysis modules:')
+        print('  end-to-end         Run all analysis modules below in order')
         for name, (_, _, desc) in STAGES.items():
             print(f'  {name:18s} {desc}')
         return 0

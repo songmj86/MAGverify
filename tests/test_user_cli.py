@@ -431,27 +431,36 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
         return ('end-to-end', '-a', self.source_dir, '-r', self.reads_dir, '-g', self.mag_dir,
                 '-o', self.output, '-t', '1', *extra)
 
-    def test_run_lists_every_step_in_order(self):
-        gfa = self.home / 'p_ctg.gfa'
-        gfa.write_text('S\tctg1\tACGT\n')
-        p = self.call(*self.run_args('-m', '4', '-c', gfa, '--database', self.prefix), '--dry-run')
+    def prepared(self):
+        prep = self.output / '00_prep'
+        prep.mkdir(parents=True)
+        (prep / 'assembler_circularity.MAG.tsv').write_text('MAG_ID\tAssembler_circularity\nBin13L\tY\n')
+        (prep / 'scg.contig.tsv').write_text('contig\thmm_name\nctg1\tx\n')
+
+    def test_run_lists_every_analysis_step_in_order(self):
+        self.prepared()
+        p = self.call(*self.run_args('-m', '4', '--database', self.prefix), '--dry-run')
         self.assertEqual(p.returncode, 0, p.stderr)
         steps = [line.split()[1] for line in p.stdout.splitlines() if line.startswith('MAGverify ')]
-        self.assertEqual(steps, ['prep-circularity', 'prep-scg', 'map', 'circularity', 'clipping',
-                                 'false-closure', 'phantom', 'repeats', 'false-duplication',
-                                 'variants', 'chimera', 'summary'])
+        self.assertEqual(steps, ['map', 'circularity', 'clipping', 'false-closure', 'phantom', 'repeats',
+                                 'false-duplication', 'variants', 'chimera', 'summary'])
         self.assertIn(f'MAGverify chimera -g {self.mag_dir} -o {self.output} -t 1 --database {self.prefix}',
                       p.stdout)
         self.assertIn(f'MAGverify repeats -g {self.mag_dir} -o {self.output} -t 1 -m 4', p.stdout)
-        self.assertFalse(self.output.exists())
+        self.assertNotIn('prep-', p.stdout)
 
-    def test_run_checks_inputs_before_starting(self):
-        p = self.call(*self.run_args('--database', self.prefix))
+    def test_run_does_not_accept_preparation_inputs(self):
+        p = self.call(*self.run_args('-c', self.generic_tsv))
         self.assertEqual(p.returncode, 2)
-        self.assertIn('pass -c FILE for each assembler', p.stderr)
-        p = self.call(*self.run_args('--skip', 'false-closure'))
+        self.assertIn('unrecognized arguments', p.stderr)
+
+    def test_run_checks_preparation_before_starting(self):
+        p = self.call(*self.run_args())
         self.assertEqual(p.returncode, 2)
-        self.assertIn('pass --database PREFIX', p.stderr)
+        self.assertIn('preparation results are missing', p.stderr)
+        self.assertIn('MAGverify prep-circularity', p.stderr)
+        self.assertIn('MAGverify prep-scg', p.stderr)
+        self.assertIn('MAGverify prep-chimera', p.stderr)
         p = self.call(*self.run_args('--skip', 'map'))
         self.assertIn('--skip map is not possible', p.stderr)
         p = self.call(*self.run_args('--skip', 'clippin'))
@@ -461,7 +470,6 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
     def test_run_summary_includes_only_modules_that_ran(self):
         p = self.call(*self.run_args('--skip', 'false-closure,chimera,variants'), '--dry-run')
         self.assertEqual(p.returncode, 0, p.stderr)
-        self.assertNotIn('prep-scg', p.stdout)
         self.assertIn('--include clipping,circularity,phantom,repeats,false-duplication', p.stdout)
 
     def test_run_executes_steps_with_shared_inputs(self):

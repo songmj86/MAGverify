@@ -22,16 +22,45 @@ The environment includes anvi'o 9 and the other programs used by MAGverify (vers
 
 ## 2. Input data
 
-| Option | Input |
+| Input | Content |
 | --- | --- |
-| `-a DIR` | The original, unbinned assembly FASTA of each assembler (.fa, .fasta or .fna, uncompressed). Do not give MAG FASTAs here: reads are mapped to the whole assemblies so that alignments to unbinned contigs are kept. Contig IDs (the first word after `>`) must be unique across the files. |
-| `-g DIR` | MAG FASTA files, one per MAG. The file name without `.fa`, `.fna` or `.fasta` is the MAG ID. MAG contig IDs and sequences must match the assembly files. |
-| `-r DIR` | PacBio HiFi reads (.fastq, .fq, .fastq.gz or .fq.gz). Several files are joined once into `00_prep/hifi_reads.fastq[.gz]`. |
-| `-c FILE` | The circularity output of each assembler, one `-c` per assembler (hifiasm-meta `p_ctg.gfa`, metaMDBG `contigs.fasta.gz`, metaFlye `assembly_info.txt`). |
-| `-d DIR` | GTDB-Tk `classify_wf` results of the MAGs (optional; adds SCG redundancy to `chimera`). |
-| `-o DIR` | Output directory. Every command uses the same `-o`, so finished results are reused. |
+| Assemblies (`-a DIR`) | The original, unbinned assembly FASTA of each assembler (.fa, .fasta or .fna, uncompressed). Do not give MAG FASTAs here: reads are mapped to the whole assemblies so that alignments to unbinned contigs are kept. Contig IDs (the first word after `>`) must be unique across the files. |
+| MAGs (`-g DIR`) | MAG FASTA files, one per MAG. The file name without `.fa`, `.fna` or `.fasta` is the MAG ID. MAG contig IDs and sequences must match the assembly files. |
+| HiFi reads (`-r DIR`) | PacBio HiFi reads (.fastq, .fq, .fastq.gz or .fq.gz). Several files are joined once into `00_prep/hifi_reads.fastq[.gz]`. |
+| Output (`-o DIR`) | Output directory. Use the **same `-o`** for the preparation and analysis commands: each command finds the results of the earlier ones there. |
 
-The GTDB R232 MMseqs2 database for `chimera` is built once with `MAGverify prep-chimera` from three GTDB R232 downloads:
+The preparation step also uses the circularity output of each assembler, GTDB-Tk results of the MAGs (optional) and three GTDB R232 downloads.
+
+## 3. Preparation (run first, separately)
+
+Run these commands before the analysis, with the same `-o`. `prep-chimera` builds the GTDB database once and can be reused by other projects through `--database`.
+
+```bash
+# MMseqs2 database of GTDB R232 (once; for chimera)
+MAGverify prep-chimera -d /path/to/GTDB_R232_downloads -o /path/to/MAGverify_output -t 100
+
+# Single-copy genes with anvi'o (for false-closure and chimera)
+MAGverify prep-scg -a /path/to/assemblies -o /path/to/MAGverify_output -t 100
+
+# Circularity reported by each assembler, one -c per assembler (for circularity and false-closure)
+MAGverify prep-circularity \
+  -c /path/to/hifiasm_meta/Read.p_ctg.gfa \
+  -c /path/to/metaMDBG/contigs.fasta.gz \
+  -c /path/to/metaflye/assembly_info.txt \
+  -g /path/to/MAGs -o /path/to/MAGverify_output
+
+# MAG taxonomy from GTDB-Tk (optional; adds SCG redundancy to chimera)
+MAGverify prep-taxonomy -d /path/to/GTDBTk_results -g /path/to/MAGs -o /path/to/MAGverify_output
+```
+
+| Command | Output in `00_prep/` | Used by |
+| --- | --- | --- |
+| `prep-chimera` | `GTDB_R232*` (MMseqs2 database) | `chimera` |
+| `prep-scg` | `scg.contig.tsv`, `genes.*` | `false-closure`, `chimera` |
+| `prep-circularity` | `assembler_circularity.MAG.tsv`, `assembler_circularity.contig.tsv` | `circularity` (optional), `false-closure` |
+| `prep-taxonomy` | `gtdbtk_taxonomy.MAG.tsv` | `chimera` (optional) |
+
+`prep-chimera` reads three files from **GTDB R232**:
 
 | Download | Content |
 | --- | --- |
@@ -39,44 +68,34 @@ The GTDB R232 MMseqs2 database for `chimera` is built once with `MAGverify prep-
 | [`bac120_taxonomy_r232.tsv`](https://data.gtdb.ecogenomic.org/releases/release232/232.0/bac120_taxonomy_r232.tsv) | Bacterial genome accession → full GTDB lineage |
 | [`ar53_taxonomy_r232.tsv`](https://data.gtdb.ecogenomic.org/releases/release232/232.0/ar53_taxonomy_r232.tsv) | Archaeal genome accession → full GTDB lineage |
 
-```bash
-MAGverify prep-chimera -d /path/to/GTDB_R232_downloads -o /path/to/database_dir -t 100
-```
+Download commands, supported assembler files and the format of each table are in [Input preparation](docs/INPUT_PREPARATION.md).
 
-Download commands and the format of each preparation table are in [Input preparation](docs/INPUT_PREPARATION.md).
+## 4. Analysis (end-to-end)
 
-## 3. Run
-
-One command runs every step in order with the same inputs:
+After the preparation, one command runs all analysis modules in order:
 
 ```bash
-conda activate MAGverify
-
 MAGverify end-to-end \
   -a /path/to/assemblies \
   -r /path/to/hifi_reads \
   -g /path/to/MAGs \
-  -c /path/to/hifiasm_meta/Read.p_ctg.gfa \
-  -c /path/to/metaMDBG/contigs.fasta.gz \
-  -c /path/to/metaflye/assembly_info.txt \
-  -d /path/to/GTDBTk_results \
-  --database /path/to/database_dir/00_prep/GTDB_R232 \
   -o /path/to/MAGverify_output \
+  --database /path/to/MAGverify_output/00_prep/GTDB_R232 \
   -t 100 -m 900
 ```
 
-Steps, in order: `prep-circularity` → `prep-taxonomy` → `prep-scg` → `map` → `circularity` → `clipping` → `false-closure` → `phantom` → `repeats` → `false-duplication` → `variants` → `chimera` → `summary`.
+Steps, in order: `map` → `circularity` → `clipping` → `false-closure` → `phantom` → `repeats` → `false-duplication` → `variants` → `chimera` → `summary`.
 
-- **Before anything starts**, the inputs are checked: the run stops at once if a step would fail later (for example, no `-c` and no assembler circularity table for `false-closure`, or no MMseqs2 database for `chimera`).
+- **Before anything starts**, the preparation results are checked; if one is missing, the run stops at once and names the `prep-` command to run (or `--skip` to leave the module out).
 - **Finished steps are reused.** Each step keeps fingerprints of its inputs, so an interrupted run is restarted with the same command and continues where it stopped.
-- **`-c` and `-d` are needed only once:** later runs with the same `-o` reuse `00_prep/assembler_circularity.MAG.tsv` and `00_prep/gtdbtk_taxonomy.MAG.tsv`. `--database` can be left out when the database was built with the same `-o`.
+- `--database` can be left out when `prep-chimera` used the same `-o`.
 - **`--skip MODULES`** leaves out modules, for example `--skip chimera,variants`; `summary` then reports only the modules that ran.
 - `-t` sets the threads and `-m` (GB) the memory limit of `map`, `circularity`, `repeats` and `variants`.
 - Each step prints its commands and run time (`Elapsed`). `MAGVERIFY_DRY_RUN=1 MAGverify end-to-end ...` only prints the step commands.
 
 Each module can also be run on its own, for example to rerun one step with other settings; see [Modules](docs/MODULES.md) for every command, what each module tests and its options.
 
-## 4. Results
+## 5. Results
 
 **Start with `summary.MAG.tsv`** at the top of the output folder: one row per MAG, the number of checks that flagged it (`n_flagged_checks`), then one `Y`/`N`/`NA` column per check (`NA`: not assessable or not run; `Checks_not_run` names the checks that were not run), then counts. `summary.contig.tsv` has the same checks for every contig (`MAG_ID` is `NA` for unbinned contigs).
 
