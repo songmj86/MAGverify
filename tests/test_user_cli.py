@@ -74,9 +74,9 @@ bam="$2/example.bam"
 printf 'BAM' > "$bam"
 mkdir -p "$2/.cache"
 printf 'hash' > "$2/.cache/example.bam.inputs.sha256"
-printf 'Assembler\\tAssembly_FASTA\\tHiFi_all_BAM\\tHiFi_primary_BAM\\tHiFi_primary_supplementary_BAM\\tOutput_directory\\tReads\\n' > "$2/mapping_manifest.tsv"
+printf 'Assembler\\tAssembly_FASTA\\tHiFi_all_BAM\\tHiFi_primary_BAM\\tHiFi_primary_supplementary_BAM\\tOutput_directory\\tReads\\n' > "$2/.cache/mapping_manifest.tsv"
 for name in $ASSEMBLER_FASTAS; do
-  printf 'assembler\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n' "$ASSEMBLER_ASSEMBLY_DIR/$name" "$bam" "$bam" "$bam" "$2" "$1" >> "$2/mapping_manifest.tsv"
+  printf 'assembler\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n' "$ASSEMBLER_ASSEMBLY_DIR/$name" "$bam" "$bam" "$bam" "$2" "$1" >> "$2/.cache/mapping_manifest.tsv"
 done
 ''')
         (self.repo / 'modules/03_clipping.sh').write_text('''#!/bin/bash
@@ -92,7 +92,7 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
     def call(self, *options):
         options = [str(option) for option in options]
         env = dict(self.env)
-        if '--dry-run' in options:  # internal switch, not a user option
+        if '--dry-run' in options:
             options = [option for option in options if option != '--dry-run']
             env['MAGVERIFY_DRY_RUN'] = '1'
         return subprocess.run([str(self.repo / 'bin/MAGverify'), *options],
@@ -145,10 +145,10 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
                       '-r', self.reads_dir, '-a', self.source_dir,
                       '-o', self.output, '-t', '2')
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
-        self.assertTrue((self.output / '01_mapping/mapping_manifest.tsv').is_file())
+        self.assertTrue((self.output / '01_mapping/.cache/mapping_manifest.tsv').is_file())
         forwarded = (self.output / '03_clipping/forwarded.txt').read_text().splitlines()
         self.assertEqual(forwarded[1], str(self.mag_dir))
-        self.assertEqual((self.output / '01_mapping/mapping_manifest.tsv').is_file(), True)
+        self.assertEqual((self.output / '01_mapping/.cache/mapping_manifest.tsv').is_file(), True)
         self.assertTrue((self.output / '03_clipping/forwarded.txt').is_file())
 
     def test_downstream_reuses_mapping_with_reads_automatically(self):
@@ -172,7 +172,7 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
         p = self.call('map', '-r', self.reads_dir, '-a', self.source_dir,
                       '-o', self.output)
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
-        rows = (self.output / '01_mapping/mapping_manifest.tsv').read_text().splitlines()
+        rows = (self.output / '01_mapping/.cache/mapping_manifest.tsv').read_text().splitlines()
         self.assertEqual(len(rows), 3)
         self.assertIn('assembler_two.fa', rows[2])
 
@@ -194,9 +194,9 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
                       '-r', self.reads_dir, '-o', self.output,
                       '-t', '2')
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
-        combined = self.output / '00_prep/all_assemblies.fasta'
+        combined = self.output / '00_prep/all_assemblies.fa'
         self.assertEqual(combined.read_text(), self.source.read_text())
-        self.assertTrue((self.output / '01_mapping/mapping_manifest.tsv').is_file())
+        self.assertTrue((self.output / '01_mapping/.cache/mapping_manifest.tsv').is_file())
         forwarded = (self.output / '03_clipping/forwarded.txt').read_text()
         self.assertIn(str(mags), forwarded)
 
@@ -208,7 +208,7 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
                       '--mapping-manifest', self.manifest,
                       '-o', self.output)
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
-        self.assertEqual((self.output / '00_prep/all_assemblies.fasta').read_text(),
+        self.assertEqual((self.output / '00_prep/all_assemblies.fa').read_text(),
                          self.source.read_text())
         self.assertFalse((self.output / '01_mapping').exists())
 
@@ -236,7 +236,7 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
         (originals / 'source.fa').write_text('>ctg1\nACGTACGT\n>ctg2\nAAAA\n')
         third = self.call(*base)
         self.assertEqual(third.returncode, 0, third.stdout + third.stderr)
-        self.assertIn('>ctg2', (self.output / '00_prep/all_assemblies.fasta').read_text())
+        self.assertIn('>ctg2', (self.output / '00_prep/all_assemblies.fa').read_text())
 
     def test_missing_source_input_explained(self):
         p = self.call('clipping', '-g', self.mag_dir,
@@ -278,7 +278,7 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
         p = self.call('map', '-r', self.reads_dir, '-a', self.home / 'missing',
                       '-o', self.output)
         self.assertNotEqual(p.returncode, 0)
-        self.assertIn('-a must be an existing directory', p.stderr)
+        self.assertIn('-a directory not found', p.stderr)
 
     def test_old_assemblies_dir_option_is_rejected(self):
         for old in ('--assemblies-dir', '--contigs-dir'):
@@ -322,11 +322,29 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
             'summary': base + ['--include', 'repeats', '--repeats-table', str(self.generic_tsv),
                                  '--repeats-mag-table', str(self.generic_tsv)],
         }
+        legacy = {
+            '00_prep/combined_assembly.fasta': '>ctg1\nACGTACGT\n',
+            '00_prep/combined_assembly.fasta.sources.json': '[]',
+            '02_circularity/00_source_plan/plan.tsv': 'x\n',
+            '03_clipping/MAG_clipping.final.tsv': 'MAG_ID\n',
+            '03_clipping/clipping.inputs.sha256': 'x\n',
+            'results/summary.MAG.tsv': 'x\n',
+        }
+        for name, text in legacy.items():
+            (self.output / name).parent.mkdir(parents=True, exist_ok=True)
+            (self.output / name).write_text(text)
+
+        def snapshot():
+            return sorted((str(path.relative_to(self.output)), path.is_dir() or path.read_bytes())
+                          for path in self.output.rglob('*'))
+
+        before = snapshot()
         for stage, cli in cases.items():
             with self.subTest(stage=stage):
                 p = self.call(stage, *cli, '--dry-run')
                 self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
                 self.assertIn('.sh', p.stdout)
+                self.assertEqual(snapshot(), before, 'dry run changed files')
 
     def test_directory_interface_across_all_modules(self):
         source_dir = self.home / 'source_fastas'
@@ -358,6 +376,20 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
                 self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
                 self.assertIn('.sh', p.stdout)
 
+    def test_summary_lists_every_missing_module(self):
+        repeats = self.output / '06_repeats' / '.cache'
+        repeats.mkdir(parents=True)
+        (repeats / 'repeats.contig.tsv').write_text('ID\tcall\nctg1\tY\n')
+        (repeats / 'repeats.MAG.tsv').write_text('ID\tcall\nctg1\tY\n')
+        p = self.call('summary', '-a', str(self.source_dir), '--mag-map', str(self.map_table),
+                      '-o', str(self.output), '--dry-run')
+        self.assertNotEqual(p.returncode, 0)
+        message = p.stderr
+        for name in ('clipping:', 'chimera:', 'false-closure:', 'false-duplication:'):
+            self.assertIn(name, message)
+        self.assertNotIn('repeats:', message)
+        self.assertIn('--include repeats', message)
+
     def test_chimera_accepts_database_without_taxonomy_table(self):
         args = ('chimera', '-a', self.source_dir, '--mag-map', self.map_table,
                 '--mapping-manifest', self.manifest,
@@ -371,13 +403,13 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
         prep = Path(self.output) / '00_prep'
         prep.mkdir(parents=True, exist_ok=True)
         (prep / 'GTDB_R232.dbtype').write_bytes(b'\x00\x00\x00\x00')
-        (prep / 'gtdb_taxonomy.MAG.tsv').write_text('ID\tGTDB_Domain\nm1\td__Bacteria\n')
+        (prep / 'gtdbtk_taxonomy.MAG.tsv').write_text('ID\tGTDB_Domain\nm1\td__Bacteria\n')
         p = self.call('chimera', '-a', self.source_dir, '--mag-map', self.map_table,
                       '--mapping-manifest', self.manifest, '--clipping-table', self.generic_tsv,
                       '-o', self.output, '--dry-run')
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         self.assertIn('MMseqs2 database: ' + str(prep / 'GTDB_R232'), p.stdout)
-        self.assertIn('MAG taxonomy: ' + str(prep / 'gtdb_taxonomy.MAG.tsv'), p.stdout)
+        self.assertIn('MAG taxonomy: ' + str(prep / 'gtdbtk_taxonomy.MAG.tsv'), p.stdout)
 
     def test_chimera_explains_missing_taxonomy_database(self):
         p = self.call('chimera', '-a', self.source_dir, '--mag-map', self.map_table,

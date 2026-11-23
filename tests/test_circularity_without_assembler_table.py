@@ -7,7 +7,7 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parent.parent
-SCRIPT = ROOT / 'scripts' / 'circularity_refresh_circularity_compat.py'
+SCRIPT = ROOT / 'scripts' / 'circularity_finalize.py'
 
 
 class CircularityWithoutAssemblerTableTests(unittest.TestCase):
@@ -20,7 +20,7 @@ class CircularityWithoutAssemblerTableTests(unittest.TestCase):
                 'Bin1L\t1\tY\tY\n'
                 'Bin2L\t3\tN\tNA\n')
             final = root / 'final.tsv'
-            result = subprocess.run([sys.executable, '-I', str(SCRIPT), '--canonical', str(canonical),
+            result = subprocess.run([sys.executable, '-I', str(SCRIPT), 'refresh', '--canonical', str(canonical),
                                      '--assembler-circularity', '', '--final', str(final)],
                                     text=True, capture_output=True, cwd=root)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

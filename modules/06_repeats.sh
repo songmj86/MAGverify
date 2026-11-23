@@ -52,12 +52,11 @@ export NUMEXPR_NUM_THREADS=1
 REPEAT_WORK_DIR="$REPEAT_DIR/.work"
 SELF_BLAST="$REPEAT_WORK_DIR/self_blast.paper_same_contig.filtered.tsv"
 INTER_BLAST="$REPEAT_WORK_DIR/inter_blast.paper_same_MAG_different_contig.filtered.tsv"
-REPEAT_HSP="$REPEAT_DIR/repeats.HSP.tsv"
-REPEAT_REGIONS="$REPEAT_DIR/repeats.region.tsv"
+REPEAT_HSP="$REPEAT_DIR/.cache/repeats.HSP.tsv"
+REPEAT_REGIONS="$REPEAT_DIR/.cache/repeats.region.tsv"
 REPEAT_MAG_MAP="${REPEAT_MAG_MAP:-$MAG_CONTIG_MAP}"
-REPEAT_MAG_SUM="${REPEAT_MAG_SUM:-$REPEAT_DIR/repeats.MAG.tsv}"
-REPEAT_DATASET_SUM="${REPEAT_DATASET_SUM:-$REPEAT_DIR/repeats.dataset.tsv}"
-REPEAT_DATASET_SUM_INTUITIVE="$REPEAT_DATASET_SUM"
+REPEAT_MAG_SUM="${REPEAT_MAG_SUM:-$REPEAT_DIR/.cache/repeats.MAG.tsv}"
+REPEAT_DATASET_SUM="${REPEAT_DATASET_SUM:-$REPEAT_DIR/.cache/repeats.dataset.tsv}"
 
 REPEAT_REGION_BED="$REPEAT_WORK_DIR/repeat_regions.final.bed"
 REPEAT_REGION_TSV="$REPEAT_WORK_DIR/repeat_regions.final.tsv"
@@ -66,7 +65,6 @@ INTRA_REGION_TSV="$REPEAT_WORK_DIR/intra_repeat_regions.final.tsv"
 INTER_REGION_BED="$REPEAT_WORK_DIR/inter_repeat_regions.final.bed"
 INTER_REGION_TSV="$REPEAT_WORK_DIR/inter_repeat_regions.final.tsv"
 
-# Results of earlier versions: separate HSP/region tables in the module directory.
 for legacy in self_blast.paper_same_contig.filtered.tsv inter_blast.paper_same_MAG_different_contig.filtered.tsv \
               repeat_regions.final.bed repeat_regions.final.tsv intra_repeat_regions.final.bed \
               intra_repeat_regions.final.tsv inter_repeat_regions.final.bed inter_repeat_regions.final.tsv; do
@@ -522,7 +520,7 @@ SH_INTER
     merge_bed_file "$TMP_TOTAL_RAW_BED" "$TMP_TOTAL_MERGED"
 
     echo "[60G] Writing INTRA/INTER evidence summaries for final normalization"
-    python3 "$SCRIPT_DIR/../scripts/repeats_summarize_repeat_evidence.py" \
+    python3 "$SCRIPT_DIR/../scripts/repeats_tables.py" evidence \
         "${REPEAT_FASTA}.fai" "$REPEAT_MAG_MAP" \
         "$TMP_INTRA_MERGED" "$TMP_INTER_MERGED" "$TMP_TOTAL_MERGED" \
         "$TMP_INTRA_HSP" "$TMP_INTER_HSP" \
@@ -530,11 +528,7 @@ SH_INTER
         "$INTRA_REGION_BED" "$INTRA_REGION_TSV" \
         "$INTER_REGION_BED" "$INTER_REGION_TSV" \
         "$REPEAT_REGION_BED" "$REPEAT_REGION_TSV" \
-        "$REPEAT_DATASET_SUM_INTUITIVE" "$REPEAT_CONTIG_HIGH" "$REPEAT_GENOME_HIGH"
-
-    if [[ "$REPEAT_DATASET_SUM" != "$REPEAT_DATASET_SUM_INTUITIVE" ]]; then
-        cp -f "$REPEAT_DATASET_SUM_INTUITIVE" "$REPEAT_DATASET_SUM"
-    fi
+        "$REPEAT_DATASET_SUM" "$REPEAT_CONTIG_HIGH" "$REPEAT_GENOME_HIGH"
 
     mv -f "$TMP_INTRA_HSP" "$SELF_BLAST"
     mv -f "$TMP_INTER_HSP" "$INTER_BLAST"
@@ -545,13 +539,10 @@ SH_INTER
 fi
 
 echo "[60H] Normalizing final repeat interpretation: contig=INTRA only; MAG=INTRA+INTER union"
-python3 "$SCRIPT_DIR/../scripts/repeats_normalize_repeat_tables.py" \
-    "$REPEAT_SUM" "$REPEAT_MAG_SUM" "$REPEAT_DATASET_SUM_INTUITIVE" \
+python3 "$SCRIPT_DIR/../scripts/repeats_tables.py" normalize \
+    "$REPEAT_SUM" "$REPEAT_MAG_SUM" "$REPEAT_DATASET_SUM" \
     "$REPEAT_CONTIG_HIGH" "$REPEAT_GENOME_HIGH"
 
-if [[ "$REPEAT_DATASET_SUM" != "$REPEAT_DATASET_SUM_INTUITIVE" ]]; then
-    cp -f "$REPEAT_DATASET_SUM_INTUITIVE" "$REPEAT_DATASET_SUM"
-fi
 
 read -r -a REPEAT_ASSEMBLER_FILES <<< "$ASSEMBLER_FASTAS"
 ((${#REPEAT_ASSEMBLER_FILES[@]} > 0)) || {
@@ -576,30 +567,24 @@ for fasta_name in "${REPEAT_ASSEMBLER_FILES[@]}"; do
     REPEAT_SOURCE_FASTAS+=("$source_fasta")
 done
 
-python3 "$SCRIPT_DIR/../scripts/repeats_summarize_repeat_by_assembler.py" \
+python3 "$SCRIPT_DIR/../scripts/repeats_tables.py" assembler \
     "${REPEAT_FASTA}.fai" "$REPEAT_SUM" "$REPEAT_MAG_SUM" \
-    "$REPEAT_DATASET_SUM_INTUITIVE" "${REPEAT_SOURCE_FASTAS[@]}"
+    "$REPEAT_DATASET_SUM" "${REPEAT_SOURCE_FASTAS[@]}"
 
-if [[ "$REPEAT_DATASET_SUM" != "$REPEAT_DATASET_SUM_INTUITIVE" ]]; then
-    cp -f "$REPEAT_DATASET_SUM_INTUITIVE" "$REPEAT_DATASET_SUM"
-fi
 
-LEGACY_REPEAT_DATASET_SUM="$REPEAT_DIR/dataset_intracontig_repeat_breadth.final.tsv"
-if [[ "$LEGACY_REPEAT_DATASET_SUM" != "$REPEAT_DATASET_SUM_INTUITIVE" ]]; then
-    rm -f "$LEGACY_REPEAT_DATASET_SUM"
-fi
+rm -f "$REPEAT_DIR/dataset_intracontig_repeat_breadth.final.tsv"
 
 qc_write_result_cache_atomic "$REPEAT_CACHE_META" "$REPEAT_FINGERPRINT" "$REPEAT_SUM"
 
 if [[ -s "$SELF_BLAST" && -s "$INTRA_REGION_TSV" ]]; then
-    python3 "$SCRIPT_DIR/../scripts/repeats_consolidate_outputs.py" "$REPEAT_MAG_MAP" \
+    python3 "$SCRIPT_DIR/../scripts/repeats_tables.py" consolidate "$REPEAT_MAG_MAP" \
         "$SELF_BLAST" "$INTER_BLAST" "$INTRA_REGION_TSV" "$INTER_REGION_TSV" "$REPEAT_REGION_TSV" \
         "$REPEAT_HSP" "$REPEAT_REGIONS"
 fi
 rm -rf "$REPEAT_WORK_DIR"
 
 for f in "$REPEAT_SUM" "$REPEAT_MAG_SUM" "$REPEAT_HSP" "$REPEAT_REGIONS" \
-         "$REPEAT_DATASET_SUM_INTUITIVE"; do
+         "$REPEAT_DATASET_SUM"; do
     [[ -s "$f" ]] || { echo "ERROR: expected repeat output missing/empty: $f"; exit 1; }
 done
 
@@ -607,7 +592,7 @@ echo
 echo "[06_repeats] Final outputs"
 echo "Contig summary (INTRA)            : $REPEAT_SUM"
 echo "MAG summary (INTRA+INTER union)   : $REPEAT_MAG_SUM"
-echo "Dataset summary (INTRA)           : $REPEAT_DATASET_SUM_INTUITIVE"
+echo "Dataset summary (INTRA)           : $REPEAT_DATASET_SUM"
 echo "Repeat regions (INTRA/INTER/TOTAL): $REPEAT_REGIONS"
 echo "BLAST HSPs (INTRA/INTER)          : $REPEAT_HSP"
 echo "Assembler information             : Assembler + assembler-specific INTRA excessive-repeat contig counts"

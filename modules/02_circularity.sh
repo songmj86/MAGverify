@@ -96,7 +96,7 @@ SORT_THREADS="$CIRCULARITY_SORT_THREADS"
 SORT_MEMORY="$CIRCULARITY_SORT_MEMORY"
 HIFI_ANCHOR="$CIRCULARITY_HIFI_ANCHOR_BP"
 MIN_HIFI_READS="$CIRCULARITY_MIN_HIFI_QNAMES"
-CIRCULARITY_REFRESH_HELPER="$SCRIPT_DIR/../scripts/circularity_refresh_circularity_compat.py"
+CIRCULARITY_FINALIZE="$SCRIPT_DIR/../scripts/circularity_finalize.py"
 REUSE_EXISTING="Y"
 MINIMAP2_INDEX_CHUNK="$CIRCULARITY_MINIMAP2_INDEX_CHUNK"
 MINIMAP2_MAX_SECONDARY="$CIRCULARITY_MINIMAP2_MAX_SECONDARY"
@@ -132,7 +132,7 @@ if ((${#HIFI_FILES[@]} == 0)); then
 fi
 
 require_dir "$MAG_DIR"
-require_file "$CIRCULARITY_REFRESH_HELPER"
+require_file "$CIRCULARITY_FINALIZE"
 for file in "${HIFI_FILES[@]}"; do require_file "$file"; done
 
 for value in "$THREADS" "$SORT_THREADS" "$HIFI_ANCHOR" "$MIN_HIFI_READS"; do
@@ -156,13 +156,38 @@ MINIMAP2_VERSION="$($MINIMAP2_CMD --version 2>/dev/null | head -n 1 || true)"
 echo "[$SCRIPT_NAME] minimap2 executable: $MINIMAP2_CMD"
 echo "[$SCRIPT_NAME] minimap2 version: $MINIMAP2_VERSION"
 
+migrate_circularity_layout() {
+    local cache="$OUTDIR/.cache" pair old new
+    mkdir -p "$cache"
+    for pair in \
+        "00_source_plan|.cache/assembler_plan" "00_assembler_plan|.cache/assembler_plan" \
+        "01_by_source|.cache/by_assembler" "01_by_assembler|.cache/by_assembler" \
+        "MAG_END_START_closure.final.tsv|.cache/circularity.MAG.junction.tsv" \
+        "circularity.MAG.junction.tsv|.cache/circularity.MAG.junction.tsv" \
+        "MAG_circularity.audit.tsv|.cache/circularity.MAG.audit.tsv" \
+        "circularity.MAG.audit.tsv|.cache/circularity.MAG.audit.tsv" \
+        "run_parameters.txt|.cache/run_parameters.txt" \
+        "source_group_outputs.tsv|.cache/assembler_group_outputs.tsv" \
+        "assembler_group_outputs.tsv|.cache/assembler_group_outputs.tsv"; do
+        old="$OUTDIR/${pair%%|*}"
+        new="$OUTDIR/${pair#*|}"
+        if [[ -e "$old" && ! -e "$new" ]]; then
+            mv "$old" "$new"
+        elif [[ -e "$old" && -f "$old" ]]; then
+            rm -f "$old"
+        fi
+    done
+    rm -f "$OUTDIR/MAG_circularity.final.tsv"
+}
+
 run_assembler_groups() {
-    local plan_dir="$OUTDIR/00_assembler_plan"
+    migrate_circularity_layout
+    local plan_dir="$OUTDIR/.cache/assembler_plan"
     local grouped_mag_root="$plan_dir/group_MAGs"
     local plan_table="$plan_dir/assembler_execution_plan.tsv"
     local group_table="$plan_dir/assembler_groups.tsv"
     local validation_table="$plan_dir/assembler_matching_validation.tsv"
-    local grouped_output_root="$OUTDIR/01_by_assembler"
+    local grouped_output_root="$OUTDIR/.cache/by_assembler"
 
     require_dir "$ASSEMBLER_ASSEMBLY_DIR"
     local -a assembler_fasta_names=()
@@ -194,7 +219,7 @@ run_assembler_groups() {
         mkdir -p "$plan_dir" "$grouped_mag_root"
         echo "[$SCRIPT_NAME] Matching each single-contig MAG to its contig in the assembler FASTAs."
 
-        python3 "$SCRIPT_DIR/../scripts/circularity_match_mags_to_assemblers.py" "$ASSEMBLER_ASSEMBLY_DIR" "$ASSEMBLER_FASTAS" "$MAG_DIR" \
+        python3 "$SCRIPT_DIR/../scripts/circularity_reference.py" match "$ASSEMBLER_ASSEMBLY_DIR" "$ASSEMBLER_FASTAS" "$MAG_DIR" \
             "$grouped_mag_root" "$plan_table" "$group_table" \
             "$validation_table" "$HIFI_ANCHOR"
     fi
@@ -243,27 +268,40 @@ run_assembler_groups() {
         ( "${worker_command[@]}" && : > "$grouped_output_root/$group_id/.worker_done" ) &
         qc_wait_for_slot "$worker_jobs"
     done < "$group_table"
-    wait
+    qc_wait_all
     while IFS=$'\t' read -r group_id assembler assembly mag_count group_mag_dir; do
         [[ "$group_id" == "Group_ID" || -z "$group_id" ]] && continue
         [[ -e "$grouped_output_root/$group_id/.worker_done" ]] \
             || die "circularity failed for assembler group $group_id ($assembler)"
     done < "$group_table"
 
-    local merged_final="$OUTDIR/circularity.MAG.junction.tsv"
-    local merged_parameters="$OUTDIR/run_parameters.txt"
-    local group_outputs="$OUTDIR/assembler_group_outputs.tsv"
+    local merged_final="$OUTDIR/.cache/circularity.MAG.junction.tsv"
+    local merged_parameters="$OUTDIR/.cache/run_parameters.txt"
+    local group_outputs="$OUTDIR/.cache/assembler_group_outputs.tsv"
 
-    python3 "$SCRIPT_DIR/../scripts/circularity_merge_assembler_groups.py" "$plan_table" "$group_table" "$grouped_output_root" \
+    python3 "$CIRCULARITY_FINALIZE" merge "$plan_table" "$group_table" "$grouped_output_root" \
         "$validation_table" "$merged_final" "$group_outputs"
 
-    local circularity_compat_final="$OUTDIR/circularity.MAG.tsv"
-    local circularity_compat_audit="$OUTDIR/circularity.MAG.audit.tsv"
-    python3 "$CIRCULARITY_REFRESH_HELPER" \
+    local circularity_compat_final="$OUTDIR/.cache/circularity.MAG.tsv"
+    local circularity_compat_audit="$OUTDIR/.cache/circularity.MAG.audit.tsv"
+    python3 "$CIRCULARITY_FINALIZE" refresh \
         --canonical "$merged_final" \
         --assembler-circularity "$CIRCULARITY_TSV" \
         --final "$circularity_compat_final" \
         --audit "$circularity_compat_audit"
+    python3 "$CIRCULARITY_FINALIZE" add-junction \
+        "$circularity_compat_final" "$merged_final"
+    local assembler_contig_calls=""
+    if [[ "$CIRCULARITY_TSV" == *.MAG.tsv && -s "${CIRCULARITY_TSV%.MAG.tsv}.contig.tsv" ]]; then
+        assembler_contig_calls="${CIRCULARITY_TSV%.MAG.tsv}.contig.tsv"
+    fi
+    python3 "$CIRCULARITY_FINALIZE" contig \
+        --mag-table "$circularity_compat_final" \
+        --mag-dir "$MAG_DIR" \
+        --assembly-dir "$ASSEMBLER_ASSEMBLY_DIR" \
+        --assembly-fastas "$ASSEMBLER_FASTAS" \
+        --assembler-circularity "$assembler_contig_calls" \
+        --output "$OUTDIR/.cache/circularity.contig.tsv"
 
     {
         echo "Script: $SCRIPT_NAME"
@@ -376,7 +414,7 @@ if [[ "$REUSE_EXISTING" == "Y" ]] && all_nonempty \
 else
     echo "[$SCRIPT_NAME] Building the reference: all $ASSEMBLER_LABEL contigs, single-contig MAG contigs rotated."
 
-    python3 "$SCRIPT_DIR/../scripts/circularity_build_rotated_reference.py" "$ASSEMBLY" "$MAG_DIR" "$ROTATED_REFERENCE" \
+    python3 "$SCRIPT_DIR/../scripts/circularity_reference.py" rotate "$ASSEMBLY" "$MAG_DIR" "$ROTATED_REFERENCE" \
     "$ROTATION_MANIFEST" "$CANDIDATE_SELECTION" "$CANDIDATE_BED" \
     "$JUNCTION_BED" "$HIFI_ANCHOR"
 fi
@@ -449,7 +487,7 @@ if [[ "$REUSE_EXISTING" == "Y" && "$JUNCTION_POLICY_CURRENT" == "Y" ]] && all_no
 else
     echo "[$SCRIPT_NAME] Detecting junction-spanning HiFi alignments across the internalized original END|START."
 
-    python3 "$SCRIPT_DIR/../scripts/circularity_summarize_circularity_junctions.py" "$HIFI_BAM" "$JUNCTION_BED" "$ROTATION_MANIFEST" \
+    python3 "$SCRIPT_DIR/../scripts/circularity_junction.py" summarize "$HIFI_BAM" "$JUNCTION_BED" "$ROTATION_MANIFEST" \
     "$HIFI_ANCHOR" "$MIN_HIFI_READS" \
     "$HIFI_SPAN_DETAILS" "$HIFI_SUMMARY"
 fi
@@ -464,7 +502,7 @@ if [[ "$REUSE_EXISTING" == "Y" && "$JUNCTION_POLICY_CURRENT" == "Y" ]] && \
     echo "[$SCRIPT_NAME] SKIP: HiFi-only final circularity table is current."
 else
     echo "[$SCRIPT_NAME] Building HiFi-only final circularity table."
-    python3 "$SCRIPT_DIR/../scripts/circularity_integrate_circularity_results.py" "$CANDIDATE_SELECTION" "$ROTATION_MANIFEST" "$HIFI_SUMMARY" "$FINAL_SUMMARY"
+    python3 "$SCRIPT_DIR/../scripts/circularity_junction.py" integrate "$CANDIDATE_SELECTION" "$ROTATION_MANIFEST" "$HIFI_SUMMARY" "$FINAL_SUMMARY"
 fi
 
 {

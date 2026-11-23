@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""Build the MAG-to-contig map (MAG_ID, Contig) from MAG FASTAs and the all-assemblies FAI."""
 import argparse
 import csv
 import os

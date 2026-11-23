@@ -41,7 +41,7 @@ class PrepChimeraCLITests(unittest.TestCase):
     def run_cli(self, *args):
         args = [str(arg) for arg in args]
         env = dict(self.env)
-        if '--dry-run' in args:  # internal switch, not a user option
+        if '--dry-run' in args:
             args.remove('--dry-run')
             env['MAGVERIFY_DRY_RUN'] = '1'
         return subprocess.run([str(self.cmd), *args],
@@ -64,10 +64,10 @@ class PrepChimeraCLITests(unittest.TestCase):
         result = self.run_cli('prep-chimera', '--gtdb-dir', self.gtdb,
                               '-o', self.output, '-t', '1')
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        argv = (self.output / '00_prep/tmp_prep_chimera/invocation.txt').read_text().splitlines()
-        self.assertEqual(argv, [str(self.output / '00_prep/tmp_prep_chimera'), '1', str(self.gtdb),
+        argv = (self.output / '00_prep/.cache/prep_chimera_work/invocation.txt').read_text().splitlines()
+        self.assertEqual(argv, [str(self.output / '00_prep/.cache/prep_chimera_work'), '1', str(self.gtdb),
                                 str(self.output / '00_prep/GTDB_R232')])
-        self.assertFalse((self.output / '00_prep/tmp_prep_chimera/0_prep').exists())
+        self.assertFalse((self.output / '00_prep/.cache/prep_chimera_work/0_prep').exists())
 
     def test_database_prefix_option_removed(self):
         result = self.run_cli('prep-chimera', '--gtdb-dir', self.gtdb,

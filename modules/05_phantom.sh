@@ -19,12 +19,73 @@ SCRIPT_ID="05_phantom"
 : "${PHANTOM_MAG_MERYL_FINAL:?}" "${PHANTOM_MAG_MERYL_CATALOGUE:?}"
 : "${PHANTOM_MAG_MERYL_CACHE_META:?}" "${PHANTOM_MAG_MERYL_CATALOGUE_CACHE_META:?}"
 
-PHANTOM_MAG_SUMMARIZER="$SCRIPT_DIR/../scripts/phantom_summarize_phantom_by_mag.py"
+PHANTOM_MAG_SUMMARIZER="$SCRIPT_DIR/../scripts/phantom_mag.py"
 PHANTOM_CACHE_META="${PHANTOM_CACHE_META:-${PHANTOM_DIR}/.cache/phantom.region.tsv.inputs.sha256}"
 PHANTOM_DB_CACHE_META="${PHANTOM_BLAST_DB}.inputs.sha256"
-PHANTOM_SOURCE_MAPPING_AUDIT="${PHANTOM_DIR}/phantom.mapping_manifest.tsv"
+PHANTOM_SOURCE_MAPPING_AUDIT="${PHANTOM_CACHE_DIR}/mapping_manifest.tsv"
 FORCE_RERUN_PHANTOM="${FORCE_RERUN_PHANTOM:-N}"
 
+migrate_phantom_layout() {
+    local pair old new
+    mkdir -p "$PHANTOM_CACHE_DIR"
+    if [[ -e "${PHANTOM_DIR}/MAG_phantom_meryl.final.tsv" && -e "${PHANTOM_DIR}/phantom.MAG.tsv" ]]; then
+        mv -f "${PHANTOM_DIR}/phantom.MAG.tsv" "$PHANTOM_MAG_SUMMARY"
+    fi
+    for pair in \
+        "MAG_phantom_meryl.final.tsv|$PHANTOM_MAG_MERYL_FINAL" \
+        "MAG_phantom_meryl.final.tsv.inputs.sha256|$PHANTOM_MAG_MERYL_CACHE_META" \
+        "MAG_phantom_meryl.catalogue.final.tsv|$PHANTOM_MAG_MERYL_CATALOGUE" \
+        "MAG_phantom_meryl.catalogue.final.tsv.inputs.sha256|$PHANTOM_MAG_MERYL_CATALOGUE_CACHE_META" \
+        "phantom_kmer_confirmation.final.tsv|$PHANTOM_KMER_FINAL" \
+        "phantom_kmer_confirmation.final.tsv.inputs.sha256|$PHANTOM_KMER_CACHE_META" \
+        "phantom.MAG_region.tsv|$PHANTOM_MAG_SITES" \
+        "zero_regions.bed|$PHANTOM_ZERO_BED" "zero_regions.fa|$PHANTOM_ZERO_FA" \
+        "zero_regions.tsv|$PHANTOM_ZERO_TSV" "zero_regions_vs_raw_reads.tsv|$PHANTOM_BLAST" \
+        "raw_reads_blastdb|$(dirname "$PHANTOM_BLAST_DB")" \
+        "meryl|$(dirname "$PHANTOM_MERYL_READ_DB")" \
+        "phantom.mapping_manifest.tsv|$PHANTOM_SOURCE_MAPPING_AUDIT"; do
+        old="${PHANTOM_DIR}/${pair%%|*}"
+        new="${pair#*|}"
+        [[ -e "$old" && "$old" != "$new" ]] || continue
+        if [[ ! -e "$new" ]]; then
+            mkdir -p "$(dirname "$new")"
+            mv "$old" "$new"
+        elif [[ -f "$old" ]]; then
+            rm -f "$old"
+        fi
+    done
+}
+
+write_phantom_dataset() {
+    python3 - "$PHANTOM_KMER_FINAL" "$PHANTOM_MAG_MERYL_CATALOGUE" "$PHANTOM_DATASET" <<'PY_DATASET'
+import csv
+import os
+import sys
+kmer_path, catalogue_path, output = sys.argv[1:]
+fields = ['scope', 'k', 'n_MAGs_total', 'n_MAGs_with_phantom', 'n_regions', 'phantom_bp',
+          'candidate_distinct_kmers', 'absent_from_reads_distinct_kmers', 'absent_kmer_fraction',
+          'interpretation']
+rows = []
+with open(kmer_path, encoding='utf-8', newline='') as handle:
+    for row in csv.DictReader(handle, delimiter='\t'):
+        rows.append({'scope': 'BLAST_negative_regions_all_contigs', 'n_MAGs_total': 'NA',
+                     'n_MAGs_with_phantom': 'NA', 'n_regions': row['n_blast_negative_regions'],
+                     'phantom_bp': 'NA', **{k: row[k] for k in fields if k in row}})
+if os.path.isfile(catalogue_path):
+    with open(catalogue_path, encoding='utf-8', newline='') as handle:
+        for row in csv.DictReader(handle, delimiter='\t'):
+            rows.append({'scope': 'phantom_regions_in_MAGs', 'n_regions': row['n_phantom_regions'],
+                         **{k: row[k] for k in fields if k in row}})
+temp = f'{output}.tmp.{os.getpid()}'
+with open(temp, 'w', encoding='utf-8', newline='') as handle:
+    writer = csv.DictWriter(handle, fields, delimiter='\t', lineterminator='\n', extrasaction='ignore')
+    writer.writeheader()
+    writer.writerows(rows)
+os.replace(temp, output)
+PY_DATASET
+}
+
+migrate_phantom_layout
 mkdir -p "$OUT/00_log" "${PHANTOM_DIR}" \
     "$(dirname "$PHANTOM_BLAST_DB")" "$(dirname "$PHANTOM_FINAL")" \
     "$(dirname "$PHANTOM_MAG_SITES")" "$(dirname "$PHANTOM_MAG_SUMMARY")" \
@@ -115,13 +176,13 @@ if set(union) != set(combined):
     missing = sorted(set(combined) - set(union))[:20]
     extra = sorted(set(union) - set(combined))[:20]
     raise SystemExit(
-        'ERROR: source-assembler contig union differs from concatenated assembly; '
+        'ERROR: assembler contig union differs from concatenated assembly; '
         f'missing_from_sources={missing}, extra_in_sources={extra}'
     )
 for contig, (_, length) in union.items():
     if combined[contig] != length:
         raise SystemExit(
-            f'ERROR: contig length mismatch for {contig}: source={length}, combined={combined[contig]}'
+            f'ERROR: contig length mismatch for {contig}: assembler={length}, combined={combined[contig]}'
         )
 PY_SOURCE_UNION
 
@@ -147,6 +208,11 @@ def digest(path):
             h.update(block)
     return h.hexdigest()
 
+def manifest_digest(path):
+    with open(path, 'rb') as handle:
+        lines = handle.read().split(b'\n')
+    return hashlib.sha256(b'\n'.join(b'\t'.join(line.split(b'\t')[:7]) for line in lines)).hexdigest()
+
 rows = []
 with open(manifest, encoding='utf-8-sig', newline='') as handle:
     for row in csv.DictReader(handle, delimiter='\t'):
@@ -162,7 +228,7 @@ with open(manifest, encoding='utf-8-sig', newline='') as handle:
 payload = {
     'design': 'source_assembler_specific_all_mapped_zero_depth_v1',
     'assemblies_fai_sha256': digest(assemblies_fai),
-    'manifest_sha256': digest(manifest),
+    'manifest_sha256': manifest_digest(manifest),
     'sources': rows,
 }
 print(hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest())
@@ -182,7 +248,8 @@ write_mag_phantom_outputs() {
         --mag-contig-map "$MAG_CONTIG_MAP" \
         --fai "${ASSEMBLY_FA}.fai" \
         --site-output "$PHANTOM_MAG_SITES" \
-        --summary-output "$PHANTOM_MAG_SUMMARY"
+        --summary-output "$PHANTOM_MAG_SUMMARY" \
+        --contig-output "$PHANTOM_CONTIG"
 }
 
 DB_FP="$(python3 - "$READS" <<'PY_DB_FP'
@@ -225,12 +292,12 @@ TMP_TSV="${PHANTOM_ZERO_TSV}.tmp.$$"
 TMP_FA="${PHANTOM_ZERO_FA}.tmp.$$"
 TMP_BLAST="${PHANTOM_BLAST}.tmp.$$"
 TMP_FINAL="${PHANTOM_FINAL}.tmp.$$"
-TMP_NOHIT_FA="${PHANTOM_DIR}/no_blast_hit_regions.fa.tmp.$$"
+TMP_NOHIT_FA="${PHANTOM_CACHE_DIR}/no_blast_hit_regions.fa.tmp.$$"
 TMP_KMER_FINAL="${PHANTOM_KMER_FINAL}.tmp.$$"
-TMP_CANDIDATE_DB="${PHANTOM_DIR}/meryl/candidates.k${PHANTOM_KMER_K}.tmp.$$.meryl"
-TMP_DIFFERENCE_DB="${PHANTOM_DIR}/meryl/absent.k${PHANTOM_KMER_K}.tmp.$$.meryl"
+TMP_CANDIDATE_DB="$(dirname "$PHANTOM_MERYL_READ_DB")/candidates.k${PHANTOM_KMER_K}.tmp.$$.meryl"
+TMP_DIFFERENCE_DB="$(dirname "$PHANTOM_MERYL_READ_DB")/absent.k${PHANTOM_KMER_K}.tmp.$$.meryl"
 TMP_READ_DB="${PHANTOM_MERYL_READ_DB}.tmp.$$"
-TMP_MAG_MERYL_DIR="${PHANTOM_DIR}/mag_meryl.tmp.$$"
+TMP_MAG_MERYL_DIR="${PHANTOM_CACHE_DIR}/mag_meryl.tmp.$$"
 
 remove_meryl_db() {
     local path="$1"
@@ -535,13 +602,12 @@ if [[ "$FORCE_RERUN_PHANTOM" != "Y" ]] \
         remove_meryl_db "$PHANTOM_MERYL_READ_DB"
         rm -f "$PHANTOM_MERYL_READ_CACHE"
     fi
+    write_phantom_dataset
     echo "Outputs:"
     echo "  $PHANTOM_FINAL"
-    echo "  $PHANTOM_KMER_FINAL"
-    echo "  $PHANTOM_MAG_SITES"
-    echo "  $PHANTOM_MAG_SUMMARY"
+    echo "  $PHANTOM_CONTIG"
     echo "  $PHANTOM_MAG_MERYL_FINAL"
-    echo "  $PHANTOM_MAG_MERYL_CATALOGUE"
+    echo "  $PHANTOM_DATASET"
     echo "[05_phantom] Finished: $(date)"
     exit 0
 fi
@@ -598,7 +664,7 @@ for row in "${ZERO_ROWS[@]}"; do
     ( zero_depth_one_assembler "$hifi_all" "$ZERO_PARTS_DIR/$assembler.bed" ) &
     qc_wait_for_slot "$ZERO_JOBS"
 done
-wait
+qc_wait_all
 for row in "${ZERO_ROWS[@]}"; do
     IFS=$'\t' read -r assembler hifi_all <<< "$row"
     [[ -e "$ZERO_PARTS_DIR/$assembler.bed" ]] || { echo "ERROR: zero-depth scan failed for $assembler"; exit 1; }
@@ -809,14 +875,12 @@ esac
 remove_meryl_db "$PHANTOM_MERYL_READ_DB"
 rm -f "$PHANTOM_MERYL_READ_CACHE"
 
+write_phantom_dataset
 echo "Outputs:"
-echo "  $PHANTOM_SOURCE_MAPPING_AUDIT"
 echo "  $PHANTOM_FINAL"
-echo "  $PHANTOM_KMER_FINAL"
-echo "  $PHANTOM_MAG_SITES"
-echo "  $PHANTOM_MAG_SUMMARY"
+echo "  $PHANTOM_CONTIG"
 echo "  $PHANTOM_MAG_MERYL_FINAL"
-echo "  $PHANTOM_MAG_MERYL_CATALOGUE"
+echo "  $PHANTOM_DATASET"
 echo "[05_phantom] Finished: $(date)"
 )
 

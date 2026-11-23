@@ -34,21 +34,29 @@ FALSE_DUP_REDUNDANT_RECIPROCAL_OVERLAP="${FALSE_DUP_REDUNDANT_RECIPROCAL_OVERLAP
 : "${FALSE_DUP_CLIPPING_PROVENANCE:?ERROR: FALSE_DUP_CLIPPING_PROVENANCE is not set}"
 
 LOG="$OUT/00_log/08_false_duplication.log"
-FALSE_DUP_VALIDATION_ROOT="${FALSE_DUP_DIR}/validation"
-FALSE_DUP_VALIDATION_HIFI="$FALSE_DUP_VALIDATION_ROOT/hifi"
-FALSE_DUP_VALIDATION_CLIPPING="$FALSE_DUP_VALIDATION_ROOT/clipping"
-FALSE_DUP_IDN_EVENTS="${FALSE_DUP_DIR}/false_duplication_IDN.events.tsv"
-FALSE_DUP_IDN_SUMMARY="${FALSE_DUP_DIR}/false_duplication_IDN.summary.tsv"
-FALSE_DUP_CANDIDATE_PREPROCESSING="${FALSE_DUP_DIR}/false_duplication_candidates.preprocessing.tsv"
-VALIDATION_VIEW_EXPORTER="${VALIDATION_VIEW_EXPORTER:-$SCRIPT_DIR/../scripts/common_export_validation_view.py}"
+FALSE_DUP_IDN_EVENTS="${FALSE_DUP_CACHE_DIR}/false_duplication_IDN.events.tsv"
+FALSE_DUP_IDN_SUMMARY="${FALSE_DUP_CACHE_DIR}/false_duplication_IDN.summary.tsv"
+FALSE_DUP_CANDIDATE_PREPROCESSING="${FALSE_DUP_CACHE_DIR}/false_duplication_candidates.preprocessing.tsv"
 
-mkdir -p "$OUT/00_log" "${FALSE_DUP_DIR}" \
-    "$FALSE_DUP_VALIDATION_HIFI" "$FALSE_DUP_VALIDATION_CLIPPING"
+mkdir -p "$OUT/00_log" "${FALSE_DUP_DIR}" "$(dirname "$FALSE_DUP_CLIPPING_MAG_SUM")"
 
-rm -f \
-    "${FALSE_DUP_DIR}/false_duplication_HiFi_sensitivity.tsv" \
-    "${FALSE_DUP_DIR}/false_duplication_HiFi_anchor_sensitivity.tsv" \
-    "${FALSE_DUP_DIR}/false_duplication_HiFi_anchor_sensitivity.pairs.tsv"
+for pair in \
+    "duplication_self_minimap2.paf.gz|$FALSE_DUP_CANDIDATE_PAF" \
+    "duplication_candidate_search.provenance.tsv|$FALSE_DUP_CANDIDATE_PROVENANCE"; do
+    old="${FALSE_DUP_DIR}/${pair%%|*}"; new="${pair#*|}"
+    if [[ -e "$old" && ! -e "$new" ]]; then mkdir -p "$(dirname "$new")"; mv "$old" "$new"; fi
+done
+for legacy in false_duplication_HiFi_sensitivity.tsv false_duplication_HiFi_anchor_sensitivity.tsv \
+    false_duplication_HiFi_anchor_sensitivity.pairs.tsv duplication_self_minimap2.paf.gz \
+    duplication_candidate_search.provenance.tsv false_duplication_pairs.all_contigs.final.tsv \
+    false_duplication_boundaries.all_contigs.final.tsv false_duplication.all_contigs.tsv \
+    false_duplication.by_assembler.tsv false_duplication_pairs.final.tsv \
+    false_duplication_boundaries.final.tsv false_duplication.provenance.tsv \
+    false_duplication_IDN.events.tsv false_duplication_IDN.summary.tsv \
+    false_duplication_candidates.preprocessing.tsv; do
+    rm -f "${FALSE_DUP_DIR}/$legacy"
+done
+rm -rf "${FALSE_DUP_DIR}/validation"
 
 exec > >(tee -a "$LOG") 2>&1
 
@@ -66,9 +74,9 @@ for tool in python3 samtools minimap2 gzip sha256sum stat awk cat; do
     command -v "$tool" >/dev/null 2>&1 || { echo "ERROR: required tool not found: $tool"; exit 1; }
 done
 
-DETECTOR="$SCRIPT_DIR/../scripts/false_duplication_detect_false_duplication.py"
+DETECTOR="$SCRIPT_DIR/../scripts/false_duplication.py"
 [[ -s "$DETECTOR" ]] || { echo "ERROR: detector missing: $DETECTOR"; exit 1; }
-CLIPPING_ANNOTATOR="$SCRIPT_DIR/../scripts/false_duplication_annotate_false_duplication_clipping.py"
+CLIPPING_ANNOTATOR="$SCRIPT_DIR/../scripts/false_duplication.py"
 [[ -s "$CLIPPING_ANNOTATOR" ]] || { echo "ERROR: clipping annotator missing: $CLIPPING_ANNOTATOR"; exit 1; }
 [[ -s "$MAG_CONTIG_MAP" ]] || { echo "ERROR: MAG-contig map missing: $MAG_CONTIG_MAP"; exit 1; }
 [[ -s "$FALSE_DUP_MAPPING_MANIFEST" ]] || {
@@ -202,7 +210,7 @@ else
         qc_wait_for_slot "$self_jobs"
         paf_parts+=("$part")
     done
-    wait
+    qc_wait_all
     for part in "${paf_parts[@]}"; do
         [[ -s "$part" ]] || { echo "ERROR: Minimap2 self-alignment output missing: $part"; exit 1; }
     done
@@ -226,7 +234,8 @@ else
 fi
 
 FP_INPUT="$({
-    sha256sum "$FALSE_DUP_CANDIDATE_PAF" "$MAG_CONTIG_MAP" "$DETECTOR" "$FALSE_DUP_MAPPING_MANIFEST"
+    sha256sum "$FALSE_DUP_CANDIDATE_PAF" "$MAG_CONTIG_MAP" "$DETECTOR"
+    printf '%s  %s\n' "$(cut -f1-7 "$FALSE_DUP_MAPPING_MANIFEST" | sha256sum | cut -d' ' -f1)" "$FALSE_DUP_MAPPING_MANIFEST"
     while IFS=$'\t' read -r assembler assembly hifi_bam; do
         sha256sum "${assembly}.fai"
         stat -c '%n\t%s\t%Y' "$hifi_bam"
@@ -257,7 +266,7 @@ fi
 if [[ "$REUSE" == "Y" ]]; then
     echo "Reusing current false-duplication results."
 else
-    python3 "$DETECTOR" \
+    python3 "$DETECTOR" detect \
         --candidate-paf "$FALSE_DUP_CANDIDATE_PAF" \
         --mapping-manifest "$FALSE_DUP_MAPPING_MANIFEST" \
         --mag-map "$MAG_CONTIG_MAP" \
@@ -296,7 +305,7 @@ else
     mv -f "$TMP_PROV" "$FALSE_DUP_PROVENANCE"
 fi
 
-python3 "$CLIPPING_ANNOTATOR" \
+python3 "$CLIPPING_ANNOTATOR" annotate \
     --pairs "$FALSE_DUP_ALL_PAIR_SUM" \
     --boundaries "$FALSE_DUP_ALL_BOUNDARY_SUM" \
     --contigs "$FALSE_DUP_ALL_CONTIG_SUM" \
@@ -332,24 +341,6 @@ TMP_CLIPPING_PROV="${FALSE_DUP_CLIPPING_PROVENANCE}.tmp.$$"
     printf 'biological_interpretation\t%s\n' 'validated clipping is a co-occurring signal from the same HiFi mapping and does not alter the false-duplication call'
 } > "$TMP_CLIPPING_PROV"
 mv -f "$TMP_CLIPPING_PROV" "$FALSE_DUP_CLIPPING_PROVENANCE"
-
-[[ -s "$VALIDATION_VIEW_EXPORTER" ]] || { echo "ERROR: validation-view exporter missing: $VALIDATION_VIEW_EXPORTER" >&2; exit 1; }
-for scope in pairs boundaries; do
-    if [[ "$scope" == "pairs" ]]; then
-        src="$FALSE_DUP_PAIR_SUM"
-        keys="pair_id,MAG_ID,assembler,PAIR_SCOPE,LR_FALSE_DUPLICATION,FALSE_DUPLICATION"
-    else
-        src="$FALSE_DUP_BOUNDARY_SUM"
-        keys="pair_id,MAG_ID,assembler,contig,boundary,boundary_position_1based"
-    fi
-    [[ -s "$src" ]] || continue
-    python3 "$VALIDATION_VIEW_EXPORTER" \
-        --input "$src" \
-        --output "$FALSE_DUP_VALIDATION_HIFI/false_duplication.${scope}.hifi.tsv" \
-        --keys "$keys" \
-        --prefix "HIFI_" \
-        --include "LR_ASSESSMENT_COMPLETE_Y_N,LR_ANALYZABLE_Y_N,LR_FALSE_DUPLICATION"
-done
 
 for output in \
     "$FALSE_DUP_CANDIDATE_PAF" "$FALSE_DUP_CANDIDATE_PROVENANCE" \

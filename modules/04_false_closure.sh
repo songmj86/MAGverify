@@ -6,19 +6,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib_config.sh"
 source "$SCRIPT_DIR/lib_qc.sh"
 
-RESOLVE_CONTIG_CIRCULARITY="$SCRIPT_DIR/../scripts/false_closure_resolve_false_closure_contig_circularity.py"
-DETECTOR="$SCRIPT_DIR/../scripts/false_closure_detect_false_closure.py"
-SUMMARIZER="$SCRIPT_DIR/../scripts/false_closure_summarize_false_closure.py"
-CONTIG_SUMMARIZER="$SCRIPT_DIR/../scripts/false_closure_summarize_false_closure_by_contig.py"
-CLIP_ALL_FINAL="${CLIP_ALL_FINAL:-${CLIPPING_DIR}/clipping.site.all_regions.tsv}"
+FALSE_CLOSURE_SCRIPT="$SCRIPT_DIR/../scripts/false_closure.py"
+CLIP_ALL_FINAL="${CLIP_ALL_FINAL:-${CLIPPING_DIR}/.cache/clipping.site.tsv}"
 FALSE_CLOSURE_LARGE_INSERTION_MIN_BP="${FALSE_CLOSURE_LARGE_INSERTION_MIN_BP:-100}"
 FALSE_CLOSURE_LARGE_INSERTION_MIN_QNAMES="${FALSE_CLOSURE_LARGE_INSERTION_MIN_QNAMES:-2}"
-FALSE_CLOSURE_LARGE_INSERTION_TSV="${FALSE_CLOSURE_LARGE_INSERTION_TSV:-$FALSE_CLOSURE_RESULT_DIR/false_closure.large_insertion_sensitivity.tsv}"
-FALSE_CLOSURE_CONTIG_CIRCULARITY_TSV="${FALSE_CLOSURE_CONTIG_CIRCULARITY_TSV:-$FALSE_CLOSURE_RESULT_DIR/assembly_contig_circularity.resolved.tsv}"
+FALSE_CLOSURE_LARGE_INSERTION_TSV="${FALSE_CLOSURE_LARGE_INSERTION_TSV:-$FALSE_CLOSURE_RESULT_DIR/.cache/false_closure.large_insertion_sensitivity.tsv}"
+FALSE_CLOSURE_CONTIG_CIRCULARITY_TSV="${FALSE_CLOSURE_CONTIG_CIRCULARITY_TSV:-$FALSE_CLOSURE_RESULT_DIR/.cache/contig_circularity.resolved.tsv}"
 FALSE_CLOSURE_FLYE_ASSEMBLY_INFO="${FALSE_CLOSURE_FLYE_ASSEMBLY_INFO:-}"
-FALSE_CLOSURE_VALIDATION_ROOT="$FALSE_CLOSURE_RESULT_DIR/validation"
-FALSE_CLOSURE_HIFI_VALIDATION_DIR="$FALSE_CLOSURE_VALIDATION_ROOT/hifi"
-VALIDATION_VIEW_EXPORTER="${VALIDATION_VIEW_EXPORTER:-$SCRIPT_DIR/../scripts/common_export_validation_view.py}"
 
 fail() {
     echo "ERROR: $*" >&2
@@ -88,7 +82,7 @@ PY_VALIDATE_MANIFEST
     || fail "SCG table missing: $SCG_TSV. Run MAGverify prep-scg -a DIR -o DIR (same -o) first"
 
 require_files \
-    "$RESOLVE_CONTIG_CIRCULARITY" "$DETECTOR" "$SUMMARIZER" "$CONTIG_SUMMARIZER" \
+    "$FALSE_CLOSURE_SCRIPT" \
     "$ASSEMBLY_FA" "$MAG_CONTIG_MAP" "$CIRCULARITY_TSV" "$SCG_TSV" \
     "$ASSEMBLER_MAPPING_MANIFEST" "$CLIP_ALL_FINAL" "$CLIP_FINAL"
 FLYE_INFO_ARGS=()
@@ -96,11 +90,15 @@ if [[ -n "$FALSE_CLOSURE_FLYE_ASSEMBLY_INFO" ]]; then
     require_files "$FALSE_CLOSURE_FLYE_ASSEMBLY_INFO"
     FLYE_INFO_ARGS=(--flye-assembly-info "$FALSE_CLOSURE_FLYE_ASSEMBLY_INFO")
 fi
-mkdir -p "$OUT/00_log" "$FALSE_CLOSURE_RESULT_DIR" "$FALSE_CLOSURE_HIFI_VALIDATION_DIR"
-rm -f \
-    "$FALSE_CLOSURE_RESULT_DIR/false_closure.MAG_contig.tsv" \
-    "$FALSE_CLOSURE_RESULT_DIR/contig_circularity.resolved.tsv" \
-    "$FALSE_CLOSURE_RESULT_DIR/false_closure.cross_assembler_sensitivity.tsv"
+mkdir -p "$OUT/00_log" "$FALSE_CLOSURE_RESULT_DIR/.cache"
+for legacy in false_closure.MAG_contig.tsv contig_circularity.resolved.tsv \
+    assembly_contig_circularity.resolved.tsv false_closure.cross_assembler_sensitivity.tsv \
+    false_closure.MAG.audit.tsv run_metadata.txt false_closure_candidate_reads.tsv \
+    false_closure.tsv false_closure.breakpoints.tsv false_closure.large_insertion_sensitivity.tsv \
+    false_closure.breakpoint.tsv; do
+    rm -f "$FALSE_CLOSURE_RESULT_DIR/$legacy"
+done
+rm -rf "$FALSE_CLOSURE_RESULT_DIR/validation"
 require_tools python3 samtools
 
 LOG="$OUT/00_log/04_false_closure.log"
@@ -124,7 +122,7 @@ with open(path, encoding='utf-8-sig', newline='') as handle:
     reader = csv.DictReader(handle, delimiter='\t')
     fields = set(reader.fieldnames or [])
     required = {
-        'source_assembler', 'region_type', 'reference_boundary',
+        'Assembler', 'region_type', 'reference_boundary',
         'Clipping_analyzable', 'Clipping', 'validated_clipping',
         'n_unique_all_clipped_qnames',
         'n_unique_spanning_with_I_qnames', 'spanning_I_length_bp_min',
@@ -190,14 +188,14 @@ echo "Additional HiFi MAPQ/depth/identity/anchor filter: none"
 echo "Paper premature-circularization proxy: assembler circular AND length < ${PREMATURE_MAX_LENGTH_BP} bp AND >=${PREMATURE_MIN_RIBOSOMAL_FAMILIES} distinct ribosomal-protein families"
 echo "Paper proxy changes final HiFi FALSE_CLOSURE call: N"
 
-python3 "$RESOLVE_CONTIG_CIRCULARITY" \
+python3 "$FALSE_CLOSURE_SCRIPT" resolve \
     --mag-contig-map "$MAG_CONTIG_MAP" \
     --mapping-manifest "$ASSEMBLER_MAPPING_MANIFEST" \
     --mag-circularity "$CIRCULARITY_TSV" \
     "${FLYE_INFO_ARGS[@]}" \
     --output "$FALSE_CLOSURE_CONTIG_CIRCULARITY_TSV"
 
-python3 "$DETECTOR" \
+python3 "$FALSE_CLOSURE_SCRIPT" detect \
     --assemblies-fai "${ASSEMBLY_FA}.fai" \
     --mapping-manifest "$ASSEMBLER_MAPPING_MANIFEST" \
     --clipping-all-final-tsv "$CLIP_ALL_FINAL" \
@@ -217,13 +215,13 @@ python3 "$DETECTOR" \
 [[ -s "$FALSE_CLOSURE_CONTIG_CIRCULARITY_TSV" && -s "$FALSE_CLOSURE_EVIDENCE_TSV" && -s "$FALSE_CLOSURE_BREAKPOINTS_TSV" && -s "$FALSE_CLOSURE_LARGE_INSERTION_TSV" ]] \
     || fail "false-closure detection output was not created"
 
-python3 "$SUMMARIZER" \
+python3 "$FALSE_CLOSURE_SCRIPT" mag \
     --false-closure-tsv "$FALSE_CLOSURE_EVIDENCE_TSV" \
     --false-final "$FALSE_CLOSURE_FINAL" \
     --false-audit "$FALSE_CLOSURE_AUDIT" \
     --metadata "$FALSE_CLOSURE_RUN_METADATA"
 
-python3 "$CONTIG_SUMMARIZER" \
+python3 "$FALSE_CLOSURE_SCRIPT" contig \
     --mag-contig-map "$MAG_CONTIG_MAP" \
     --assemblies-fai "${ASSEMBLY_FA}.fai" \
     --contig-circularity "$FALSE_CLOSURE_CONTIG_CIRCULARITY_TSV" \
@@ -233,13 +231,6 @@ python3 "$CONTIG_SUMMARIZER" \
     --premature-max-length-bp "$PREMATURE_MAX_LENGTH_BP" \
     --premature-min-ribosomal-families "$PREMATURE_MIN_RIBOSOMAL_FAMILIES" \
     --output "$FALSE_CLOSURE_CONTIG_FINAL"
-
-[[ -s "$VALIDATION_VIEW_EXPORTER" ]] || fail "validation-view exporter missing: $VALIDATION_VIEW_EXPORTER"
-python3 "$VALIDATION_VIEW_EXPORTER" \
-    --input "$FALSE_CLOSURE_BREAKPOINTS_TSV" \
-    --output "$FALSE_CLOSURE_HIFI_VALIDATION_DIR/false_closure.breakpoints.hifi.tsv" \
-    --keys "ID,Contig,Breakpoint_1based,Region_type,False_closure" \
-    --prefix "HIFI_"
 
 cat >> "$FALSE_CLOSURE_RUN_METADATA" <<EOF_METADATA
 script_id\t$SCRIPT_ID
@@ -271,11 +262,6 @@ anchor_filter\tnone
 EOF_METADATA
 
 echo "Outputs:"
-echo "  $FALSE_CLOSURE_CONTIG_CIRCULARITY_TSV"
-echo "  $FALSE_CLOSURE_EVIDENCE_TSV"
-echo "  $FALSE_CLOSURE_BREAKPOINTS_TSV"
-echo "  $FALSE_CLOSURE_LARGE_INSERTION_TSV"
 echo "  $FALSE_CLOSURE_FINAL"
-echo "  $FALSE_CLOSURE_AUDIT"
 echo "  $FALSE_CLOSURE_CONTIG_FINAL"
 echo "[$SCRIPT_ID] Finished: $(date)"

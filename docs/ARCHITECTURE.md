@@ -8,14 +8,14 @@ MAGverify separates the public command-line interface from the existing research
 - `magverify_cli.py` registers the Python entry point. `scripts/core_magverify_cli.py` implements input handling, stage selection, dependency checks, and result publishing.
 - `modules/01_mapping.sh` through `modules/10_summary.sh` are the ten numbered analysis modules. Run them through `MAGverify MODULE` rather than editing the scripts.
 - `scripts/` contains helpers named by their owning analysis (e.g. `circularity_*.py`, `chimera_*.py`, `summary_*.py`). Shared setup and utilities use `prep_*.py`, `core_*.py` or `common_*.py`. The redundant `tools/` wrapper scripts were removed after their calls were replaced by direct CLI/validator invocations.
-- `modules/lib_config.sh`, `modules/lib_qc.sh`, and `modules/lib_scg.sh` are internal support code.
+- `modules/00_prep_*.sh` are run by the `MAGverify prep-*` commands; `modules/lib_config.sh`, `modules/lib_qc.sh` and `modules/lib_genes.sh` are internal support code.
 - `modules/defaults.sh` and `modules/stage_paths.sh` are internal defaults and computed output paths; they replace the earlier `config/project.sh` and ten `config/modules/*.sh` files. They are **not** user configuration files.
 - `tests/` checks CLI behavior, input validation, summary consistency, and script compatibility.
 - `docs/` explains installation, database preparation, accepted inputs, dependencies and tool versions. The README lists the ten analyses in execution order.
 
 ## Input and output contract
 
-All inputs should be provided as command-line arguments. The same `-o` is reused across modules. Intermediate files stay in numbered analysis directories. Each module writes its final tables to its own numbered directory as `MODULE.LEVEL.tsv` (`MAG`, `contig`, `site`, `region`); the summary module integrates them into `summary.MAG.tsv` and `summary.contig.tsv`.
+All inputs should be provided as command-line arguments. The same `-o` is reused across modules. Intermediate files stay in numbered analysis directories. Each module writes its final tables to its own numbered directory as `MODULE.LEVEL.tsv` (`MAG`, `contig`, `site`, `region`); the summary module integrates them into `summary.MAG.tsv` and `summary.contig.tsv` at the top of the output folder. The modules read the full internal tables in each `.cache/` folder; the tables in the module folders are written from them with plain column names (`scripts/core_public_tables.py`).
 
 Output names and internal paths are managed by the CLI, not by a user-edited module configuration. The CLI may prepare the all-assemblies FASTA and MAG-contig membership table as internal processing prerequisites. Chimera computes gene taxonomy internally; SCG annotation is built beforehand by `prep-scg`. Summary validates completed outputs without rerunning analyses.
 

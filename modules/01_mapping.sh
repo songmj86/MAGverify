@@ -211,9 +211,14 @@ rename_legacy_mapping_outputs() {
             mv -f -- "$new.inputs.sha256" "$(qc_bam_cache "$new")"
         fi
     done
-    old="$dir/LR_to_${assembler}.mapped.flagstat.txt"
-    new="$dir/${assembler}.flagstat.txt"
-    [[ -e "$old" && ! -e "$new" ]] && mv -f -- "$old" "$new"
+    new="$dir/.cache/${assembler}.flagstat.txt"
+    for old in "$dir/LR_to_${assembler}.mapped.flagstat.txt" "$dir/${assembler}.flagstat.txt"; do
+        if [[ -e "$old" && ! -e "$new" ]]; then
+            mkdir -p "$dir/.cache"
+            mv -f -- "$old" "$new"
+        fi
+        rm -f -- "$old"
+    done
     for kind in secondary supplementary; do
         for old in "$dir/LR_to_${assembler}.${kind}.sorted.bam" "$dir/${assembler}.${kind}.bam"; do
             rm -f -- "$old" "$old.csi" "$old.bai" "$old.inputs.sha256"
@@ -243,7 +248,8 @@ map_one_assembler() {
     hifi_all_meta="$(qc_bam_cache "$hifi_all")"
     hifi_primary="$hifi_dir/${assembler}.primary.bam"
     hifi_primary_supplementary="$hifi_dir/${assembler}.primary_supplementary.bam"
-    hifi_flagstat="$hifi_dir/${assembler}.flagstat.txt"
+    hifi_flagstat="$hifi_dir/.cache/${assembler}.flagstat.txt"
+    mkdir -p "$hifi_dir/.cache"
     rename_legacy_mapping_outputs "$hifi_dir" "$assembler"
 
     hifi_reference_fp="$(qc_compute_mapping_fingerprint \
@@ -381,6 +387,45 @@ if [[ "$RUN_PER_ASSEMBLER_MAPPING" == "Y" ]]; then
     done
     (( failed == 0 )) || exit 1
 
+    python3 - "$manifest_tmp" "$HIFI_MAPPING_DIR/.cache" <<'PY_FLAGSTAT'
+import os
+import re
+import sys
+
+manifest, flagstat_dir = sys.argv[1:]
+labels = [
+    ('in total (QC-passed reads + QC-failed reads)', 'Alignments_total'),
+    ('primary', 'Primary'), ('secondary', 'Secondary'), ('supplementary', 'Supplementary'),
+    ('duplicates', 'Duplicates'), ('mapped', 'Mapped'), ('primary mapped', 'Primary_mapped'),
+]
+columns = [name for _, name in labels] + ['Mapped_percent', 'Primary_mapped_percent']
+with open(manifest, encoding='utf-8') as handle:
+    lines = handle.read().splitlines()
+out = [lines[0] + '\t' + '\t'.join(columns)]
+for line in lines[1:]:
+    if not line:
+        continue
+    assembler = line.split('\t')[0]
+    values = {name: 'NA' for name in columns}
+    path = os.path.join(flagstat_dir, f'{assembler}.flagstat.txt')
+    if os.path.isfile(path):
+        with open(path, encoding='utf-8') as stats:
+            for raw in stats:
+                match = re.match(r'(\d+) \+ \d+ (.+?)(?: \((.*?)%? :.*\))?$', raw.strip())
+                if not match:
+                    continue
+                count, label, percent = match.groups()
+                for text, name in labels:
+                    if label == text:
+                        values[name] = count
+                        if name == 'Mapped' and percent:
+                            values['Mapped_percent'] = percent.rstrip('%')
+                        if name == 'Primary_mapped' and percent:
+                            values['Primary_mapped_percent'] = percent.rstrip('%')
+    out.append(line + '\t' + '\t'.join(values[name] for name in columns))
+with open(manifest, 'w', encoding='utf-8') as handle:
+    handle.write('\n'.join(out) + '\n')
+PY_FLAGSTAT
     mv -f -- "$manifest_tmp" "$PER_ASSEMBLER_MANIFEST"
     echo
     echo "[Per-assembler mapping] Finished: $(date)"

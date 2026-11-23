@@ -1,108 +1,28 @@
 # Script index
 
-The CLI command `MAGverify prep-chimera` invokes `modules/00_prep_chimera.sh` to build the R232 MMseqs2 protein taxonomy database from existing GTDB files, without downloading data, for `MAGverify chimera`; the ten analysis shell modules are `modules/01_mapping.sh` to `modules/10_summary.sh`.
-Python helper filenames begin with the analysis module responsible for their execution. Internal Python helper scripts are called by the numbered stage shell scripts and are not separate user-facing CLI commands.
-| Prefix | Purpose | Files |
-| --- | --- | ---: |
-| `core_` | User-facing MAGverify CLI implementation | 1 |
-| `prep_` | MAG-to-contig mapping and optional GTDB-Tk summary conversion | 2 |
-| `circularity_` | Single-contig circularity and HiFi junction validation | 6 |
-| `clipping_` | Clipped-read assessment and validation | 6 |
-| `false_closure_` | False closure and contig connections | 5 |
-| `phantom_` | Phantom sequence evidence | 1 |
-| `repeats_` | Repeat regions and evidence summaries | 4 |
-| `chimera_` | Gene taxonomy and taxonomic chimera assessment | 9 |
-| `false_duplication_` | False duplication and clipping integration | 2 |
-| `variants_` | Assembly allele support | 3 |
-| `summary_` | Integration and QC validation | 2 |
-| `common_` | Shared table helper used in multiple modules | 1 |
+The `MAGverify` command runs the shell modules in `modules/` (`00_prep_chimera.sh`, `00_prep_taxonomy.sh`, `00_prep_scg.sh`, `00_prep_circularity.sh`, `01_mapping.sh` to `10_summary.sh`, and the shared `lib_*.sh` helpers). The Python scripts below are internal helpers that those modules call; they are not separate user commands.
 
-## Consolidated helpers
+Each script name starts with the module that uses it. A script with several steps takes the step as its first argument (for example `python3 scripts/clipping_summarize.py sites ...`); run it without arguments to list the steps.
 
-- `chimera_select_sequences.py` merges former FASTA and cached-gene selection scripts. Internal operations are `fasta` and `genes`.
-- `summary_finalize.py` merges compact complete-genome QC table generation with summary validation. Internal operations are `complete-genome` and `validate`.
-
-These are internal Python script interfaces. The ten `MAGverify MODULE` commands, output file names, result directories, and analysis criteria are unchanged. Other scripts remain separate when different input/output contracts or intermediate files need independent recomputation.
-
-## Script inventory
-
-### core
-
-- `core_magverify_cli.py`
-
-### prep
-
-- `prep_assembler_circularity.py`
-- `prep_build_mag_contig_map.py`
-- `prep_genes_to_anvio_gene_calls.py`
-- `prep_gtdbtk_summary_to_mag_taxonomy.py`
-
-### circularity
-
-- `circularity_build_rotated_reference.py`
-- `circularity_integrate_circularity_results.py`
-- `circularity_merge_assembler_groups.py`
-- `circularity_refresh_circularity_compat.py`
-- `circularity_match_mags_to_assemblers.py`
-- `circularity_summarize_circularity_junctions.py`
-
-### clipping
-
-- `clipping_check_clipping_inputs.py`
-- `clipping_classify_clipping_regions.py`
-- `clipping_normalize_anvio_clipping.py`
-- `clipping_summarize_clipping_by_mag.py`
-- `clipping_summarize_clipping_regions.py`
-- `clipping_validate_clipping_spanning.py`
-
-### false_closure
-
-- `false_closure_contig_connection_utils.py`
-- `false_closure_detect_false_closure.py`
-- `false_closure_resolve_false_closure_contig_circularity.py`
-- `false_closure_summarize_false_closure.py`
-- `false_closure_summarize_false_closure_by_contig.py`
-
-### phantom
-
-- `phantom_summarize_phantom_by_mag.py`
-
-### repeats
-
-- `repeats_consolidate_outputs.py`
-- `repeats_normalize_repeat_tables.py`
-- `repeats_summarize_repeat_by_assembler.py`
-- `repeats_summarize_repeat_evidence.py`
-
-### chimera
-
-- `chimera_evaluate_taxonomic_chimera_whole_contig_GTDB.py`
-- `chimera_filter_gene_predictions_by_min_contig_gene_count.py`
-- `chimera_link_prodigal_accessions.py`
-- `chimera_merge_gene_taxonomy_tables.py`
-- `chimera_merge_mmseqs_taxonomy_with_coordinates.py`
-- `chimera_reclassify_taxonomic_chimera_by_clipping.py`
-- `chimera_select_sequences.py`
-- `chimera_summarize_taxonomic_chimera_by_mag_GTDB_whole.py`
-- `chimera_validate_taxonomic_chimera_hifi.py`
-
-### false_duplication
-
-- `false_duplication_annotate_false_duplication_clipping.py`
-- `false_duplication_detect_false_duplication.py`
-
-### variants
-
-- `variants_merge_assembly_variant_assembler_results.py`
-- `variants_summarize_assembly_variants.py`
-- `variants_summarize_assembly_variants_by_mag.py`
-
-### summary
-
-- `summary_build_integrated_qc_summary.py`
-- `summary_finalize.py`
-
-### common
-
-- `common_export_validation_view.py`
-
+| Script | Purpose | Steps |
+| --- | --- | --- |
+| `chimera_call.py` | Taxonomic chimera calls: transition candidates, HiFi validation, MAG summary and clipping-based final calls. | `evaluate`, `validate`, `mag`, `reclassify` |
+| `chimera_gene_taxonomy.py` | Gene taxonomy for the chimera module: gene selection, prefilter and MMseqs2 result tables. | `select`, `filter`, `mmseqs`, `merge` |
+| `circularity_finalize.py` | Circularity final tables for all assembler groups. | `merge`, `refresh`, `add-junction`, `contig` |
+| `circularity_junction.py` | Circularity END\|START junction evidence for one assembler group. | `summarize`, `integrate` |
+| `circularity_reference.py` | Circularity reference: match MAG contigs to their assembler and build the rotated reference. | `match`, `rotate` |
+| `clipping_summarize.py` | Clipping tables for all assemblers: site table, per-assembler density and contig/MAG summaries. | `sites`, `assembler`, `mag` |
+| `clipping_validate.py` | Clipping per assembler: input checks, anvi'o candidate normalization and HiFi read validation. | `check`, `normalize`, `validate` |
+| `core_magverify_cli.py` | Command-line entry point for MAGverify. | - |
+| `core_progress_reader.py` | Stream read files to stdout and report progress with the remaining time on stderr. | - |
+| `core_public_tables.py` | Write the tables for people (plain column names, Y/N/NA, no paths) from the internal tables in `.cache/`. | `migrate`, `publish` |
+| `false_closure.py` | False closure: contig circularity, breakpoint detection and contig/MAG summaries. | `resolve`, `detect`, `mag`, `contig` |
+| `false_duplication.py` | False duplication: candidate pairs from self-alignment, HiFi validation and clipping co-occurrence. | `detect`, `annotate` |
+| `phantom_mag.py` | Create the MAG-associated region, MAG-level and contig-level phantom tables. | - |
+| `prep_assembler_circularity.py` | Build the assembler-reported circularity tables from native assembler outputs. | - |
+| `prep_build_mag_contig_map.py` | Build the MAG-to-contig map (MAG_ID, Contig) from MAG FASTAs and the all-assemblies FAI. | - |
+| `prep_genes.py` | Shared gene predictions: protein-to-coordinate table and anvi'o external gene calls. | `link`, `anvio` |
+| `prep_gtdbtk_summary_to_mag_taxonomy.py` | Convert GTDB-Tk summaries to the MAGverify MAG taxonomy TSV. | - |
+| `repeats_tables.py` | Repeat tables: evidence summary, normalization, per-assembler columns and consolidated region/HSP tables. | `evidence`, `normalize`, `assembler`, `consolidate` |
+| `summary_tables.py` | Integrated QC summary: build the MAG and contig tables, put the overall call first and validate them. | `build`, `arrange`, `validate` |
+| `variants_tables.py` | Assembly variant tables: per-assembler classification, merge across assemblers and MAG summaries. | `classify`, `merge`, `mag` |

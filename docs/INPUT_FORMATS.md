@@ -26,11 +26,11 @@ Supply a directory of PacBio HiFi reads in FASTQ or FASTQ.GZ format to `MAGverif
 
 ## Automatically generated all-assemblies FASTA
 
-**Do not create or provide `all_assemblies.fasta` by hand.** When a module needs the union of assemblies, the command-line interface builds `00_prep/all_assemblies.fasta` inside the output directory. It preserves the original contig identifiers and rejects duplicates. Assembler FASTA paths, sizes and modification times are recorded to determine whether this generated file can be reused.
+**Do not create or provide `all_assemblies.fa` by hand.** When a module needs the union of assemblies, the command-line interface builds `00_prep/all_assemblies.fa` inside the output directory. It preserves the original contig identifiers and rejects duplicates. Assembler FASTA paths, sizes and modification times are recorded to determine whether this generated file can be reused.
 
 ## Mapping manifest (`--mapping-manifest`)
 
-`MAGverify map` produces `01_mapping/mapping_manifest.tsv`, listing the assembler names, assembler FASTAs, HiFi mapping BAMs and the HiFi read file (`Reads`). Downstream modules can reuse this file without remapping. The manifest also identifies the assembler FASTAs from which the all-assemblies FASTA can be generated.
+`MAGverify map` produces `01_mapping/.cache/mapping_manifest.tsv` (read counts for people: `01_mapping/mapping.assembler.tsv`), listing the assembler names, assembler FASTAs, HiFi mapping BAMs and the HiFi read file (`Reads`). Downstream modules can reuse this file without remapping. The manifest also identifies the assembler FASTAs from which the all-assemblies FASTA can be generated.
 
 The tab-delimited manifest includes these columns:
 

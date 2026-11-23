@@ -6,10 +6,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib_config.sh"
 source "$SCRIPT_DIR/lib_qc.sh"
 
-GTDB_CHIMERA_REPORT_CONTIG="${GTDB_CHIMERA_REPORT_CONTIG:-$GTDB_CHIMERA_DIR/clipping_defined/chimera.contig.tsv}"
+GTDB_CHIMERA_REPORT_CONTIG="${GTDB_CHIMERA_REPORT_CONTIG:-$CHIMERA_ROOT_DIR/.cache/chimera.contig.tsv}"
 
-mkdir -p "$OUT/00_log" "$(dirname "$SUMMARY_CONTIG")" \
-    "$(dirname "$SUMMARY_MAG_CONTIG")" "$(dirname "$SUMMARY_MAG")"
+mkdir -p "$OUT/00_log" "$(dirname "$SUMMARY_CONTIG")" "$(dirname "$SUMMARY_MAG")"
 LOG="$OUT/00_log/10_summary.log"
 exec > >(tee -a "$LOG") 2>&1
 
@@ -50,14 +49,13 @@ fi
 samtools faidx "$ASSEMBLY_FA"
 
 TMP_CONTIG="${SUMMARY_CONTIG}.tmp.$$"
-TMP_MAG_CONTIG="${SUMMARY_MAG_CONTIG}.tmp.$$"
 TMP_MAG="${SUMMARY_MAG}.tmp.$$"
-trap 'rm -f "$TMP_CONTIG" "$TMP_MAG_CONTIG" "$TMP_MAG"' EXIT
+trap 'rm -f "$TMP_CONTIG" "$TMP_MAG"' EXIT
 
 echo "[10_summary] Started: $(date)"
 echo "SCRIPT_ID: $SCRIPT_ID"
 
-python3 "$SCRIPT_DIR/../scripts/summary_build_integrated_qc_summary.py" \
+python3 "$SCRIPT_DIR/../scripts/summary_tables.py" build \
     "$ASSEMBLY_FA.fai" "$CLIP_FINAL" "$GTDB_CHIMERA_REPORT_CONTIG" "$ALLELE_CONTIG" \
     "$PHANTOM_FINAL" "$REPEAT_SUM" "$REPEAT_MAG_SUM" "$FALSE_DUP_CONTIG_SUM" \
     "$FALSE_DUP_CLIPPING_CONTIG_SUM" "$FALSE_DUP_CLIPPING_MAG_SUM" "$MAG_CONTIG_MAP" \
@@ -68,23 +66,15 @@ python3 "$SCRIPT_DIR/../scripts/summary_build_integrated_qc_summary.py" \
     "$RUN_REPEAT" "$RUN_FALSE_DUPLICATION" "$RUN_CIRCULARITY" \
     "$RUN_FALSE_CLOSURE"
 
+python3 "$SCRIPT_DIR/../scripts/summary_tables.py" arrange "$TMP_MAG"
+python3 "$SCRIPT_DIR/../scripts/summary_tables.py" validate "$TMP_CONTIG" "$TMP_MAG"
 mv -f "$TMP_CONTIG" "$SUMMARY_CONTIG"
-awk -F '\t' 'NR == 1 || $1 != "NA"' "$SUMMARY_CONTIG" > "$TMP_MAG_CONTIG"
-mv -f "$TMP_MAG_CONTIG" "$SUMMARY_MAG_CONTIG"
 mv -f "$TMP_MAG" "$SUMMARY_MAG"
-SUMMARY_MAG_FLAGS="$(dirname "$SUMMARY_MAG")/integrated_QC_flags.by_MAG.tsv"
-cut -f1-11 "$SUMMARY_MAG" > "$SUMMARY_MAG_FLAGS"
-
-COMPLETE_GENOME_VALIDITY_QC="$(dirname "$SUMMARY_MAG")/complete_genome_validity_QC.by_MAG.tsv"
-python3 "$SCRIPT_DIR/../scripts/summary_finalize.py" complete-genome "$SUMMARY_MAG" "$COMPLETE_GENOME_VALIDITY_QC"
-python3 "$SCRIPT_DIR/../scripts/summary_finalize.py" validate \
-    "$SUMMARY_CONTIG" "$SUMMARY_MAG" "$SUMMARY_MAG_CONTIG" \
-    "$SUMMARY_MAG_FLAGS" "$COMPLETE_GENOME_VALIDITY_QC"
+rm -f "$(dirname "$SUMMARY_MAG")/integrated_QC_summary.total_contigs.tsv" \
+    "$(dirname "$SUMMARY_MAG")/integrated_QC_flags.by_MAG.tsv" \
+    "$(dirname "$SUMMARY_MAG")/complete_genome_validity_QC.by_MAG.tsv"
 
 echo "Outputs:"
-echo "  $SUMMARY_CONTIG"
-echo "  $SUMMARY_MAG_CONTIG"
 echo "  $SUMMARY_MAG"
-echo "  $SUMMARY_MAG_FLAGS"
-echo "  $COMPLETE_GENOME_VALIDITY_QC"
+echo "  $SUMMARY_CONTIG"
 echo "[10_summary] Finished: $(date)"

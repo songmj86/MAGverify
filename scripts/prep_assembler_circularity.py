@@ -15,11 +15,11 @@ A MAG is Y when it consists of one contig that its assembler reported as circula
 
 from __future__ import annotations
 
-import shutil
 import argparse
 import gzip
 import os
 import re
+import shutil
 import tempfile
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
@@ -150,7 +150,6 @@ def write_atomic(path: Path, header: str, rows: List[str]) -> None:
         out.write(header + "\n")
         out.writelines(row + "\n" for row in rows)
     os.replace(temp, path)
-
 
 
 class OptionHelpFormatter(argparse.RawDescriptionHelpFormatter):

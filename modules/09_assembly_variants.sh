@@ -29,24 +29,24 @@ ASSEMBLY_VARIANT_DROP_FILE_CACHE="${ASSEMBLY_VARIANT_DROP_FILE_CACHE:-Y}"
 ASSEMBLY_VARIANT_SKIP_GENE_CALLING="${ASSEMBLY_VARIANT_SKIP_GENE_CALLING:-N}"
 ASSEMBLY_VARIANT_REMOVE_LEGACY_BATCHES="${ASSEMBLY_VARIANT_REMOVE_LEGACY_BATCHES:-Y}"
 
-ASSEMBLY_VARIANT_HIFI_PROFILE_ROOT="${VARIANT_DIR}/hifi_all_mapped"
+ASSEMBLY_VARIANT_HIFI_PROFILE_ROOT="${VARIANT_DIR}/.cache/hifi_all_mapped"
 CANONICAL_HIFI_ANVIO_DIR="$ASSEMBLY_VARIANT_HIFI_PROFILE_ROOT/anvio"
 if [[ -z "${ALLELE_ANVIO_DIR+x}" ]]; then
     ALLELE_ANVIO_DIR="$CANONICAL_HIFI_ANVIO_DIR"
 fi
 ALLELE_BY_ASSEMBLER_DIR="${ALLELE_BY_ASSEMBLER_DIR:-$ALLELE_ANVIO_DIR/by_assembler}"
-ALLELE_PROFILE_MANIFEST="${ALLELE_PROFILE_MANIFEST:-${VARIANT_DIR}/anvio_profiles.by_assembler.tsv}"
+ALLELE_PROFILE_MANIFEST="${ALLELE_PROFILE_MANIFEST:-${VARIANT_DIR}/.cache/anvio_profiles.by_assembler.tsv}"
 ALLELE_SOURCE_ROUTING="${ALLELE_SOURCE_ROUTING:-$ALLELE_PROFILE_MANIFEST}"
 
-ALLELE_VARIANTS="${ALLELE_VARIANTS:-${VARIANT_DIR}/assembly_allele_disagreements.tsv}"
-ALLELE_CONTIG_ALL="${ALLELE_CONTIG_ALL:-${VARIANT_DIR}/contig_assembly_allele_support.all_contigs.tsv}"
-ALLELE_SUMMARY_ALL="${ALLELE_SUMMARY_ALL:-${VARIANT_DIR}/assembly_allele_support.all_contigs.summary.tsv}"
-ALLELE_ASSEMBLER_SUMMARY="${ALLELE_ASSEMBLER_SUMMARY:-${VARIANT_DIR}/assembly_allele_support.by_assembler.tsv}"
+ALLELE_VARIANTS="${ALLELE_VARIANTS:-${VARIANT_DIR}/.cache/variants.site.tsv}"
+ALLELE_CONTIG_ALL="${ALLELE_CONTIG_ALL:-${VARIANT_DIR}/.cache/contig_assembly_allele_support.all_contigs.tsv}"
+ALLELE_SUMMARY_ALL="${ALLELE_SUMMARY_ALL:-${VARIANT_DIR}/.cache/assembly_allele_support.all_contigs.summary.tsv}"
+ALLELE_ASSEMBLER_SUMMARY="${ALLELE_ASSEMBLER_SUMMARY:-${VARIANT_DIR}/.cache/assembly_allele_support.by_assembler.tsv}"
 
-ALLELE_CONTIG="${ALLELE_CONTIG:-${VARIANT_DIR}/variants.contig.tsv}"
-ALLELE_SUMMARY="${ALLELE_SUMMARY:-${VARIANT_DIR}/assembly_allele_support.summary.tsv}"
-ALLELE_VARIANTS_MAG="${ALLELE_VARIANTS_MAG:-${VARIANT_DIR}/assembly_allele_disagreements.by_MAG.tsv}"
-ALLELE_MAG="${ALLELE_MAG:-${VARIANT_DIR}/variants.MAG.tsv}"
+ALLELE_CONTIG="${ALLELE_CONTIG:-${VARIANT_DIR}/.cache/variants.contig.tsv}"
+ALLELE_SUMMARY="${ALLELE_SUMMARY:-${VARIANT_DIR}/.cache/assembly_allele_support.summary.tsv}"
+ALLELE_VARIANTS_MAG="${ALLELE_VARIANTS_MAG:-${VARIANT_DIR}/.cache/assembly_allele_disagreements.by_MAG.tsv}"
+ALLELE_MAG="${ALLELE_MAG:-${VARIANT_DIR}/.cache/variants.MAG.tsv}"
 ALLELE_CACHE_META="${ALLELE_CACHE_META:-${VARIANT_DIR}/.cache/variants.inputs.sha256}"
 
 ANVIO_REFORMAT_FASTA="$ANVIO_ENV_PREFIX/bin/anvi-script-reformat-fasta"
@@ -55,11 +55,19 @@ ANVIO_GEN_CONTIGS_DB="$ANVIO_ENV_PREFIX/bin/anvi-gen-contigs-database"
 ANVIO_PROFILE="$ANVIO_ENV_PREFIX/bin/anvi-profile"
 ANVIO_EXPORT_TABLE="$ANVIO_ENV_PREFIX/bin/anvi-export-table"
 ANVIO_PYTHON="$ANVIO_ENV_PREFIX/bin/python"
-PARSER="$SCRIPT_DIR/../scripts/variants_summarize_assembly_variants.py"
-MERGER="$SCRIPT_DIR/../scripts/variants_merge_assembly_variant_assembler_results.py"
-MAG_SUMMARIZER="$SCRIPT_DIR/../scripts/variants_summarize_assembly_variants_by_mag.py"
+VARIANTS_SCRIPT="$SCRIPT_DIR/../scripts/variants_tables.py"
 
-mkdir -p "$OUT/00_log" "${VARIANT_DIR}" "$ALLELE_BY_ASSEMBLER_DIR"
+if [[ -d "${VARIANT_DIR}/hifi_all_mapped" && ! -e "$ASSEMBLY_VARIANT_HIFI_PROFILE_ROOT" ]]; then
+    mkdir -p "$(dirname "$ASSEMBLY_VARIANT_HIFI_PROFILE_ROOT")"
+    mv "${VARIANT_DIR}/hifi_all_mapped" "$ASSEMBLY_VARIANT_HIFI_PROFILE_ROOT"
+fi
+for legacy in anvio_profiles.by_assembler.tsv assembly_allele_disagreements.tsv \
+    contig_assembly_allele_support.all_contigs.tsv assembly_allele_support.all_contigs.summary.tsv \
+    assembly_allele_support.by_assembler.tsv assembly_allele_support.summary.tsv \
+    assembly_allele_disagreements.by_MAG.tsv; do
+    rm -f "${VARIANT_DIR}/$legacy"
+done
+mkdir -p "$OUT/00_log" "${VARIANT_DIR}/.cache" "$ALLELE_BY_ASSEMBLER_DIR"
 LOG="$OUT/00_log/09_assembly_variants.log"
 exec > >(tee -a "$LOG") 2>&1
 
@@ -67,7 +75,7 @@ for path in "$ANVIO_REFORMAT_FASTA" "$ANVIO_REFORMAT_BAM" "$ANVIO_GEN_CONTIGS_DB
             "$ANVIO_PROFILE" "$ANVIO_EXPORT_TABLE" "$ANVIO_PYTHON"; do
     [[ -x "$path" ]] || { echo "ERROR: required executable is missing or not executable: $path"; exit 1; }
 done
-for path in "$PARSER" "$MERGER" "$MAG_SUMMARIZER"; do
+for path in "$VARIANTS_SCRIPT"; do
     [[ -s "$path" ]] || { echo "ERROR: required Python script is missing or empty: $path"; exit 1; }
 done
 for tool in samtools python3 awk sha256sum readlink cmp; do
@@ -108,9 +116,9 @@ import anvio
 print(anvio.__version__)
 PY_ANVIO_VERSION
 )"
-PARSER_SHA256="$(sha256sum "$PARSER" | awk '{print $1}')"
-MERGER_SHA256="$(sha256sum "$MERGER" | awk '{print $1}')"
-MAG_SUMMARIZER_SHA256="$(sha256sum "$MAG_SUMMARIZER" | awk '{print $1}')"
+PARSER_SHA256="$(sha256sum "$VARIANTS_SCRIPT" | awk '{print $1}')"
+MERGER_SHA256="$PARSER_SHA256"
+MAG_SUMMARIZER_SHA256="$PARSER_SHA256"
 MM2_INDEX_CHUNK="${MINIMAP2_INDEX_CHUNK:-256G}"
 if [[ "${FORCE_SINGLE_PART_MINIMAP2:-Y}" == "Y" ]]; then
     MM2_INDEX_CHUNK="${MINIMAP2_INDEX_CHUNK_SINGLE:-900G}"
@@ -176,7 +184,7 @@ original_rows = load_fai(original_fai)
 renamed_rows = load_fai(renamed_fai)
 if len(original_rows) != len(renamed_rows):
     raise SystemExit(
-        f"renamed FASTA sequence count differs from source: "
+        f"renamed FASTA sequence count differs from the original: "
         f"{len(original_rows)} != {len(renamed_rows)}"
     )
 
@@ -243,7 +251,7 @@ new_old = validate_orientation("renamed_original")
 if old_new is None and new_old is None:
     line_no, first, second = pairs[0]
     raise SystemExit(
-        "anvi'o rename-report does not match the source and renamed FASTA indices; "
+        "anvi'o rename-report does not match the original and renamed FASTA indices; "
         f"first record at line {line_no}: {first!r} <-> {second!r}"
     )
 if old_new is not None and new_old is not None and old_new != new_old:
@@ -323,7 +331,7 @@ for line in header.splitlines():
     old_len = old_lengths[old_name]
     if ln != old_len:
         raise SystemExit(
-            f"cannot reheader BAM: BAM/source length mismatch for {old_name}: {ln} != {old_len}"
+            f"cannot reheader BAM: BAM/assembly length mismatch for {old_name}: {ln} != {old_len}"
         )
     fields[sn_i] = "SN:" + rename[old_name]
     seen.add(old_name)
@@ -332,7 +340,7 @@ for line in header.splitlines():
 if seen != set(rename):
     missing = sorted(set(rename) - seen)
     raise SystemExit(
-        f"cannot reheader BAM: {len(missing)} source references are absent from BAM header"
+        f"cannot reheader BAM: {len(missing)} original references are absent from BAM header"
     )
 
 with open(output_header, "w", encoding="utf-8") as handle:
@@ -618,7 +626,7 @@ variant_one_assembler() {
     contigs_db_cache="$adir/CONTIGS.inputs.sha256"
     profile_dir="$adir/PROFILE"
     profile_db="$profile_dir/PROFILE.db"
-    profile_batches="$adir/PROFILE_BATCHES"  # legacy batch-local directory; removed after successful full profiling
+    profile_batches="$adir/PROFILE_BATCHES"
     split_map="$adir/anvio_splits_to_contigs.tsv"
     snv_raw="$adir/variable_nucleotides.anvio.tsv"
     indel_raw="$adir/indels.anvio.tsv"
@@ -723,7 +731,7 @@ PY_CONTIGS_DB_FP
             contigs_db_args+=( --skip-gene-calling )
         else
             gene_calls="$adir/assembly.anvio.gene_calls.tsv"
-            python3 "$SCRIPT_DIR/../scripts/prep_genes_to_anvio_gene_calls.py" \
+            python3 "$SCRIPT_DIR/../scripts/prep_genes.py" anvio \
                 "$GENE_CALLS_DIR/genes.gff" "$GENE_CALLS_DIR/genes.faa" "$name_map" "$gene_calls" \
                 --version "$PYRODIGAL_VERSION"
             contigs_db_args+=( --external-gene-calls "$gene_calls" )
@@ -848,7 +856,7 @@ PY_CLASS_FP
     fi
     if [[ ! -s "$detail_tsv" || ! -s "$contig_tsv" || ! -s "$summary_tsv" ]]; then
         echo "[40-LR][$assembler] Classifying minority and unsupported assembly alleles at anvi'o-reported variable sites."
-        python3 "$PARSER" \
+        python3 "$VARIANTS_SCRIPT" classify \
             --fai "${assembly}.fai" \
             --split-map "$split_map" \
             --snv-table "$snv_raw" \
@@ -875,7 +883,7 @@ PY_CLASS_FP
 GENES_FP="NA"
 PYRODIGAL_VERSION="NA"
 if [[ "$ASSEMBLY_VARIANT_SKIP_GENE_CALLING" != "Y" ]]; then
-    GENES_ASSEMBLY="${ASSEMBLY_FA:-$PREP_DIR/all_assemblies.fasta}"
+    GENES_ASSEMBLY="${ASSEMBLY_FA:-$PREP_DIR/all_assemblies.fa}"
     PATH="$PATH:$ANVIO_ENV_PREFIX/bin" bash "$SCRIPT_DIR/lib_genes.sh" \
         "$GENES_ASSEMBLY" "$GENE_CALLS_DIR" "$ALLELE_ANVIO_PREPROCESS_THREADS"
     GENES_FP="$(<"$GENE_CALLS_DIR/.cache/genes.inputs.sha256")"
@@ -902,7 +910,7 @@ for row in "${VARIANT_ROWS[@]}"; do
         "$VARIANT_WORK/$job_index.row" "$VARIANT_WORK/$job_index.fp" ) &
     qc_wait_for_slot "$VARIANT_JOBS"
 done
-wait
+qc_wait_all
 job_index=0
 for row in "${VARIANT_ROWS[@]}"; do
     job_index=$(( job_index + 1 ))
@@ -919,7 +927,7 @@ install_if_changed "$PROFILE_MANIFEST_TMP" "$ALLELE_PROFILE_MANIFEST"
 echo "HiFi BAM validation: mapped-only BAM confirmed for every assembler; secondary alignments are retained when reported."
 
 echo "[40-LR] Merging assembler-specific classifications."
-python3 "$MERGER" \
+python3 "$VARIANTS_SCRIPT" merge \
     --manifest "$ALLELE_PROFILE_MANIFEST" \
     --detail-out "$ALLELE_VARIANTS.tmp.$$" \
     --contig-out "$ALLELE_CONTIG_ALL.tmp.$$" \
@@ -931,7 +939,7 @@ mv -f "$ALLELE_SUMMARY_ALL.tmp.$$" "$ALLELE_SUMMARY_ALL"
 mv -f "$ALLELE_ASSEMBLER_SUMMARY.tmp.$$" "$ALLELE_ASSEMBLER_SUMMARY"
 
 echo "[40-LR] Subsetting assembly-wide results to final long-read MAG contigs."
-python3 "$MAG_SUMMARIZER" \
+python3 "$VARIANTS_SCRIPT" mag \
     --contig-summary "$ALLELE_CONTIG_ALL" \
     --detail "$ALLELE_VARIANTS" \
     --mag-contig-map "$MAG_CONTIG_MAP" \
@@ -948,15 +956,9 @@ ALLELE_FINGERPRINT="$(qc_hash_text "$SCRIPT_ID" "$PARSER_SHA256" "$MERGER_SHA256
 qc_write_cache_atomic "$ALLELE_CACHE_META" "$ALLELE_FINGERPRINT"
 
 echo "[40-LR] Outputs:"
-echo "  Per-assembler profile manifest: $ALLELE_PROFILE_MANIFEST"
-echo "  Assembly-wide disagreement loci: $ALLELE_VARIANTS"
-echo "  Assembly-wide by contig:          $ALLELE_CONTIG_ALL"
-echo "  Assembly-wide summary:            $ALLELE_SUMMARY_ALL"
-echo "  By assembler:                     $ALLELE_ASSEMBLER_SUMMARY"
-echo "  Final-MAG disagreement loci:      $ALLELE_VARIANTS_MAG"
-echo "  Final-MAG by contig:              $ALLELE_CONTIG"
-echo "  Final-MAG by MAG:                 $ALLELE_MAG"
-echo "  Final-MAG summary:                $ALLELE_SUMMARY"
+echo "  $ALLELE_VARIANTS"
+echo "  $ALLELE_CONTIG"
+echo "  $ALLELE_MAG"
 echo "[40-LR] HiFi assembly-variant stage complete: $(date)"
 
 echo "[09_assembly_variants] Finished: $(date)"

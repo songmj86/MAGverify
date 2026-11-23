@@ -15,7 +15,7 @@ MAGverify doctor
 MAGverify list
 ```
 
-The environment includes anvi'o v9 and the command-line tools used by MAGverify. `MAGverify doctor` checks executable availability; it is not a full pipeline test. Detailed installation and environment verification are described in [Installation](docs/INSTALL.md). See [Recorded tool versions](docs/TOOL_VERSIONS.md) for software versions.
+The environment includes anvi'o v9 and the command-line tools used by MAGverify. `MAGverify doctor` shows the code directory in use and checks every required program and its version. Detailed installation and environment verification are described in [Installation](docs/INSTALL.md). See [Recorded tool versions](docs/TOOL_VERSIONS.md) for software versions.
 
 ## 2. Input preparation
 
@@ -69,7 +69,7 @@ MAGverify map \
   -t 100
 ```
 
-Maps PacBio HiFi reads separately to each original assembler FASTA, generating alignment evidence for downstream integrity assessments. The module writes the mapping manifest `01_mapping/mapping_manifest.tsv`, which lists each assembler FASTA, its HiFi BAM and the read file; later modules locate the BAMs and reads through this file.
+Maps PacBio HiFi reads separately to each original assembler FASTA, generating alignment evidence for downstream integrity assessments. The module writes `01_mapping/mapping.assembler.tsv` (the `samtools flagstat` counts per assembler) and, for the later modules, the mapping manifest `01_mapping/.cache/mapping_manifest.tsv` with the assembler FASTA, BAM and read paths.
 
 ### 2. Circularity
 
@@ -181,17 +181,19 @@ Integrates results from completed modules into a genome integrity summary and va
 
 ## 4. Results
 
-Each module writes its final tables to its own directory as `MODULE.LEVEL.tsv`, where `LEVEL` is `MAG` (one row per MAG), `contig` (one row per contig), or another unit named in the table below. The integrated result of all modules is `10_summary/summary.MAG.tsv` and `10_summary/summary.contig.tsv`.
+**Start with `summary.MAG.tsv`** at the top of the output folder: one row per MAG, the number of checks that flagged it (`n_flagged_checks`), then one `Y`/`N`/`NA` column per check (`NA`: not assessable or not run; `Checks_not_run` names the checks that were not run), then counts. `summary.contig.tsv` has the same checks for every contig (`MAG_ID` is `NA` for unbinned contigs).
+
+Each module writes its tables to its own directory as `MODULE.LEVEL.tsv`, where `LEVEL` is the unit of one row: `MAG`, `contig`, or another unit named below. These tables use plain column names and `Y`/`N`/`NA` values and leave out what only the pipeline needs (file paths, repeated columns). The modules themselves read the full internal tables in each hidden `.cache/` folder, which also holds intermediate files and fingerprints that later runs reuse; do not delete it.
 
 | Module | Directory | Final tables |
 | --- | --- | --- |
-| Read mapping | `01_mapping/` | `mapping_manifest.tsv` |
-| Circularity | `02_circularity/` | `circularity.MAG.tsv` |
-| Clipping | `03_clipping/` | `clipping.site.tsv`, `clipping.contig.tsv`, `clipping.MAG.tsv` |
-| False closure | `04_false_closure/` | `false_closure.contig.tsv`, `false_closure.MAG.tsv` |
-| Phantom sequences | `05_phantom/` | `phantom.region.tsv`, `phantom.MAG.tsv` |
-| Repeats | `06_repeats/` | `repeats.contig.tsv`, `repeats.MAG.tsv`, `repeats.dataset.tsv`, `repeats.region.tsv`, `repeats.HSP.tsv` |
-| Taxonomic chimera | `07_chimera/GTDB_R232/clipping_defined/` | `chimera.contig.tsv`, `chimera.MAG.tsv` |
-| False duplication | `08_false_duplication/` | `false_duplication.contig.tsv`, `false_duplication.MAG.tsv` |
-| Assembly variants | `09_assembly_variants/` | `variants.contig.tsv`, `variants.MAG.tsv` |
-| Integrated QC summary | `10_summary/` | `summary.contig.tsv` (MAG contigs), `summary.MAG.tsv` |
+| Read mapping | `01_mapping/` | `mapping.assembler.tsv` (read counts per assembler; BAMs are in the same folder) |
+| Circularity | `02_circularity/` | `circularity.MAG.tsv` (calls and END\|START junction read counts), `circularity.contig.tsv` (every contig) |
+| Clipping | `03_clipping/` | `clipping.site.tsv`, `clipping.contig.tsv`, `clipping.MAG.tsv`, `clipping.assembler.tsv` |
+| False closure | `04_false_closure/` | `false_closure.MAG.tsv`, `false_closure.contig.tsv` (every breakpoint in `Breakpoint_details`) |
+| Phantom sequences | `05_phantom/` | `phantom.region.tsv`, `phantom.contig.tsv`, `phantom.MAG.tsv` |
+| Repeats | `06_repeats/` | `repeats.contig.tsv`, `repeats.MAG.tsv`, `repeats.region.tsv`, `repeats.HSP.tsv` |
+| Taxonomic chimera | `07_chimera/` | `chimera.region.tsv`, `chimera.contig.tsv`, `chimera.MAG.tsv` |
+| False duplication | `08_false_duplication/` | `false_duplication.pair.tsv`, `false_duplication.contig.tsv`, `false_duplication.MAG.tsv` |
+| Assembly variants | `09_assembly_variants/` | `variants.site.tsv`, `variants.contig.tsv`, `variants.MAG.tsv` |
+| Integrated QC summary | top of the output folder | `summary.MAG.tsv`, `summary.contig.tsv` (all contigs) |

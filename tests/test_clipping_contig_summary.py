@@ -7,7 +7,7 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parent.parent
-SCRIPT = ROOT / 'scripts' / 'clipping_summarize_clipping_by_mag.py'
+SCRIPT = ROOT / 'scripts' / 'clipping_summarize.py'
 
 SITE_FIELDS = [
     'contig', 'length', 'pos_1based', 'coverage', 'clipping_count', 'clipping_ratio',
@@ -58,18 +58,14 @@ class ClippingContigSummaryTests(unittest.TestCase):
                 writer.writerow(site('c1', 1000, 500, 10, 9, 'Y'))
                 writer.writerow(site('c2', 2000, 100, 10, 9, 'N', 'TERMINAL'))
                 writer.writerow(site('c3', 500, 250, 10, 9, 'Y'))
-            out = {name: root / f'{name}.tsv' for name in (
-                'positive', 'mag_site', 'mag_positive_site', 'mag', 'mag_positive', 'contig')}
+            out = {name: root / f'{name}.tsv' for name in ('mag', 'contig')}
             result = subprocess.run([
-                sys.executable, '-I', str(SCRIPT),
+                sys.executable, '-I', str(SCRIPT), 'mag',
                 '--clipping', str(root / 'sites.tsv'),
                 '--mag-contig-map', str(root / 'map.tsv'),
                 '--fai', str(root / 'assembly.fa.fai'),
-                '--positive-site-output', str(out['positive']),
-                '--mag-site-output', str(out['mag_site']),
-                '--mag-positive-site-output', str(out['mag_positive_site']),
+                '--site-output', str(root / 'sites.tsv'),
                 '--summary-output', str(out['mag']),
-                '--positive-summary-output', str(out['mag_positive']),
                 '--contig-summary-output', str(out['contig']),
             ], text=True, capture_output=True)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -84,6 +80,11 @@ class ClippingContigSummaryTests(unittest.TestCase):
             self.assertEqual((contigs['c2']['Clipping'], contigs['c2']['n_candidate_sites']), ('N', '1'))
             self.assertEqual(contigs['c3']['Clipping'], 'Y')
             self.assertNotIn('clipping_contigs', contigs['c1'])
+
+            sites = read_tsv(root / 'sites.tsv')
+            self.assertEqual(len(sites), 3)
+            self.assertEqual([row['MAG_ID'] for row in sites], ['BinA', 'BinA', 'NA'])
+            self.assertEqual(list(sites[0]).count('MAG_ID'), 1)
 
             mags = read_tsv(out['mag'])
             self.assertEqual([row['MAG_ID'] for row in mags], ['BinA'])

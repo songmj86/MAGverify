@@ -9,6 +9,25 @@
 
 ## Unreleased
 
+- `00_prep/all_assemblies.fasta` renamed `00_prep/all_assemblies.fa` (FASTA outputs use `.fa`; Pyrodigal outputs keep `.faa`/`.gff`). Existing files are renamed automatically.
+- `-o` given as `OUTPUT/00_prep` or a module folder is read as `OUTPUT`. The old visible `00_prep/assembler_links/` is removed (the links are made in `00_prep/.cache/assembler_links/` when needed).
+- `prep-taxonomy` writes `00_prep/gtdbtk_taxonomy.MAG.tsv` (earlier `taxonomy.MAG.tsv` and `gtdb_taxonomy.MAG.tsv` are renamed automatically). `-o` given as a file path (for example `.../x.tsv`) now stops with a message instead of creating a folder with that name.
+- Every prep command has its module in `modules/`: `00_prep_chimera.sh`, `00_prep_taxonomy.sh`, `00_prep_scg.sh` (was `lib_scg.sh`), `00_prep_circularity.sh`.
+- `chimera validate`: event windows are computed once and looked up through a per-contig interval index (same evidence, faster on contigs with many events); `chimera evaluate` reads `samtools bedcov` output line by line.
+- `false-duplication detect`: `samtools view -F 260` skips secondary alignments, which were discarded afterwards anyway.
+- Code comments and merge leftovers removed; scg.contig.tsv column `source` renamed `HMM_collection` (both are read).
+- Tables for people: each module folder now holds tables with plain column names (`Copy1_left_supported`, `HiFi_END_START_supported`, `Small_genome_proxy`, ...), `Y`/`N`/`NA` values and no file paths or repeated columns; the full tables the modules read are in `.cache/` (written by `scripts/core_public_tables.py`). Tables of earlier versions are moved to `.cache/` automatically and the tables for people are written on the next run of any module.
+- `summary.MAG.tsv` and `summary.contig.tsv` are at the top of the output folder (were in `10_summary/`): one `Y`/`N`/`NA` column per check, `n_flagged_checks`, counts and `Checks_not_run`; `MAG_integrated_QC_call`, `Circularity_eligibility`, `excessive_repeat_call` and `false_duplication_clipping_summary` are removed.
+- `map`: `01_mapping/mapping.assembler.tsv` (read counts); the manifest with paths moved to `01_mapping/.cache/mapping_manifest.tsv`.
+- `phantom.dataset.tsv` and `repeats.dataset.tsv` are kept in `.cache/` only.
+- `00_prep/` has no subfolders: `genes.faa/gff/coordinates.tsv`, `scg.contig.tsv` (was `SCG/SCG_from_anvio.original_contig.tsv`), `taxonomy.MAG.tsv` (was `gtdb_taxonomy.MAG.tsv`), `taxonomy.gene.tsv` (was `gene_taxonomy/GTDB_R232/...all_contigs.tsv`); anvi'o files, gene-taxonomy work and assembler links are in `00_prep/.cache/`. Existing files are moved automatically.
+- `map`: the `samtools flagstat` counts are columns of `mapping_manifest.tsv`; the `.flagstat.txt` files are in `01_mapping/.cache/`.
+- `circularity`: new `circularity.contig.tsv` (every contig).
+- `false-closure`: `false_closure.breakpoint.tsv` is folded into `false_closure.contig.tsv` (`Validated_clipping_breakpoints`, `Breakpoint_details`); the full table stays in `.cache/`.
+- `phantom`: new `phantom.contig.tsv` (every contig).
+- `false-duplication`: boundary values are Y/N/NA (were SUPPORTED/UNSUPPORTED/NOT_ANALYZABLE/NOT_EVALUABLE_CONTIG_END); columns `LR_COPY*_SUPPORTED`, `LR_ASSESSMENT`; duplicated `HIFI_PRIMARY_SUPPLEMENTARY_*` and pair-count columns removed from the pair and contig tables.
+- Fixed: the merged `chimera_call.py`, `false_closure.py` and `false_duplication.py` had lost their `@dataclass` decorators (`ClipRecord() takes no arguments`).
+- Python 3.10 or newer is required.
 - `circularity` always runs minimap2 with `--secondary-seq`, as `map` does (`-ax map-hifi -p 1 --secondary-seq`); the version check and its "--secondary-seq is unavailable" note are removed.
 - Messages: "eligible MAG" now reads "single-contig MAG"; "source assembly/assembler" wording removed from messages and documentation.
 - Final tables in `results/` are named `MODULE.LEVEL.tsv` (`repeats.MAG.tsv`, `repeats.contig.tsv`, `clipping.site.tsv`, `phantom.region.tsv`, ...). MAG tables start with `MAG_ID`, `Assembler`; contig, site, region and gene tables start with `Contig`, `MAG_ID` (`NA` outside MAGs), `Assembler`. Contig and assembler ID columns are renamed to these names; module directories are unchanged. Links with the former names are removed.

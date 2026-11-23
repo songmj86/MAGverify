@@ -19,7 +19,7 @@ class FinalTableTests(unittest.TestCase):
             for relative in tables:
                 name = Path(relative).name
                 if stage != 'map':
-                    self.assertRegex(name, r'^[a-z_]+\.(MAG|contig|site|region|dataset|HSP)\.tsv$', name)
+                    self.assertRegex(name, r'^[a-z_]+\.(MAG|contig|site|region|dataset|HSP|assembler|breakpoint|pair)\.tsv$', name)
 
     def test_report_lists_existing_tables_only(self):
         (self.root / '06_repeats').mkdir()

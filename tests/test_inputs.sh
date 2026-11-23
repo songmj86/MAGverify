@@ -18,12 +18,10 @@ MAG01	contig_a
 MAG02	contig_b
 EXPECTED
 
-# Repeat generation must validate the already-created table.
 python3 "$ROOT/../scripts/prep_build_mag_contig_map.py" \
     --mag-dir "$TMP/mags" --assembly-fai "$TMP/assembly.fasta.fai" \
     --output "$TMP/map.tsv" > /dev/null
 
-# Inconsistent MAG-to-assembly lengths must fail.
 printf '>contig_a\nACGTA\n' > "$TMP/mags/MAG01.fa"
 if python3 "$ROOT/../scripts/prep_build_mag_contig_map.py" \
     --mag-dir "$TMP/mags" --assembly-fai "$TMP/assembly.fasta.fai" \

@@ -5,13 +5,13 @@ import csv
 import json
 import os
 import re
-from pathlib import Path
 import shlex
 import shutil
 import subprocess
 import sys
 import tempfile
 import time
+from pathlib import Path
 
 
 class OptionHelpFormatter(argparse.RawDescriptionHelpFormatter):
@@ -37,8 +37,34 @@ help_formatter = OptionHelpFormatter
 
 ROOT = Path(__file__).resolve().parent.parent / "modules"
 SCRIPTS_DIR = Path(__file__).resolve().parent
+
+
+class _PublicTables:
+
+    def _module(self):
+        path = SCRIPTS_DIR / 'core_public_tables.py'
+        if not path.is_file():
+            return None
+        import importlib.util
+        spec = importlib.util.spec_from_file_location('magverify_public_tables', path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    def migrate(self, root):
+        module = self._module()
+        if module and not DRY_RUN:
+            module.migrate(root)
+
+    def publish(self, root):
+        module = self._module()
+        if module and not DRY_RUN:
+            module.publish(root)
+
+
+public_tables = _PublicTables()
 STAGES = {
-    'map': ('01_mapping.sh', '01_mapping', 'Map HiFi reads to source assemblies'),
+    'map': ('01_mapping.sh', '01_mapping', 'Map HiFi reads to each assembly'),
     'circularity': ('02_circularity.sh', '02_circularity', 'Validate circular genome topology'),
     'clipping': ('03_clipping.sh', '03_clipping', 'Assess read-clipping sites'),
     'false-closure': ('04_false_closure.sh', '04_false_closure', 'Assess false genome closure'),
@@ -47,7 +73,7 @@ STAGES = {
     'chimera': ('07_chimera.sh', '07_chimera', 'Assess gene-level taxonomic chimeras'),
     'false-duplication': ('08_false_duplication.sh', '08_false_duplication', 'Assess false duplication'),
     'variants': ('09_assembly_variants.sh', '09_assembly_variants', 'Assess assembly variants'),
-    'summary': ('10_summary.sh', '10_summary', 'Summarize and validate QC results'),
+    'summary': ('10_summary.sh', '.cache/summary', 'Summarize and validate QC results'),
 }
 
 FILE_OPTIONS = {
@@ -73,42 +99,44 @@ FILE_OPTIONS = {
     'duplication_clipping_mag_table': ('FALSE_DUP_CLIPPING_MAG_SUM', '--duplication-clipping-mag-table'),
 }
 RESULTS = {
-    'taxonomy': '00_prep/gene_taxonomy/GTDB_R232/gene_taxonomy.mmseqs2.GTDB_R232.all_contigs.tsv',
+    'taxonomy': '00_prep/taxonomy.gene.tsv',
     'mag_map': '00_prep/MAG_contig_map.tsv',
-    'mag_taxonomy': '00_prep/gtdb_taxonomy.MAG.tsv',
+    'mag_taxonomy': '00_prep/gtdbtk_taxonomy.MAG.tsv',
     'database': '00_prep/GTDB_R232',
-    'mapping_manifest': '01_mapping/mapping_manifest.tsv',
-    'clipping_table': '03_clipping/clipping.site.tsv',
-    'clipping_all_table': '03_clipping/clipping.site.all_regions.tsv',
-    'scg_table': '00_prep/SCG/SCG_from_anvio.original_contig.tsv',
+    'mapping_manifest': '01_mapping/.cache/mapping_manifest.tsv',
+    'clipping_table': '03_clipping/.cache/clipping.site.internal.tsv',
+    'clipping_all_table': '03_clipping/.cache/clipping.site.tsv',
+    'scg_table': '00_prep/scg.contig.tsv',
     'assembler_circularity': '00_prep/assembler_circularity.MAG.tsv',
-    'circularity_table': '02_circularity/circularity.MAG.tsv',
-    'circularity_audit': '02_circularity/circularity.MAG.audit.tsv',
-    'false_closure_table': '04_false_closure/false_closure.MAG.tsv',
-    'false_closure_audit': '04_false_closure/false_closure.MAG.audit.tsv',
-    'chimera_table': '07_chimera/GTDB_R232/clipping_defined/chimera.contig.tsv',
-    'variants_table': '09_assembly_variants/variants.contig.tsv',
-    'phantom_table': '05_phantom/phantom.region.tsv',
-    'repeats_table': '06_repeats/repeats.contig.tsv',
-    'repeats_mag_table': '06_repeats/repeats.MAG.tsv',
-    'duplication_table': '08_false_duplication/false_duplication.contig.tsv',
-    'duplication_clipping_table': '08_false_duplication/validation/clipping/false_duplication.contig.clipping.tsv',
-    'duplication_clipping_mag_table': '08_false_duplication/validation/clipping/false_duplication.MAG.clipping.tsv',
+    'circularity_table': '02_circularity/.cache/circularity.MAG.tsv',
+    'circularity_audit': '02_circularity/.cache/circularity.MAG.audit.tsv',
+    'false_closure_table': '04_false_closure/.cache/false_closure.MAG.tsv',
+    'false_closure_audit': '04_false_closure/.cache/false_closure.MAG.audit.tsv',
+    'chimera_table': '07_chimera/.cache/chimera.contig.tsv',
+    'variants_table': '09_assembly_variants/.cache/variants.contig.tsv',
+    'phantom_table': '05_phantom/.cache/phantom.region.tsv',
+    'repeats_table': '06_repeats/.cache/repeats.contig.tsv',
+    'repeats_mag_table': '06_repeats/.cache/repeats.MAG.tsv',
+    'duplication_table': '08_false_duplication/.cache/false_duplication.contig.tsv',
+    'duplication_clipping_table': '08_false_duplication/.cache/clipping/false_duplication.contig.clipping.tsv',
+    'duplication_clipping_mag_table': '08_false_duplication/.cache/clipping/false_duplication.MAG.clipping.tsv',
 }
 FINAL_TABLES = {
-    'map': ('01_mapping/mapping_manifest.tsv',),
-    'circularity': ('02_circularity/circularity.MAG.tsv',),
-    'clipping': ('03_clipping/clipping.site.tsv', '03_clipping/clipping.contig.tsv', '03_clipping/clipping.MAG.tsv'),
-    'false-closure': ('04_false_closure/false_closure.contig.tsv', '04_false_closure/false_closure.MAG.tsv'),
-    'phantom': ('05_phantom/phantom.region.tsv', '05_phantom/phantom.MAG.tsv'),
-    'repeats': ('06_repeats/repeats.contig.tsv', '06_repeats/repeats.MAG.tsv', '06_repeats/repeats.dataset.tsv',
+    'map': ('01_mapping/mapping.assembler.tsv',),
+    'circularity': ('02_circularity/circularity.MAG.tsv', '02_circularity/circularity.contig.tsv'),
+    'clipping': ('03_clipping/clipping.site.tsv', '03_clipping/clipping.contig.tsv', '03_clipping/clipping.MAG.tsv',
+                 '03_clipping/clipping.assembler.tsv'),
+    'false-closure': ('04_false_closure/false_closure.MAG.tsv', '04_false_closure/false_closure.contig.tsv'),
+    'phantom': ('05_phantom/phantom.region.tsv', '05_phantom/phantom.contig.tsv', '05_phantom/phantom.MAG.tsv'),
+    'repeats': ('06_repeats/repeats.contig.tsv', '06_repeats/repeats.MAG.tsv',
                 '06_repeats/repeats.region.tsv', '06_repeats/repeats.HSP.tsv'),
-    'chimera': ('07_chimera/GTDB_R232/clipping_defined/chimera.contig.tsv',
-                '07_chimera/GTDB_R232/clipping_defined/chimera.MAG.tsv'),
-    'false-duplication': ('08_false_duplication/false_duplication.contig.tsv',
+    'chimera': ('07_chimera/chimera.region.tsv', '07_chimera/chimera.contig.tsv', '07_chimera/chimera.MAG.tsv'),
+    'false-duplication': ('08_false_duplication/false_duplication.pair.tsv',
+                          '08_false_duplication/false_duplication.contig.tsv',
                           '08_false_duplication/false_duplication.MAG.tsv'),
-    'variants': ('09_assembly_variants/variants.contig.tsv', '09_assembly_variants/variants.MAG.tsv'),
-    'summary': ('10_summary/summary.contig.tsv', '10_summary/summary.MAG.tsv'),
+    'variants': ('09_assembly_variants/variants.site.tsv', '09_assembly_variants/variants.contig.tsv',
+                 '09_assembly_variants/variants.MAG.tsv'),
+    'summary': ('summary.MAG.tsv', 'summary.contig.tsv'),
 }
 GENERATED_RESULTS_NAMES = {
     'mapping_manifest.tsv', 'clipping_sites.tsv', 'clipping_mag.tsv', 'clipping_contig.tsv', 'gene_taxonomy.tsv',
@@ -154,6 +182,8 @@ NEEDS_MAP = {'clipping', 'chimera', 'false-closure', 'variants', 'phantom', 'fal
 NEEDS_MAG_MAP = {'chimera', 'false-closure', 'variants', 'phantom', 'repeats', 'false-duplication', 'summary'}
 NEEDS_SOURCES = {'map', 'circularity', 'repeats'}
 
+DRY_RUN = os.environ.get('MAGVERIFY_DRY_RUN') == '1'
+
 
 class UsageError(Exception):
     pass
@@ -170,8 +200,10 @@ def file_input(value, name):
 
 def dir_input(value, name):
     path = Path(value).expanduser().resolve()
+    if path.is_file():
+        raise UsageError(f'{name} needs a directory, not a file: {path} (give {path.parent})')
     if not path.is_dir():
-        raise UsageError(f'{name} must be an existing directory: {path}')
+        raise UsageError(f'{name} directory not found: {path}')
     return path
 
 
@@ -186,8 +218,7 @@ READ_SUFFIXES = ('.fastq', '.fq', '.fastq.gz', '.fq.gz')
 
 
 def reads_input(directory, root, dry_run):
-    """HiFi reads from a directory. One FASTQ file is used as is; several files
-    (all gzipped or all plain) are joined once into OUTPUT/00_prep/hifi_reads.fastq[.gz]."""
+    """HiFi reads from a directory. One FASTQ file is used as is; several files (all gzipped or all plain) are joined once into OUTPUT/00_prep/hifi_reads.fastq[.gz]."""
     parent = dir_input(directory, '-r')
     files = sorted(p for p in parent.iterdir()
                    if p.is_file() and p.name.lower().endswith(READ_SUFFIXES) and p.stat().st_size)
@@ -215,10 +246,11 @@ def reads_input(directory, root, dry_run):
     output.parent.mkdir(parents=True, exist_ok=True)
     temp = output.with_name('.' + output.name + '.tmp')
     with temp.open('wb') as dest:
-        for source in files:  # gzip members can be concatenated
+        for source in files:
             with source.open('rb') as stream:
                 shutil.copyfileobj(stream, dest, 16 * 1024 * 1024)
     os.replace(temp, output)
+    metadata.parent.mkdir(parents=True, exist_ok=True)
     metadata.write_text(json.dumps(fingerprint), encoding='utf-8')
     return output
 
@@ -347,28 +379,40 @@ def check_manifest(value):
 
 
 def inputs_record(path):
-    """Sidecar JSON recording the inputs of a generated file (former name: .sources.json)."""
-    record = Path(str(path) + '.inputs.json')
-    legacy = Path(str(path) + '.sources.json')
-    if legacy.is_file() and not record.exists():
-        os.replace(legacy, record)
+    """Sidecar JSON recording the inputs of a generated file."""
+    path = Path(path)
+    record = path.parent / '.cache' / (path.name + '.inputs.json')
+    for legacy in (Path(str(path) + '.inputs.json'), Path(str(path) + '.sources.json')):
+        if legacy.is_file() and not record.exists():
+            if DRY_RUN:
+                return legacy
+            record.parent.mkdir(exist_ok=True)
+            os.replace(legacy, record)
     return record
 
 
 def all_assemblies_path(root):
-    """Path of the concatenated assembler FASTAs; moves files with the former name."""
-    output = root / '00_prep' / 'all_assemblies.fasta'
-    legacy = root / '00_prep' / 'combined_assembly.fasta'
-    if legacy.is_file() and not output.exists():
+    """Path of the concatenated assembler FASTAs."""
+    prep = root / '00_prep'
+    output = prep / 'all_assemblies.fa'
+    for legacy in (prep / 'all_assemblies.fasta', prep / 'combined_assembly.fasta'):
+        if not legacy.is_file() or output.exists():
+            continue
+        if DRY_RUN:
+            return legacy
         for suffix in ('', '.fai', '.sources.json', '.inputs.json'):
             old = Path(str(legacy) + suffix)
             if old.exists():
                 os.replace(old, Path(str(output) + suffix))
+        old_record = prep / '.cache' / (legacy.name + '.inputs.json')
+        if old_record.is_file():
+            os.replace(old_record, prep / '.cache' / (output.name + '.inputs.json'))
+        inputs_record(output)
     return output
 
 
 def assemble_combined(paths, output, dry_run):
-    """Build a FASTA spanning the original source assemblies, retaining contig IDs."""
+    """Build a FASTA spanning the original assemblies, retaining contig IDs."""
     sources = [file_input(p, 'assembler FASTA') for p in paths]
     if not sources:
         raise UsageError('No assembler FASTAs available to build the all-assemblies FASTA')
@@ -386,7 +430,7 @@ def assemble_combined(paths, output, dry_run):
     if dry_run:
         return output
     output.parent.mkdir(parents=True, exist_ok=True)
-    fd, temp_name = tempfile.mkstemp(prefix='.combined_', suffix='.fasta', dir=output.parent)
+    fd, temp_name = tempfile.mkstemp(prefix='.combined_', suffix='.fa', dir=output.parent)
     temp = Path(temp_name)
     identifiers = set()
     try:
@@ -414,6 +458,7 @@ def assemble_combined(paths, output, dry_run):
                 if not seen_header:
                     raise UsageError(f'No FASTA records in {source}')
         os.replace(temp, output)
+        metadata.parent.mkdir(parents=True, exist_ok=True)
         metadata.write_text(json.dumps(fingerprint, indent=2) + '\n', encoding='utf-8')
         Path(str(output) + '.fai').unlink(missing_ok=True)
     finally:
@@ -464,8 +509,15 @@ def source_links_from_manifest(args, root):
             name = f'assembler_{index}_{name}'
         used.add(name)
         named.append((name, path))
-    directory = link_inputs(named, root / '00_prep' / 'source_assembly_links', args.dry_run)
+    for legacy in (root / '00_prep' / 'source_assembly_links', root / '00_prep' / 'assembler_links'):
+        if (not args.dry_run and legacy.is_dir()
+                and all(p.is_symlink() or p.name.endswith('.fai') for p in legacy.iterdir())):
+            shutil.rmtree(legacy)
+    directory = link_inputs(named, root / '00_prep' / '.cache' / 'assembler_links', args.dry_run)
     return directory, ' '.join(name for name, _ in named)
+
+
+OUTPUT_FILE_SUFFIXES = ('.tsv', '.txt', '.csv', '.fa', '.fasta', '.fna', '.gz', '.bam')
 
 
 def defaults_for(stage, args):
@@ -477,12 +529,19 @@ def defaults_for(stage, args):
     if threads > cpus:
         raise UsageError(f'-t {threads} exceeds the available CPUs ({cpus})')
     root = Path(args.output_directory).expanduser().resolve()
+    if root.name in {'00_prep', '10_summary'} | {folder for _script, folder, _text in STAGES.values()}:
+        print(f'-o is the output folder; using {root.parent} (given: {root})', flush=True)
+        root = root.parent
+    if root.is_file() or root.suffix.lower() in OUTPUT_FILE_SUFFIXES:
+        raise UsageError(f'-o is the output folder shared by all commands, not a file: {root}. '
+                         'Each command writes its tables inside it '
+                         '(prep-taxonomy: -o DIR writes DIR/00_prep/gtdbtk_taxonomy.MAG.tsv)')
     env = os.environ.copy()
     for key in list(env):
         if key in {'OUT', 'READS', 'ASSEMBLY_FA', 'MAG_DIR', 'MAG_CONTIG_MAP',
                    'ASSEMBLER_ASSEMBLY_DIR', 'ASSEMBLER_FASTAS', 'ASSEMBLER_MAPPING_MANIFEST',
                    'MAPPING_DIR', 'CLIPPING_DIR', 'PREP_DIR', 'PER_ASSEMBLER_MANIFEST',
-                   'PER_ASSEMBLER_MAP_ROOT', 'HIFI_MAPPING_DIR', 'SCG_TSV', 'SCG_OUT_DIR',
+                   'PER_ASSEMBLER_MAP_ROOT', 'HIFI_MAPPING_DIR', 'SCG_TSV', 'SCG_OUT_DIR', 'GENE_CALLS_DIR',
                    'CIRCULARITY_TSV', 'MAG_GTDB_TAXONOMY_TSV', 'GTDB_GENE_TAX_TSV',
                    'CLIP_FINAL', 'CLIP_ALL_FINAL', 'GTDB_CHIMERA_REPORT_CONTIG',
                    'CIRCULARITY_ONLY_FINAL', 'CIRCULARITY_ONLY_AUDIT', 'FALSE_CLOSURE_FINAL',
@@ -494,6 +553,7 @@ def defaults_for(stage, args):
                        'FALSE_DUP_INPUT_', 'SUMMARY_INPUT_')):
             env.pop(key, None)
     env.update(OUT=str(root), THREADS=str(threads), QC_SKIP_LOCAL_CONFIG='1')
+    migrate_prep_layout(root)
     return root, env
 
 
@@ -552,8 +612,7 @@ def mapping_result(stage, args, root, env, sources):
         return generated if args.dry_run else check_manifest(generated)
     if getattr(args, 'reads', None) and not sources and not generated.is_file():
         raise UsageError('Provide -a DIR with -r DIR, or --mapping-manifest')
-    raise UsageError(f'{stage} needs an existing map result in -o DIR, '
-                     'or -r DIR and -a DIR.')
+    raise UsageError(f'{stage} needs the map result in this -o DIR: run MAGverify map first')
 
 
 def reads_from_manifest(args, root):
@@ -662,7 +721,9 @@ def need_result(name, args, root, env, stage, optional=False):
     if optional:
         return None
     hint = {'assembler_circularity': ' (run MAGverify prep-circularity first)',
-            'mag_taxonomy': ' (run MAGverify prep-taxonomy first)'}.get(name, '')
+            'mag_taxonomy': ' (run MAGverify prep-taxonomy first)',
+            'clipping_table': ' (run MAGverify clipping first)',
+            'clipping_all_table': ' (run MAGverify clipping first)'}.get(name, '')
     raise UsageError(f'{stage} needs {flag} FILE or an existing result at {fallback}{hint}')
 
 
@@ -679,7 +740,7 @@ def prep_chimera_run(args):
         file_input(gtdb_dir / name, f'GTDB R232 input in --gtdb-dir ({name})')
     if not args.dry_run:
         check_programs('prep-chimera', env=env)
-    work = root / '00_prep' / 'tmp_prep_chimera'
+    work = root / '00_prep' / '.cache' / 'prep_chimera_work'
     db = root / RESULTS['database']
     if db.is_dir():
         raise UsageError(f'{db} is a directory; remove it so the MMseqs2 database files can be written')
@@ -694,10 +755,8 @@ def prep_circularity_run(args):
     """Build the assembler-reported circularity table from native assembler outputs."""
     root, env = defaults_for('prep-circularity', args)
     mags = dir_input(args.mag_dir, '-g')
-    cmd = ['python3', str(SCRIPTS_DIR / 'prep_assembler_circularity.py')]
-    for source in args.sources:
-        cmd += ['-c', str(file_input(source, '-c'))]
-    run(cmd + ['-g', str(mags), '-o', str(root)], env, args.dry_run)
+    files = [str(file_input(path, '-c')) for path in args.sources]
+    run(['bash', str(ROOT / '00_prep_circularity.sh'), str(mags), str(root), *files], env, args.dry_run)
 
 
 def prep_taxonomy_run(args):
@@ -707,8 +766,7 @@ def prep_taxonomy_run(args):
     mags = dir_input(args.mag_dir, '-g')
     output = root / RESULTS['mag_taxonomy']
     print('MAG taxonomy: ' + str(output), flush=True)
-    run(['python3', str(SCRIPTS_DIR / 'prep_gtdbtk_summary_to_mag_taxonomy.py'),
-         '--gtdbtk-dir', str(gtdbtk), '-g', str(mags), '-o', str(output)], env, args.dry_run)
+    run(['bash', str(ROOT / '00_prep_taxonomy.sh'), str(gtdbtk), str(mags), str(output)], env, args.dry_run)
 
 
 def prep_scg_run(args):
@@ -721,9 +779,11 @@ def prep_scg_run(args):
                                  all_assemblies_path(root), args.dry_run)
     if not args.dry_run:
         check_programs('prep-scg', env=env)
-    out = root / '00_prep' / 'SCG'
-    print('SCG table: ' + str(out / 'SCG_from_anvio.original_contig.tsv'), flush=True)
-    run(['bash', str(ROOT / 'lib_scg.sh'), str(assembly), str(out), env['THREADS']],
+    out = root / '00_prep' / '.cache' / 'scg'
+    env['SCG_TSV'] = str(root / RESULTS['scg_table'])
+    env['GENE_CALLS_DIR'] = str(root / '00_prep')
+    print('SCG table: ' + env['SCG_TSV'], flush=True)
+    run(['bash', str(ROOT / '00_prep_scg.sh'), str(assembly), str(out), env['THREADS']],
         env, args.dry_run)
 
 
@@ -763,7 +823,7 @@ def add_prep_parser(subparsers):
     p.add_argument('-g', dest='mag_dir', required=True, metavar='DIR', help='Directory of MAGs (*.fa)')
     p.add_argument('-o', dest='output_directory', required=True, metavar='DIR',
                    help='Directory of base output, the same -o as the analysis modules '
-                        '(table: 00_prep/gtdb_taxonomy.MAG.tsv)')
+                        '(table: 00_prep/gtdbtk_taxonomy.MAG.tsv)')
     p = subparsers.add_parser('prep-scg', formatter_class=help_formatter,
         help="Annotate single-copy genes with anvi'o",
         description="Annotate single-copy genes on all assemblies with anvi'o "
@@ -774,15 +834,13 @@ def add_prep_parser(subparsers):
     p.add_argument('-t', dest='threads', type=int, metavar='N', help='Number of threads')
     p.add_argument('-o', dest='output_directory', required=True, metavar='DIR',
                    help='Directory of base output, the same -o as the analysis modules '
-                        '(table: 00_prep/SCG/SCG_from_anvio.original_contig.tsv)')
+                        '(table: 00_prep/scg.contig.tsv)')
     return p
 
 LEGACY_OUTPUT_NAMES = (
     ('MAG_phantom_sequences.final.tsv', 'phantom.MAG_region.tsv'),
     ('MAG_phantom_summary.final.tsv', 'phantom.MAG.tsv'),
     ('phantom_sequences.final.tsv', 'phantom.region.tsv'),
-    ('clipping.all_regions.filtered.tsv', 'clipping.site.all_regions.tsv'),
-    ('clipping.filtered.tsv', 'clipping.site.tsv'),
     ('contig_clipping.final.tsv', 'clipping.contig.tsv'),
     ('MAG_clipping.final.tsv', 'clipping.MAG.tsv'),
     ('MAG_circularity.final.tsv', 'circularity.MAG.tsv'),
@@ -811,6 +869,46 @@ LEGACY_OUTPUT_DIRS = (
     ('02_circularity/00_source_plan', '02_circularity/00_assembler_plan'),
     ('02_circularity/01_by_source', '02_circularity/01_by_assembler'),
 )
+
+PREP_LEGACY_FILES = (
+    ('genes/genes.faa', 'genes.faa'),
+    ('genes/genes.gff', 'genes.gff'),
+    ('genes/genes.coordinates.tsv', 'genes.coordinates.tsv'),
+    ('genes/.cache/genes.inputs.sha256', '.cache/genes.inputs.sha256'),
+    ('SCG/SCG_from_anvio.original_contig.tsv', 'scg.contig.tsv'),
+    ('SCG/00_SCG.log', 'SCG/prep_scg.log'),
+    ('gtdb_taxonomy.MAG.tsv', 'gtdbtk_taxonomy.MAG.tsv'),
+    ('taxonomy.MAG.tsv', 'gtdbtk_taxonomy.MAG.tsv'),
+    ('gene_taxonomy/GTDB_R232/gene_taxonomy.mmseqs2.GTDB_R232.all_contigs.tsv', 'taxonomy.gene.tsv'),
+)
+PREP_LEGACY_DIRS = (
+    ('SCG', '.cache/scg'),
+    ('gene_taxonomy/GTDB_R232', '.cache/gene_taxonomy'),
+    ('tmp_prep_chimera', '.cache/prep_chimera_work'),
+)
+
+
+def migrate_prep_layout(root):
+    """Move 00_prep files of earlier versions (genes/, SCG/, gene_taxonomy/) to the flat layout."""
+    prep = root / '00_prep'
+    if DRY_RUN or not prep.is_dir():
+        return
+    for old, new in PREP_LEGACY_FILES:
+        if (prep / old).is_file() and not (prep / new).exists():
+            (prep / new).parent.mkdir(parents=True, exist_ok=True)
+            os.replace(prep / old, prep / new)
+    for old, new in PREP_LEGACY_DIRS:
+        if (prep / old).is_dir() and not (prep / new).exists():
+            (prep / new).parent.mkdir(parents=True, exist_ok=True)
+            os.replace(prep / old, prep / new)
+    all_assemblies_path(root)
+    links = prep / 'assembler_links'
+    if links.is_dir() and all(p.is_symlink() or p.name.endswith('.fai') for p in links.iterdir()):
+        shutil.rmtree(links)
+    for leftover in ('genes', 'gene_taxonomy'):
+        folder = prep / leftover
+        if folder.is_dir() and not any(p.is_file() and p.name not in ('genes.lock',) for p in folder.rglob('*')):
+            shutil.rmtree(folder)
 
 
 def migrate_legacy_outputs(root):
@@ -846,12 +944,14 @@ def stage_run(args):
     if not args.dry_run and root.is_dir():
         migrate_legacy_outputs(root)
         remove_generated_results_dir(root)
+        public_tables.migrate(root)
     main_input, sources = choose_inputs(args, root, env)
     if stage not in ('map', 'circularity') and not main_input:
-        raise UsageError(f'{stage} needs -a DIR or --mapping-manifest TSV')
+        raise UsageError(f'{stage} needs the map result in this -o DIR: run MAGverify map first '
+                         '(or pass -a DIR)')
     if stage in NEEDS_SOURCES and not sources:
-        raise UsageError(f'{stage} needs -a DIR (original assembler FASTAs), '
-                         'or a mapping manifest')
+        raise UsageError(f'{stage} needs the map result in this -o DIR: run MAGverify map first '
+                         '(or pass -a DIR)')
     if stage == 'map' and not args.reads:
         raise UsageError('map needs -r DIR (HiFi FASTQ/FASTQ.GZ files)')
     if stage == 'circularity' and 'MAG_DIR' not in env:
@@ -929,17 +1029,31 @@ def stage_run(args):
                 'repeats': ('repeats_table', 'repeats_mag_table'),
                 'false-duplication': ('duplication_table', 'duplication_clipping_table', 'duplication_clipping_mag_table'),
             }
-            for name in enabled:
+            missing = []
+            for name in sorted(enabled, key=list(FLAGS).index):
                 for table in tables[name]:
-                    need_result(table, args, root, env, stage)
-            cmd = ['bash', str(ROOT / '10_summary.sh'), str(main_input), str(root / '10_summary')]
+                    if need_result(table, args, root, env, stage, optional=True) is None:
+                        missing.append((name, FILE_OPTIONS[table][1], root / RESULTS[table]))
+            if missing:
+                done = [name for name in FLAGS if name in enabled and name not in {m[0] for m in missing}]
+                first = {}
+                for name, flag, path in missing:
+                    first.setdefault(name, (flag, path))
+                lines = [f'  {name}: {path} (or {flag} FILE)' for name, (flag, path) in first.items()]
+                modules = ', '.join(first)
+                tip = (f'\nOr summarize only the finished modules: MAGverify summary ... --include {",".join(done)}'
+                       if done else '')
+                raise UsageError('summary needs results that are not in this -o DIR yet:\n' + '\n'.join(lines)
+                                 + f'\nRun first: MAGverify {modules.replace(", ", ", MAGverify ")}' + tip)
+            cmd = ['bash', str(ROOT / '10_summary.sh'), str(main_input), str(root / '.cache' / 'summary')]
         elif stage == 'circularity':
             cmd = ['bash', str(ROOT / '02_circularity.sh'), env['MAG_DIR'], str(root / '02_circularity')]
         else:
             cmd = ['bash', str(ROOT / '03_clipping.sh'), str(main_input), str(root / '03_clipping')]
-    print('Output: ' + str(root / STAGES[stage][1]), flush=True)
+    print('Output: ' + str(root if stage == 'summary' else root / STAGES[stage][1]), flush=True)
     run(cmd, env, args.dry_run)
     if not args.dry_run:
+        public_tables.publish(root)
         report_final_tables(stage, root)
 
 
@@ -1004,6 +1118,64 @@ def add_stage_parser(subparsers, stage):
     return p
 
 
+DOCTOR_PROGRAMS = (
+    ('bash', None), ('python3', None), ('awk', None), ('sed', None), ('xargs', None),
+    ('sha256sum', None), ('minimap2', ['--version']), ('samtools', ['--version']),
+    ('bedtools', ['--version']), ('blastn', ['-version']), ('makeblastdb', None),
+    ('mmseqs', ['version']), ('pyrodigal', ['--version']), ('hmmsearch', ['-h']),
+    ('meryl', ['--version']), ('anvi-profile', ['--version']),
+    ('anvi-gen-contigs-database', None), ('anvi-run-hmms', None),
+    ('anvi-script-find-misassemblies', None), ('anvi-script-reformat-fasta', None),
+    ('anvi-script-reformat-bam', None), ('anvi-export-table', None),
+)
+
+
+def program_version(path, args):
+    try:
+        result = subprocess.run([path, *args], capture_output=True, text=True, timeout=60)
+    except (OSError, subprocess.TimeoutExpired):
+        return ''
+    for line in (result.stdout + '\n' + result.stderr).splitlines():
+        line = line.strip().lstrip('#').strip()
+        if re.search(r'\d+\.\d+|\(v\d+', line):
+            return re.sub(r'\s*\.{3,}\s*:?\s*', ': ', line)[:60]
+    return ''
+
+
+def doctor():
+    """Check the installation: code location, required programs and their versions."""
+    try:
+        from importlib.metadata import version
+        installed = version('MAGverify')
+    except Exception:
+        installed = 'not installed (running from the code folder)'
+    checkout = ROOT.parent
+    complete = all((checkout / name).is_file() for name in
+                   ('magverify_cli.py', 'modules/lib_config.sh', 'scripts/core_magverify_cli.py'))
+    print(f'{"MAGverify version":32s} {installed}')
+    print(f'{"MAGverify path":32s} {checkout}' + ('' if complete else '  (INCOMPLETE: files missing)'))
+    print(f'{"Python":32s} {sys.version.split()[0]}')
+    print()
+    print(f'{"Program":32s} {"Status":8s} Version')
+    missing = []
+    for name, version_args in DOCTOR_PROGRAMS:
+        path = shutil.which(name)
+        if not path:
+            missing.append(name)
+            print(f'{name:32s} {"MISSING":8s}')
+            continue
+        found = program_version(path, version_args) if version_args else ''
+        print(f'{name:32s} {"OK":8s} {found}')
+    print()
+    if missing or not complete:
+        if missing:
+            print('Missing programs: ' + ', '.join(missing))
+        print('Activate the MAGverify environment, or see docs/INSTALL.md')
+        return 1
+    print(f'All {len(DOCTOR_PROGRAMS)} required programs found.')
+    return 0
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog='MAGverify', description='PacBio HiFi MAG assembly quality control',
                                      formatter_class=help_formatter,
@@ -1014,9 +1186,9 @@ def main(argv=None):
     for stage in STAGES:
         add_stage_parser(sub, stage)
     sub.add_parser('list', help='List available modules', add_help=False)
-    sub.add_parser('doctor', help='List core bioinformatics commands available on PATH', add_help=False)
+    sub.add_parser('doctor', help='Check the installation and required programs', add_help=False)
     args = parser.parse_args(argv)
-    args.dry_run = os.environ.get('MAGVERIFY_DRY_RUN') == '1'
+    args.dry_run = DRY_RUN
     if args.module == 'list':
         print('Preparation (run once):')
         print('  prep-chimera       Build MMseqs2 taxonomy database from local GTDB R232 files')
@@ -1028,17 +1200,7 @@ def main(argv=None):
             print(f'  {name:18s} {desc}')
         return 0
     if args.module == 'doctor':
-        try:
-            from importlib.metadata import version
-            installed = version('MAGverify')
-        except Exception:
-            installed = 'not installed (running from source)'
-        print(f'{"MAGverify version":34s} {installed}')
-        print(f'{"MAGverify path":34s} {ROOT.parent}')
-        for cmd in ['bash', 'python3', 'minimap2', 'samtools', 'mmseqs', 'pyrodigal', 'anvi-profile',
-                    'anvi-script-find-misassemblies', 'blastn', 'makeblastdb', 'meryl', 'bedtools']:
-            print(f'{cmd:34s} {shutil.which(cmd) or "not found"}')
-        return 0
+        return doctor()
     try:
         if args.module == 'prep-chimera':
             prep_chimera_run(args)

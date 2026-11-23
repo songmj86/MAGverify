@@ -26,22 +26,22 @@ for i in "${!stages[@]}"; do
     check_config "$stage" "${inputs[$i]}" "$in" "$out" "${outputs[$i]}" "$out"
 done
 
-# Derived filenames and subdirectories must follow positional output paths.
 QC_STAGE=03_clipping bash -c '
   config="$1"; set -- /inputs/combined.fa /outputs/clipping
   source "$config/lib_config.sh"
-  [[ "$CLIP_FINAL" == /outputs/clipping/clipping.site.tsv ]]
+  [[ "$CLIP_FINAL" == /outputs/clipping/.cache/clipping.site.internal.tsv ]]
+  [[ "$CLIP_ALL_FINAL" == /outputs/clipping/.cache/clipping.site.tsv ]]
   [[ "$OUT" == /outputs ]]
 ' _ "$HERE"
 QC_STAGE=01_mapping bash -c '
   config="$1"; set -- /inputs/reads.fastq.gz /outputs/mapping
   source "$config/lib_config.sh"
-  [[ "$ASSEMBLER_MAPPING_MANIFEST" == /outputs/mapping/mapping_manifest.tsv ]]
+  [[ "$ASSEMBLER_MAPPING_MANIFEST" == /outputs/mapping/.cache/mapping_manifest.tsv ]]
 ' _ "$HERE"
 QC_STAGE=07_chimera bash -c '
   config="$1"; set -- /inputs/taxonomy.tsv /outputs/chimera
   source "$config/lib_config.sh"
-  [[ "$GTDB_CHIMERA_DIR" == /outputs/chimera/GTDB_R232 ]]
+  [[ "$GTDB_CHIMERA_DIR" == /outputs/chimera/.cache ]]
 ' _ "$HERE"
 QC_STAGE=02_circularity bash -c '
   config="$1"; set -- /inputs/mags /outputs/circularity
@@ -54,7 +54,6 @@ QC_STAGE=10_summary bash -c '
   [[ "$SUMMARY_MAG" == /outputs/summary/summary.MAG.tsv ]]
 ' _ "$HERE"
 
-# An explicit CLI input supersedes an environment-supplied per-module input.
 QC_STAGE=03_clipping CLIPPING_INPUT_ASSEMBLY_FA=/other/assembly.fa bash -c '
   config="$1"; set -- /cli/assembly.fa /cli/clipping
   source "$config/lib_config.sh"
@@ -62,7 +61,6 @@ QC_STAGE=03_clipping CLIPPING_INPUT_ASSEMBLY_FA=/other/assembly.fa bash -c '
   [[ "$CLIPPING_DIR" == /cli/clipping ]]
 ' _ "$HERE"
 
-# Legacy flag-based circularity interface remains unchanged.
 QC_STAGE=02_circularity OUT="$TEST_ROOT/flag_out" bash -c '
   config="$1"; set -- --mag-dir /flag/mags --outdir /flag/out
   source "$config/lib_config.sh"
@@ -70,20 +68,17 @@ QC_STAGE=02_circularity OUT="$TEST_ROOT/flag_out" bash -c '
   [[ "$CIRCULARITY_DIR" == "$OUT/02_circularity" ]]
 ' _ "$HERE"
 
-# Without an output directory nothing may be created inside the code directory.
 if QC_STAGE=06_repeats bash -c 'config="$1"; unset OUT; source "$config/lib_config.sh"' _ "$HERE" >/dev/null 2>&1; then
     echo 'ERROR: lib_config.sh accepted a missing output directory' >&2
     exit 1
 fi
 [[ ! -e "$HERE/results" ]] || { echo "ERROR: $HERE/results was created" >&2; exit 1; }
 
-# A single positional argument for a two-argument module is a usage error.
 if QC_STAGE=03_clipping bash -c 'config="$1"; set -- /input.fa; source "$config/lib_config.sh"' _ "$HERE" >/dev/null 2>&1; then
     echo 'ERROR: single-argument clipping invocation unexpectedly succeeded' >&2
     exit 1
 fi
 
-# The taxonomy helper accepts two arguments, but still requires its DB and MAG map.
 if bash "$HERE/07_chimera.sh" __taxonomy_internal /inputs/assembly.fa /outputs/taxonomy \
     >"$TEST_ROOT/taxonomy.log" 2>&1; then
     echo 'ERROR: taxonomy unexpectedly accepted missing required settings' >&2

@@ -7,7 +7,7 @@ name = "MAGverify"
 version = "0.1.0"
 description = "PacBio HiFi read-supported assessment of metagenomic assembly and MAG integrity"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 dependencies = []
 classifiers = [
     "Programming Language :: Python :: 3",

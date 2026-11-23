@@ -90,7 +90,7 @@ if [[ "${1:-}" != "__scope" ]]; then
         exit 2
     }
 
-    MERGER="$SCRIPT_DIR/../scripts/chimera_merge_gene_taxonomy_tables.py"
+    MERGER="$SCRIPT_DIR/../scripts/chimera_gene_taxonomy.py"
     [[ -s "$MERGER" ]] || {
         echo "ERROR: missing required helper: $MERGER" >&2
         exit 1
@@ -109,7 +109,7 @@ if [[ "${1:-}" != "__scope" ]]; then
     OUT_DIR="$(cd "$OUT_DIR" && pwd -P)"
     MAG_OUT="$OUT_DIR/gene_taxonomy.mmseqs2${OUTPUT_INFIX}.MAG_contigs.tsv"
     NONMAG_OUT="$OUT_DIR/gene_taxonomy.mmseqs2${OUTPUT_INFIX}.nonMAG_contigs.tsv"
-    ALL_OUT="$OUT_DIR/gene_taxonomy.mmseqs2${OUTPUT_INFIX}.all_contigs.tsv"
+    ALL_OUT="${GENE_TAX_ALL_OUT:-$OUT_DIR/gene_taxonomy.mmseqs2${OUTPUT_INFIX}.all_contigs.tsv}"
 
     run_genome() {
         echo "[genome] MAG-associated contigs only (complete gene taxonomy; no chimera prefilter)"
@@ -150,9 +150,6 @@ if meta.get('gene_predictor') != 'pyrodigal':
     raise SystemExit(1)
 if os.path.realpath(meta.get('mmseqs_database', '')) != os.path.realpath(database):
     raise SystemExit(1)
-# Cheap staleness guard for the compatible-result fast path. The full internal
-# fingerprint remains authoritative whenever this check fails and genome mode
-# is rebuilt.
 try:
     output_mtime = os.path.getmtime(out_path)
     if output_mtime < os.path.getmtime(assembly_path) or output_mtime < os.path.getmtime(map_path):
@@ -231,7 +228,7 @@ for key in (
 PY_COMPARE_META
 
         echo "[contig] Merging MAG and non-MAG results"
-        python3 "$MERGER" "$ALL_OUT" "$MAG_OUT" "$NONMAG_OUT"
+        python3 "$MERGER" merge "$ALL_OUT" "$MAG_OUT" "$NONMAG_OUT"
         echo "Non-MAG result : $NONMAG_OUT"
         echo "All-contig result: $ALL_OUT"
     }
@@ -243,7 +240,7 @@ PY_COMPARE_META
     exit 0
 fi
 
-shift  # private __scope marker
+shift
 
 TAXONOMY_SOURCE="GTDB"
 TAXONOMY_RELEASE="GTDB_R232"
@@ -282,11 +279,11 @@ case "$SCOPE" in
         ;;
     *) scope_usage ;;
 esac
-PRODIGAL_LINKER="$SCRIPT_DIR/../scripts/chimera_link_prodigal_accessions.py"
-FASTA_SELECTOR="$SCRIPT_DIR/../scripts/chimera_select_sequences.py"
-GENE_SCOPE_SELECTOR="$SCRIPT_DIR/../scripts/chimera_select_sequences.py"
-MMSEQS_TAXONOMY_MERGER="$SCRIPT_DIR/../scripts/chimera_merge_mmseqs_taxonomy_with_coordinates.py"
-TAXONOMY_PREFILTER="$SCRIPT_DIR/../scripts/chimera_filter_gene_predictions_by_min_contig_gene_count.py"
+PRODIGAL_LINKER="$SCRIPT_DIR/../scripts/prep_genes.py"
+FASTA_SELECTOR="$SCRIPT_DIR/../scripts/chimera_gene_taxonomy.py"
+GENE_SCOPE_SELECTOR="$SCRIPT_DIR/../scripts/chimera_gene_taxonomy.py"
+MMSEQS_TAXONOMY_MERGER="$SCRIPT_DIR/../scripts/chimera_gene_taxonomy.py"
+TAXONOMY_PREFILTER="$SCRIPT_DIR/../scripts/chimera_gene_taxonomy.py"
 
 for file in \
     "$PRODIGAL_LINKER" "$FASTA_SELECTOR" "$GENE_SCOPE_SELECTOR" \
@@ -323,7 +320,7 @@ PREDICTOR_BIN="${PYRODIGAL_BIN:-$(command -v pyrodigal 2>/dev/null || true)}"
     echo "ERROR: pyrodigal is unavailable" >&2
     exit 1
 }
-GENE_CALLS_DIR="${GENE_CALLS_DIR:-${OUT:+$OUT/00_prep/genes}}"
+GENE_CALLS_DIR="${GENE_CALLS_DIR:-${OUT:+$OUT/00_prep}}"
 GENE_CALLS_DIR="${GENE_CALLS_DIR:-$OUT_DIR/genes}"
 
 for value_name in GENE_PRED_THREADS MMSEQS_THREADS TAXONOMY_MIN_PREDICTED_GENES_PER_CONTIG; do
@@ -455,8 +452,8 @@ cleanup() {
             echo "WARNING: retaining failed-run work directory for recovery: $WORK" >&2
             if [[ -s "${GENE_COORD:-}" && -s "${TAX_RAW:-}" ]]; then
                 echo "Recovery command:" >&2
-                printf 'python3 %q %q %q %q\n' \
-                    "$MMSEQS_TAXONOMY_MERGER" "$GENE_COORD" "$TAX_RAW" "$OUT_TSV" >&2
+                printf 'python3 %q %q %q %q %q\n' \
+                    "$MMSEQS_TAXONOMY_MERGER" mmseqs "$GENE_COORD" "$TAX_RAW" "$OUT_TSV" >&2
             fi
         else
             case "$WORK" in
@@ -803,7 +800,7 @@ else
     SCOPE_WORK_COORD="$WORK/gene_coordinates.${SCOPE}.tsv"
     SCOPE_WORK_STATS="$WORK/${SCOPE}.stats.json"
     echo "[2/5] Selecting $SCOPE genes from the shared gene predictions"
-    python3 "$GENE_SCOPE_SELECTOR" genes "$SCOPE_MODE" \
+    python3 "$GENE_SCOPE_SELECTOR" select genes "$SCOPE_MODE" \
         "$ASSEMBLY_FA" "$MAG_CONTIG_MAP" \
         "$PRED_CACHE_FAA" "$PRED_CACHE_COORD" \
         "$SCOPE_WORK_FAA" "$SCOPE_WORK_COORD" "$SCOPE_WORK_STATS"
@@ -872,7 +869,7 @@ if (( TAXONOMY_MIN_PREDICTED_GENES_PER_CONTIG > 1 )); then
     echo "[3/6] Prefiltering genes from contigs that cannot meet the taxonomic-transition gene-count criterion"
     TAX_QUERY_FAA="$WORK/genes.taxonomy_eligible.faa"
     TAX_FILTER_STATS="$WORK/taxonomy_prefilter.stats.json"
-    python3 "$TAXONOMY_PREFILTER" \
+    python3 "$TAXONOMY_PREFILTER" filter \
         "$GENES_FAA" "$GENE_COORD" "$TAX_QUERY_FAA" "$TAX_FILTER_STATS" \
         "$TAXONOMY_MIN_PREDICTED_GENES_PER_CONTIG"
     read -r N_TAX_QUERY_CONTIGS N_TAX_QUERY_GENES N_TAX_SKIPPED_CONTIGS N_TAX_SKIPPED_GENES < <(
@@ -923,7 +920,7 @@ MERGE_ARGS=("$GENE_COORD" "$TAX_RAW" "$TMP_OUT")
 if [[ "$ALLOW_MISSING_TAXONOMY" == "Y" ]]; then
     MERGE_ARGS+=(--allow-missing-as-unclassified)
 fi
-python3 "$MMSEQS_TAXONOMY_MERGER" "${MERGE_ARGS[@]}"
+python3 "$MMSEQS_TAXONOMY_MERGER" mmseqs "${MERGE_ARGS[@]}"
 
 mv -f "$TMP_OUT" "$OUT_TSV"
 printf '%s\n' "$INPUT_FP" > "$TMP_CACHE"
@@ -1014,7 +1011,7 @@ if [[ ! -s "$GENE_TAX_SELECTED" ]]; then
         exit 1
     }
     echo "Generating gene taxonomy for chimera analysis"
-    bash "$SCRIPT_DIR/07_chimera.sh" __taxonomy_internal contig \
+    GENE_TAX_ALL_OUT="$GENE_TAX_SELECTED" bash "$SCRIPT_DIR/07_chimera.sh" __taxonomy_internal contig \
         "$ASSEMBLY_FA" "$MMSEQS_TAX_DB" "$MAG_CONTIG_MAP" \
         "$GTDB_GENE_TAX_DIR" "$THREADS"
     [[ -s "$GENE_TAX_SELECTED" ]] || {
@@ -1024,8 +1021,13 @@ if [[ ! -s "$GENE_TAX_SELECTED" ]]; then
 fi
 
 TAXONOMY_PREFILTER_THRESHOLD="NA"
+NONMAG_TAX_META=""
 if [[ "$GENE_TAX_SELECTED" == *.all_contigs.tsv ]]; then
     NONMAG_TAX_META="${GENE_TAX_SELECTED%.all_contigs.tsv}.nonMAG_contigs.tsv.run_metadata.tsv"
+elif [[ "$GENE_TAX_SELECTED" -ef "$GTDB_GENE_TAX_TSV" ]]; then
+    NONMAG_TAX_META="$GTDB_GENE_TAX_DIR/gene_taxonomy.mmseqs2.${GTDB_RELEASE}.nonMAG_contigs.tsv.run_metadata.tsv"
+fi
+if [[ -n "$NONMAG_TAX_META" ]]; then
     if [[ -s "$NONMAG_TAX_META" ]]; then
         TAXONOMY_PREFILTER_THRESHOLD="$(awk -F'\t' '$1=="taxonomy_min_predicted_genes_per_contig"{print $2}' "$NONMAG_TAX_META")"
         if [[ -n "$TAXONOMY_PREFILTER_THRESHOLD" && "$TAXONOMY_PREFILTER_THRESHOLD" != "NA" ]]; then
@@ -1044,7 +1046,11 @@ if [[ "$GENE_TAX_SELECTED" == *.all_contigs.tsv ]]; then
     fi
 fi
 
-CHIMERA_DIR="${GTDB_CHIMERA_DIR:-${CHIMERA_ROOT_DIR}/$GTDB_RELEASE}"
+CHIMERA_DIR="${GTDB_CHIMERA_DIR:-${CHIMERA_ROOT_DIR}/.cache}"
+if [[ -d "$CHIMERA_ROOT_DIR/$GTDB_RELEASE" && ! -e "$CHIMERA_DIR" ]]; then
+    mv "$CHIMERA_ROOT_DIR/$GTDB_RELEASE" "$CHIMERA_DIR"
+fi
+rm -rf "$CHIMERA_DIR/clipping_defined" "$CHIMERA_ROOT_DIR/$GTDB_RELEASE"
 WORK_DIR="$CHIMERA_DIR/.candidate_work"
 EVENTS_OUT="$CHIMERA_DIR/taxonomic_transition_structural_validation.${GTDB_RELEASE}.events.tsv"
 STRUCTURAL_EVENTS_OUT="$CHIMERA_DIR/structural_chimera.${GTDB_RELEASE}.events.tsv"
@@ -1059,11 +1065,8 @@ MAG_CONTIG_OUT="${GTDB_CHIMERA_MAG_CONTIG:-$CHIMERA_DIR/MAG_contig_structural_ch
 MAG_OUT="${GTDB_CHIMERA_MAG:-$CHIMERA_DIR/MAG_structural_chimera.${GTDB_RELEASE}.final.tsv}"
 RUN_META_OUT="$CHIMERA_DIR/run_metadata.tsv"
 
-CANDIDATE_EVALUATOR="$SCRIPT_DIR/../scripts/chimera_evaluate_taxonomic_chimera_whole_contig_GTDB.py"
-STRUCTURAL_VALIDATOR="$SCRIPT_DIR/../scripts/chimera_validate_taxonomic_chimera_hifi.py"
-MAG_SUMMARIZER="$SCRIPT_DIR/../scripts/chimera_summarize_taxonomic_chimera_by_mag_GTDB_whole.py"
-FINAL_RECLASSIFIER="$SCRIPT_DIR/../scripts/chimera_reclassify_taxonomic_chimera_by_clipping.py"
-FINAL_CHIMERA_DIR="${TAXONOMIC_CHIMERA_CLIPPING_OUT_DIR:-$CHIMERA_DIR/clipping_defined}"
+CHIMERA_CALL="$SCRIPT_DIR/../scripts/chimera_call.py"
+FINAL_CHIMERA_DIR="${TAXONOMIC_CHIMERA_CLIPPING_OUT_DIR:-$CHIMERA_DIR}"
 SUMMARY_ONLY="${CHIMERA_SUMMARY_ONLY:-${GTDB_CHIMERA_SUMMARY_ONLY:-N}}"
 case "$SUMMARY_ONLY" in Y|N) ;; *) echo "ERROR: CHIMERA_SUMMARY_ONLY must be Y or N" >&2; exit 2;; esac
 
@@ -1073,7 +1076,7 @@ exec > >(tee -a "$LOG") 2>&1
 
 write_mag_outputs() {
     [[ -s "$CONTIG_OUT" ]] || { echo "ERROR: final structural-chimera contig table missing: $CONTIG_OUT" >&2; return 1; }
-    python3 "$MAG_SUMMARIZER" \
+    python3 "$CHIMERA_CALL" mag \
         --contig-table "$CONTIG_OUT" \
         --mag-map "$MAG_CONTIG_MAP" \
         --mag-contig-out "$MAG_CONTIG_OUT" \
@@ -1081,16 +1084,17 @@ write_mag_outputs() {
 }
 
 write_final_taxonomic_outputs() {
-    for f in "$EVENTS_OUT" "$CONTIG_OUT" "$MAG_CONTIG_OUT" "$MAG_OUT" "$FINAL_RECLASSIFIER"; do
+    for f in "$EVENTS_OUT" "$CONTIG_OUT" "$MAG_CONTIG_OUT" "$MAG_OUT" "$CHIMERA_CALL"; do
         [[ -s "$f" ]] || { echo "ERROR: final taxonomic-chimera reclassification input missing: $f" >&2; return 1; }
     done
-    python3 "$FINAL_RECLASSIFIER" \
+    python3 "$CHIMERA_CALL" reclassify \
         --regions-in "$EVENTS_OUT" \
         --clipping "$CLIP_FINAL" \
         --contigs-in "$CONTIG_OUT" \
         --mag-contigs-in "$MAG_CONTIG_OUT" \
         --mags-in "$MAG_OUT" \
         --out-dir "$FINAL_CHIMERA_DIR" \
+        --aux-dir "$CHIMERA_DIR" \
         --release "$GTDB_RELEASE"
 }
 
@@ -1121,10 +1125,7 @@ for spec in \
     "MAG_CONTIG_MAP|$MAG_CONTIG_MAP" \
     "GTDB_GENE_TAX_TSV|$GENE_TAX_SELECTED" \
     "ASSEMBLER_MAPPING_MANIFEST|$ASSEMBLER_MAPPING_MANIFEST" \
-    "CANDIDATE_EVALUATOR|$CANDIDATE_EVALUATOR" \
-    "STRUCTURAL_VALIDATOR|$STRUCTURAL_VALIDATOR" \
-    "MAG_SUMMARIZER|$MAG_SUMMARIZER" \
-    "FINAL_RECLASSIFIER|$FINAL_RECLASSIFIER"; do
+    "CHIMERA_CALL|$CHIMERA_CALL"; do
     name="${spec%%|*}"; path="${spec#*|}"
     [[ -s "$path" ]] || { echo "ERROR: required input missing or empty: $name=$path" >&2; exit 1; }
 done
@@ -1197,7 +1198,7 @@ CANDIDATE_ARGS=(
 )
 if [[ -s "$MAG_GTDB_TAXONOMY_TSV" ]]; then CANDIDATE_ARGS+=(--mag-taxonomy-tsv "$MAG_GTDB_TAXONOMY_TSV"); fi
 if [[ "$CLIPPING_AVAILABLE" == "Y" ]]; then CANDIDATE_ARGS+=(--clipping "$CLIP_FINAL"); fi
-python3 "$CANDIDATE_EVALUATOR" "${CANDIDATE_ARGS[@]}"
+python3 "$CHIMERA_CALL" evaluate "${CANDIDATE_ARGS[@]}"
 
 VALIDATE_ARGS=(
     --candidate-events "$CANDIDATE_EVENTS"
@@ -1220,7 +1221,7 @@ VALIDATE_ARGS=(
 )
 if [[ "$SCG_AVAILABLE" == "Y" ]]; then VALIDATE_ARGS+=(--scg-tsv "$SCG_TSV" --mag-taxonomy-tsv "$MAG_GTDB_TAXONOMY_TSV"); fi
 if [[ "$CLIPPING_AVAILABLE" == "Y" ]]; then VALIDATE_ARGS+=(--clipping "$CLIP_FINAL"); fi
-python3 "$STRUCTURAL_VALIDATOR" "${VALIDATE_ARGS[@]}"
+python3 "$CHIMERA_CALL" validate "${VALIDATE_ARGS[@]}"
 
 write_mag_outputs
 write_final_taxonomic_outputs
@@ -1253,8 +1254,5 @@ rm -rf "$WORK_DIR"
 } > "$RUN_META_OUT"
 
 echo "Outputs:"
-for f in "$EVENTS_OUT" "$STRUCTURAL_EVENTS_OUT" "$HIGH_CONF_EVENTS_OUT" "$UNRESOLVED_EVENTS_OUT" \
-    "$CONTIG_OUT" "$STRUCTURAL_CONTIG_OUT" "$HIGH_CONF_CONTIG_OUT" "$UNRESOLVED_CONTIG_OUT" \
-    "$SCG_AUDIT_OUT" "$MAG_CONTIG_OUT" "$MAG_OUT" "$RUN_META_OUT"; do echo "  $f"; done
-echo "  Final clipping-defined taxonomic-chimera outputs: $FINAL_CHIMERA_DIR"
+for f in chimera.region.tsv chimera.contig.tsv chimera.MAG.tsv; do echo "  $FINAL_CHIMERA_DIR/$f"; done
 echo "[07_chimera] Finished: $(date)"

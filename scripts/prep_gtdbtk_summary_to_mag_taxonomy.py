@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Convert GTDB-Tk summaries to the MAGverify MAG taxonomy TSV."""
-import shutil
-import re
 import argparse
 import csv
-from pathlib import Path
+import re
+import shutil
 import sys
+from pathlib import Path
 
 HEADERS = ("ID", "GTDB_Domain", "GTDB_Phylum", "GTDB_Class", "GTDB_Order")
 RANKS = ("d__", "p__", "c__", "o__")
@@ -22,8 +22,7 @@ def mag_ids(mag_dir: Path) -> set[str]:
 
 
 def convert(gtdbtk_dir: Path, output: Path, mag_dir: Path | None = None) -> int:
-    """Write one row per MAG. With mag_dir, only the MAGs in that directory are written;
-    GTDB-Tk rows for other genomes are ignored, and every MAG must be classified."""
+    """Write one row per MAG. With mag_dir, only the MAGs in that directory are written; GTDB-Tk rows for other genomes are ignored, and every MAG must be classified."""
     wanted = mag_ids(mag_dir) if mag_dir is not None else None
     paths = [gtdbtk_dir / f"gtdbtk.{domain}.summary.tsv" for domain in ("bac120", "ar53")]
     existing = [p for p in paths if p.is_file() and p.stat().st_size > 0]
@@ -67,7 +66,6 @@ def convert(gtdbtk_dir: Path, output: Path, mag_dir: Path | None = None) -> int:
         for identifier in sorted(data):
             writer.writerow(data[identifier])
     return len(data)
-
 
 
 class OptionHelpFormatter(argparse.RawDescriptionHelpFormatter):

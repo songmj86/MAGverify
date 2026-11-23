@@ -54,7 +54,7 @@ class GeneCallTests(unittest.TestCase):
         name_map.write_text('c_000000000001\tctgA\n')
         output = self.tmp / 'calls.tsv'
         result = subprocess.run(
-            ['python3', str(ROOT / 'scripts/prep_genes_to_anvio_gene_calls.py'),
+            ['python3', str(ROOT / 'scripts/prep_genes.py'), 'anvio',
              str(self.genes / 'genes.gff'), str(self.genes / 'genes.faa'),
              str(name_map), str(output), '--version', '3.6.3'],
             text=True, capture_output=True)

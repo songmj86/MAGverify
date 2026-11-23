@@ -98,9 +98,6 @@ with open(fai, 'rb') as handle:
         digest.update(chunk)
 
 def command_first_line(command):
-    # Tool version output can contain locale/compiler bytes that are not valid
-    # UTF-8. Fingerprints only require a stable human-readable first line, so
-    # decode that line explicitly and replace any non-text byte safely.
     raw = subprocess.check_output(command, stderr=subprocess.STDOUT)
     lines = raw.splitlines()
     if not lines:
@@ -219,7 +216,6 @@ def option_value(tokens, opt):
             return tokens[i + 1]
         if tok.startswith(opt + "="):
             return tok.split("=", 1)[1]
-        # minimap2 short options can also be attached, e.g. -N5 or -p1.
         if len(opt) == 2 and tok.startswith(opt) and tok != opt:
             return tok[len(opt):]
     return None
@@ -251,7 +247,6 @@ for command in commands:
     except ValueError:
         continue
 
-    # Find the actual minimap2 token so wrapper text before it does not matter.
     try:
         mm_i = next(i for i, tok in enumerate(tokens) if os.path.basename(tok) == "minimap2")
         tokens = tokens[mm_i + 1:]
@@ -260,7 +255,6 @@ for command in commands:
 
     preset_value = option_value(tokens, "-ax")
     if preset_value is None:
-        # Accept the equivalent split '-a -x map-hifi' form.
         x_value = option_value(tokens, "-x")
         has_a = "-a" in tokens
         preset_value = x_value if has_a else None
@@ -293,8 +287,6 @@ for command in commands:
         continue
 
     observed_chunk_size = parse_size(chunk_value)
-    # -I is execution-equivalent for this purpose when both observed and current
-    # values are large enough to hold the complete reference in one index part.
     chunk_ok = chunk_value == expected_chunk
     if not chunk_ok and observed_chunk_size is not None and expected_chunk_size is not None:
         chunk_ok = observed_chunk_size >= reference_bases and expected_chunk_size >= reference_bases
@@ -465,6 +457,14 @@ def sha256(path):
             h.update(block)
     return h.hexdigest()
 
+
+def manifest_sha256(path):
+    # The first seven manifest columns only: the flagstat counts appended by map do not change results.
+    with open(path, 'rb') as handle:
+        lines = handle.read().split(b'\n')
+    core = b'\n'.join(b'\t'.join(line.split(b'\t')[:7]) for line in lines)
+    return hashlib.sha256(core).hexdigest()
+
 def stat_payload(path):
     st = os.stat(path)
     return {
@@ -505,7 +505,7 @@ with open(manifest, encoding='utf-8-sig', newline='') as handle:
 
 sources.sort(key=lambda x: x['assembler'])
 payload = {
-    'manifest_sha256': sha256(manifest),
+    'manifest_sha256': manifest_sha256(manifest),
     'sources': sources,
     'candidate_discovery': {
         'clipping_ratio': float(default_ratio),
@@ -541,7 +541,7 @@ qc_validate_current_clipping_result() {
         return 1
     }
     [[ -x "$ANVIO_FIND_MISASSEMBLIES" ]] || return 1
-    for path in "$CLIP_NORMALIZER_SCRIPT" "$CLIP_SPANNING_VALIDATOR" "$CLIP_REGION_CLASSIFIER_SCRIPT"; do
+    for path in "$CLIP_VALIDATE_SCRIPT" "$CLIP_SUMMARIZE_SCRIPT"; do
         [[ -s "$path" ]] || return 1
     done
 
@@ -572,8 +572,8 @@ PY_QC_ANVIO_VERSION
         "$MIN_DIST_TO_END" "$TERMINAL_CLIPPING_WINDOW_BP" \
         "$STRINGENT_CLIP_MIN_DEPTH" "$STRINGENT_CLIP_RATIO" \
         "$ANVIO_CLIPPING_ALGORITHM_ID" "$CLIPPING_NORMALIZATION_ALGORITHM_ID" \
-        "$CLIPPING_VALIDATION_ALGORITHM_ID" "$CLIP_NORMALIZER_SCRIPT" \
-        "$CLIP_SPANNING_VALIDATOR" "$CLIP_REGION_CLASSIFIER_SCRIPT" \
+        "$CLIPPING_VALIDATION_ALGORITHM_ID" "$CLIP_VALIDATE_SCRIPT" \
+        "$CLIP_VALIDATE_SCRIPT" "$CLIP_SUMMARIZE_SCRIPT" \
         "$ANVIO_FIND_MISASSEMBLIES" "$anvio_version")" || return 1
 
     qc_result_cache_matches \
@@ -588,13 +588,13 @@ import sys
 path = sys.argv[1]
 with open(path, encoding='utf-8-sig', newline='') as handle:
     reader = csv.DictReader(handle, delimiter='\t')
-    required = {'source_assembler', 'region_type', 'Clipping'}
+    required = {'Assembler', 'region_type', 'Clipping'}
     missing = required - set(reader.fieldnames or [])
     if missing:
         raise SystemExit(f'ERROR: clipping table lacks new schema columns: {sorted(missing)}')
     bad = [row for row in reader if (row.get('region_type') or '').strip() != 'INTERNAL']
 if bad:
-    raise SystemExit('ERROR: legacy clipping.site.tsv must contain INTERNAL rows only')
+    raise SystemExit(f'ERROR: internal clipping table must contain INTERNAL rows only: {path}')
 PY_QC_INTERNAL_CLIP
 }
 
@@ -612,8 +612,6 @@ qc_duration() {
     else printf '%ds' "$s"; fi
 }
 
-# Report finished/total work units with the remaining time until stopped or the caller exits.
-# Usage: qc_progress_watch LABEL TOTAL DIR GLOB &   (count files matching GLOB in DIR)
 qc_progress_watch() {
     local label="$1" total="$2" dir="$3" pattern="$4" parent="$$"
     local interval="${PROGRESS_INTERVAL:-300}" start="$SECONDS" finished elapsed remaining
@@ -643,7 +641,14 @@ qc_split_threads() {
 qc_wait_for_slot() {
     local limit="$1"
     while (( $(jobs -rp | wc -l) >= limit )); do
-        wait -n || true
+        sleep 1
+    done
+}
+
+qc_wait_all() {
+    local pid
+    for pid in $(jobs -rp); do
+        wait "$pid" 2>/dev/null || true
     done
 }
 

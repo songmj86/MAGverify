@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Shared gene prediction: Pyrodigal (-p meta) on the all-assemblies FASTA, run once
-# and reused by prep-scg, chimera and variants.
 set -Eeuo pipefail
 
 usage() {
@@ -14,7 +12,7 @@ HELP
 }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-LINKER="$SCRIPT_DIR/../scripts/chimera_link_prodigal_accessions.py"
+LINKER="$SCRIPT_DIR/../scripts/prep_genes.py"
 METHOD="pyrodigal_meta_v1"
 
 [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]] && usage 0
@@ -80,7 +78,7 @@ TMP="$(mktemp -d "$OUT_DIR/.genes.XXXXXX")"
 trap 'rm -rf "$TMP"' EXIT
 "$PYRODIGAL_BIN" -p meta -j "$THREADS" -i "$ASSEMBLY_FA" \
     -a "$TMP/genes.faa" -f gff -o "$TMP/genes.gff"
-python3 "$LINKER" "$TMP/genes.faa" "$TMP/genes.gff" "$TMP/genes.coordinates.tsv"
+python3 "$LINKER" link "$TMP/genes.faa" "$TMP/genes.gff" "$TMP/genes.coordinates.tsv"
 [[ -s "$TMP/genes.coordinates.tsv" ]] || { echo "ERROR: pyrodigal produced no genes" >&2; exit 1; }
 mv -f "$TMP/genes.faa" "$FAA"
 mv -f "$TMP/genes.gff" "$GFF"
