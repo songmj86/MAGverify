@@ -16,12 +16,8 @@
 
 - Public summary tables (`summary.MAG.tsv`, `summary.contig.tsv`, and `summary_detail.*.tsv`) list checks in end-to-end module order, with aggregate columns retained near the start/end. Detailed module columns follow the same order. Existing public summary tables are automatically republished from cached results when the previous column order is detected. No QC calls or values change.
 
-<<<<<<< HEAD
-- Documentation: `docs/` keeps `INPUT_PREPARATION.md` and `OUTPUTS.md` (result table columns). Installation is in the README; `INSTALL.md`, `MODULES.md`, `ARCHITECTURE.md`, `INPUT_FORMATS.md`, `TOOL_VERSIONS.md` and `SCRIPT_INDEX.md` were removed or merged.
-=======
 - Documentation examples use inline `/path/to/...` paths as in the README; the shell variable block (`In_Contig`, `In_Read`, `In_MAG`, `Out`) and the "Progress and resumption" paragraph are removed. Fixed the broken GTDB-Tk link (`ecogenomics/gtdtk` to `Ecogenomics/GTDBTk`).
 - Documentation: `docs/` keeps `USAGE.md` (preparation and analysis commands) and `OUTPUTS.md` (result table columns). `INPUT_PREPARATION.md` and `MODULES.md` are merged into `USAGE.md`, which removes the duplicated preparation command block and output table and keeps the four preparation sections unnumbered (`#gtdb-r232-database`, `#single-copy-gene-annotation`, `#assembler-circularity`, `#mag-taxonomy`). Module anchors are unchanged. Installation is in the README; `INSTALL.md`, `ARCHITECTURE.md`, `INPUT_FORMATS.md`, `TOOL_VERSIONS.md` and `SCRIPT_INDEX.md` were removed or merged.
->>>>>>> 645efbd (Update MAGverify)
 - `00_prep/all_assemblies.fasta` renamed `00_prep/all_assemblies.fa` (FASTA outputs use `.fa`; Pyrodigal outputs keep `.faa`/`.gff`). Existing files are renamed automatically.
 - `-o` given as `OUTPUT/00_prep` or a module folder is read as `OUTPUT`. The old visible `00_prep/assembler_links/` is removed (the links are made in `00_prep/.cache/assembler_links/` when needed).
 - `prep-taxonomy` writes `00_prep/gtdbtk_taxonomy.MAG.tsv` (earlier `taxonomy.MAG.tsv` and `gtdb_taxonomy.MAG.tsv` are renamed automatically). `-o` given as a file path (for example `.../x.tsv`) now stops with a message instead of creating a folder with that name.
