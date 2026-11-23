@@ -29,7 +29,8 @@ Run the four preparation commands before analysis using the same -o to store the
 | [`prep-circularity`](#23-prep-circularity-assembler-circularity) | `assembler_circularity.MAG.tsv`, `assembler_circularity.contig.tsv` | `false-closure`, `circularity` |
 | [`prep-taxonomy`](#24-prep-taxonomy-mag-taxonomy) | `gtdbtk_taxonomy.MAG.tsv` | `chimera` |
 
-Download commands and the format of each table are in [Input preparation](docs/INPUT_PREPARATION.md).
+See [Input preparation](docs/INPUT_PREPARATION.md) for detailed descriptions of Preparation commands.
+
 
 ### 2.1 `prep-chimera`: GTDB R232 database
 
@@ -109,9 +110,8 @@ MAGverify end-to-end \
 
 Steps, in order: `map` → `circularity` → `clipping` → `false-closure` → `phantom` → `repeats` → `false-duplication` → `variants` → `chimera` → `summary`.
 
-- **Preparation check**: Before analysis, MAGverify checks for missing preparation outputs and identifies the necessary prep- commands.
+- **Preparation check**: Before analysis, MAGverify checks for missing preparation outputs and identifies the necessary prep- commands. The preparation outputs are read from `-o DIR/00_prep/` automatically
 - **Resuming analysis** : Rerun the same command after interruption. Completed modules with unchanged inputs are skipped automatically.
-- The preparation outputs are read from `-o DIR/00_prep/` automatically, including the GTDB database of `prep-chimera`. Only a database built under another `-o` needs `--database PREFIX` (for example `--database /path/to/other_output/00_prep/GTDB_R232`).
 - `-t` sets the threads 
 - `-m` sets the memory limit (GB)
 - **`--skip MODULES`** leaves out modules, for example `--skip chimera,variants`; `summary` then reports only the modules that ran.
