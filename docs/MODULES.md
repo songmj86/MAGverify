@@ -1,6 +1,6 @@
 # Modules
 
-Run the [preparation](#preparation) commands first. `MAGverify end-to-end` then runs analysis steps 1–10 below in this order (see the [README](../README.md#3-analysis-end-to-end)). Each step can also be run on its own with the commands here, for example to rerun one module or to run only some of them. Use the **same `-o`** for every command: each module finds the results of earlier steps (mapping manifest, clipping tables, preparation tables) there automatically. The column definitions of every output table are in [Result tables](OUTPUTS.md).
+Run the [preparation](#preparation) commands first. `MAGverify end-to-end` then runs analysis steps 1–10 below in this order (see the [README](../README.md#3-quick-start)). Each step can also be run on its own with the commands here, for example to rerun one module or to run only some of them. Use the **same `-o`** for every command: each module finds the results of earlier steps (mapping manifest, clipping tables, preparation tables) there automatically. The column definitions of every output table are in [Result tables](OUTPUTS.md).
 
 The examples use these variables:
 
@@ -15,7 +15,7 @@ Out=/path/to/MAGverify_output
 | --- | --- | --- |
 | Preparation (separately, first) | `prep-chimera` (once), `prep-scg`, `prep-circularity`, `prep-taxonomy` | — |
 | 1 | `map` | — |
-| 2 | `circularity` | `map` |
+| 2 | `circularity` | `map`, `prep-circularity` |
 | 3 | `clipping` | `map` |
 | 4 | `false-closure` | `clipping`, `prep-scg`, `prep-circularity` |
 | 5 | `phantom` | `map` |
@@ -40,7 +40,7 @@ MAGverify prep-chimera     -d /path/to/GTDB_R232_downloads -o $Out -t 100
 
 | Command | Output in `00_prep/` | Used by |
 | --- | --- | --- |
-| `prep-circularity` | `assembler_circularity.MAG.tsv`, `assembler_circularity.contig.tsv` | `circularity` (optional), `false-closure` |
+| `prep-circularity` | `assembler_circularity.MAG.tsv`, `assembler_circularity.contig.tsv` | `circularity`, `false-closure` |
 | `prep-taxonomy` | `gtdbtk_taxonomy.MAG.tsv` | `chimera` (optional) |
 | `prep-scg` | `scg.contig.tsv`, `genes.*` | `false-closure`, `chimera` |
 | `prep-chimera` | `GTDB_R232*` (MMseqs2 database) | `chimera` |
@@ -63,7 +63,7 @@ Output: `01_mapping/mapping.assembler.tsv` (alignment counts per assembler).
 MAGverify circularity -g $In_MAG -o $Out -t 100 -m 900
 ```
 
-Tests whether single-contig MAGs are circular with read evidence: the contig is rotated so that its END|START junction lies in the middle, the HiFi reads of its assembler are mapped to it, and the junction is supported when >= 2 reads span it with >= 2,000 bp aligned on each side. The assembler circularity table from `prep-circularity` is optional. Without it, `Circular` is the read-supported call. With it, `Circular` is Y only when the assembler and the reads agree (`High_confidence_circular`), and MAGs the reads support but the assembler did not call circular are listed as `Additional_circular_candidate`.
+Tests whether single-contig MAGs are circular with read evidence: the contig is rotated so that its END|START junction lies in the middle, the HiFi reads of its assembler are mapped to it, and the junction is supported when >= 2 reads span it with >= 2,000 bp aligned on each side. The assembler circularity table from `prep-circularity` is required. `Circular` is Y only when the assembler and the reads agree (`High_confidence_circular`), and MAGs the reads support but the assembler did not call circular are listed as `Additional_circular_candidate`.
 
 Output: `02_circularity/circularity.MAG.tsv`, `circularity.contig.tsv`.
 
@@ -145,4 +145,4 @@ MAGverify summary -g $In_MAG -o $Out
 
 Collects the calls of the completed modules into one row per MAG and per contig and validates MAG IDs, contig memberships, counts and table consistency; validation failures return a nonzero exit status. For a partial run, give the modules that were completed, for example `--include clipping,chimera`. The summary does not rerun analysis modules.
 
-Output, at the top of the output folder: `summary.MAG.tsv`, `summary.contig.tsv` (Y/N version: one Y/N/NA column per check) and `summary_full.MAG.tsv`, `summary_full.contig.tsv` (full version: the same columns followed by every column of each module table, named `MODULE.COLUMN`).
+Output, at the top of the output folder: `summary.MAG.tsv`, `summary.contig.tsv` (Y/N version: one Y/N/NA column per check) and `summary_detail.MAG.tsv`, `summary_detail.contig.tsv` (full version: the same columns followed by every column of each module table, named `MODULE.COLUMN`).

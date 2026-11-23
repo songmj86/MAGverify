@@ -1,4 +1,4 @@
-"""Circularity results without an assembler-reported circularity table."""
+"""Circularity requires an assembler-reported circularity table."""
 import csv
 from pathlib import Path
 import subprocess
@@ -11,7 +11,7 @@ SCRIPT = ROOT / 'scripts' / 'circularity_finalize.py'
 
 
 class CircularityWithoutAssemblerTableTests(unittest.TestCase):
-    def test_assembler_calls_are_na(self):
+    def test_assembler_calls_are_required(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             canonical = root / 'canonical.tsv'
@@ -21,17 +21,11 @@ class CircularityWithoutAssemblerTableTests(unittest.TestCase):
                 'Bin2L\t3\tN\tNA\n')
             final = root / 'final.tsv'
             result = subprocess.run([sys.executable, '-I', str(SCRIPT), 'refresh', '--canonical', str(canonical),
-                                     '--assembler-circularity', '', '--final', str(final)],
+                                     '--final', str(final)],
                                     text=True, capture_output=True, cwd=root)
-            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            with final.open() as handle:
-                rows = {row['ID']: row for row in csv.DictReader(handle, delimiter='\t')}
-            self.assertEqual(rows['Bin1L']['Assembler_reported_circularity'], 'NA')
-            self.assertEqual(rows['Bin1L']['Read_supported_circular_topology'], 'Y')
-            self.assertEqual(rows['Bin1L']['High_confidence_circular'], 'NA')
-            self.assertEqual(rows['Bin1L']['Additional_circular_candidate'], 'NA')
-            self.assertEqual(rows['Bin1L']['Circular'], 'Y')
-            self.assertEqual(rows['Bin2L']['Read_supported_circular_topology'], 'NA')
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('the following arguments are required: --assembler-circularity', result.stderr)
+            self.assertFalse(final.exists())
 
 
 if __name__ == '__main__':

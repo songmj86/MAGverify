@@ -311,7 +311,8 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
             'chimera': base + mapped + ['--taxonomy', str(self.generic_tsv),
                                         '--clipping-table', str(self.generic_tsv)],
             'circularity': ['-g', str(self.mag_dir), '-r', str(self.reads_dir),
-                            '-a', str(self.source_dir), '-o', str(self.output)],
+                            '-a', str(self.source_dir), '-o', str(self.output),
+                            '--assembler-circularity', str(self.generic_tsv)],
             'false-closure': base + mapped + ['--clipping-table', str(self.generic_tsv),
                         '--clipping-all-table', str(self.generic_tsv), '--scg-table', str(self.generic_tsv),
                         '--assembler-circularity', str(self.generic_tsv)],
@@ -361,7 +362,7 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
             'map': shared + reads,
             'clipping': shared + mags + reads,
             'chimera': shared + mags + manifest + ['--taxonomy', str(self.generic_tsv), '--clipping-table', str(self.generic_tsv)],
-            'circularity': shared + mags + reads,
+            'circularity': shared + mags + reads + ['--assembler-circularity', str(self.generic_tsv)],
             'false-closure': shared + mags + manifest + ['--clipping-table', str(self.generic_tsv), '--clipping-all-table', str(self.generic_tsv), '--scg-table', str(self.generic_tsv), '--assembler-circularity', str(self.generic_tsv)],
             'variants': shared + mags + manifest + reads,
             'phantom': shared + mags + manifest + reads,
@@ -474,7 +475,21 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
         self.assertIn('unknown module(s) clippin', p.stderr)
         self.assertFalse(self.output.exists())
 
+    def test_circularity_requires_prep_table(self):
+        p = self.call('circularity', '-g', self.mag_dir, '-r', self.reads_dir,
+                      '-a', self.source_dir, '-o', self.output, '--dry-run')
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn('MAGverify prep-circularity', p.stderr)
+        self.assertIn('assembler_circularity.MAG.tsv', p.stderr)
+
+    def test_end_to_end_requires_prep_even_when_false_closure_skipped(self):
+        p = self.call(*self.run_args('--skip', 'false-closure,chimera'), '--dry-run')
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn('circularity:', p.stderr)
+        self.assertIn('MAGverify prep-circularity', p.stderr)
+
     def test_run_summary_includes_only_modules_that_ran(self):
+        self.prepared()
         p = self.call(*self.run_args('--skip', 'false-closure,chimera,variants'), '--dry-run')
         self.assertEqual(p.returncode, 0, p.stderr)
         self.assertIn('--include clipping,circularity,phantom,repeats,false-duplication', p.stdout)

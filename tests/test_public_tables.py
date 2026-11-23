@@ -110,16 +110,25 @@ class PublicTableTests(unittest.TestCase):
         for detail in ('n_clipping_sites', 'Repeat_fraction', 'False_closure_partner_contigs'):
             self.assertNotIn(detail, m)
         self.assertTrue(all(m[k] in ('Y', 'N', 'NA') for k in ('Clipping', 'Phantom', 'Circular')))
-        full = read(self.root / 'summary_full.MAG.tsv')[0]
+        full = read(self.root / 'summary_detail.MAG.tsv')[0]
         self.assertEqual(list(full)[:len(m)], list(m))
         self.assertEqual((full['n_clipping_sites'], full['clipping.Clipping'], full['clipping.n_clipping_sites']),
                          ('NA', 'Y', '2'))
         self.assertNotIn('clipping.MAG_ID', full)
-        contigs = read(self.root / 'summary_full.contig.tsv')
+        contigs = read(self.root / 'summary_detail.contig.tsv')
         self.assertEqual([row['Contig'] for row in contigs], ['c1'])
         self.assertEqual((contigs[0]['clipping.Clipping'], contigs[0]['phantom.Phantom'], contigs[0]['n_clipping_sites']),
                          ('Y', 'Y', '2'))
         self.assertNotIn('Chimera_ranks', read(self.root / 'summary.contig.tsv')[0])
+
+    def test_previous_full_summary_names_migrate_to_detail(self):
+        for level in ('contig', 'MAG'):
+            old = self.root / f'summary_full.{level}.tsv'
+            old.write_text('old\n')
+        pt.migrate(self.root)
+        for level in ('contig', 'MAG'):
+            self.assertFalse((self.root / f'summary_full.{level}.tsv').exists())
+            self.assertEqual((self.root / f'summary_detail.{level}.tsv').read_text(), 'old\n')
 
     def test_earlier_tables_move_to_cache(self):
         write(self.root / '06_repeats/repeats.dataset.tsv', ['scope_id'], [['ALL']])

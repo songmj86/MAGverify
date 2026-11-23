@@ -371,8 +371,8 @@ def validate_expected_structure(rows: Sequence[Mapping[str, str]]) -> None:
 def _refresh_main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--canonical", required=True, help="circularity.MAG.junction.tsv")
-    parser.add_argument("--assembler-circularity", default="",
-                        help="Assembler circularity TSV or directory; if empty, calls are NA")
+    parser.add_argument("--assembler-circularity", required=True,
+                        help="Assembler circularity TSV or directory (prep-circularity output)")
     parser.add_argument("--final", required=True, help="circularity.MAG.tsv")
     parser.add_argument("--audit", help="Optional circularity.MAG.audit.tsv")
     args = parser.parse_args()
@@ -392,10 +392,7 @@ def _refresh_main() -> None:
     if len(mag_ids) != len(canonical_rows):
         fail("canonical circularity output contains duplicate MAG_ID values")
 
-    if args.assembler_circularity:
-        assembler_calls = load_assembler_calls(args.assembler_circularity, mag_ids)
-    else:
-        assembler_calls = {mag: "NA" for mag in mag_ids}
+    assembler_calls = load_assembler_calls(args.assembler_circularity, mag_ids)
     final_rows, audit_rows = build_rows(canonical_rows, assembler_calls)
     validate_expected_structure(final_rows)
 

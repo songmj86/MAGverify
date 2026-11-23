@@ -28,7 +28,7 @@ Conventions used in all tables:
 The summary comes in two versions, both at the top of the output folder:
 
 - `summary.MAG.tsv`, `summary.contig.tsv`: the **Y/N version**. One Y/N/NA column per check, so that the MAGs and contigs flagged by any check can be found at once. Start here.
-- `summary_full.MAG.tsv`, `summary_full.contig.tsv`: the **full version**. The same columns, then key counts, then every column of each module table of the same level, named `MODULE.COLUMN` (for example `clipping.n_candidate_sites` is `n_candidate_sites` of `03_clipping/clipping.MAG.tsv`). Those columns are defined in the section of each module below; a module that was not run has no columns, and rows missing from a module table are NA.
+- `summary_detail.MAG.tsv`, `summary_detail.contig.tsv`: the **detailed version**. The same columns, then key counts, then every column of each module table of the same level, named `MODULE.COLUMN` (for example `clipping.n_candidate_sites` is `n_candidate_sites` of `03_clipping/clipping.MAG.tsv`). Those columns are defined in the section of each module below; a module that was not run has no columns, and rows missing from a module table are NA.
 
 The module in parentheses holds the full evidence of each check.
 
@@ -74,7 +74,7 @@ Y/N version, one row per contig of every assembly (`MAG_ID` NA for unbinned cont
 | `False_duplication_with_clipping` | Y when a boundary of a false-duplication pair has a `Clipping` Y site; NA without false duplication |
 | `Checks_not_run` | Checks whose module was not run (their columns are NA) |
 
-#### `summary_full.MAG.tsv`
+#### `summary_detail.MAG.tsv`
 
 Full version, one row per MAG: these columns, then `MODULE.COLUMN` columns from `circularity`, `clipping`, `false_closure`, `phantom`, `repeats`, `chimera`, `false_duplication` and `variants` `*.MAG.tsv`.
 
@@ -107,7 +107,7 @@ Full version, one row per MAG: these columns, then `MODULE.COLUMN` columns from 
 | `n_duplicated_pairs` | Duplicated pairs |
 | `n_unresolved_duplicated_pairs` | Pairs with call NA |
 
-#### `summary_full.contig.tsv`
+#### `summary_detail.contig.tsv`
 
 Full version, one row per MAG contig (unbinned contigs are in `summary.contig.tsv` and the module tables): these columns, then `MODULE.COLUMN` columns from the `*.contig.tsv` table of each module.
 

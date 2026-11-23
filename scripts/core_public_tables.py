@@ -425,15 +425,15 @@ def write_full_tables(root, contig_rows, mag_rows):
     fields, rows = full_table(root, 'contig', mag_contigs, 'Contig',
                               SUMMARY_CONTIG_FIELDS[:3] + ['Assembler'] + SUMMARY_CONTIG_FIELDS[3:]
                               + SUMMARY_CONTIG_DETAILS[1:])
-    write(root / 'summary_full.contig.tsv', fields, rows)
+    write(root / 'summary_detail.contig.tsv', fields, rows)
     fields, rows = full_table(root, 'MAG', mag_rows, 'MAG_ID', SUMMARY_MAG_FIELDS + SUMMARY_MAG_DETAILS)
-    write(root / 'summary_full.MAG.tsv', fields, rows)
-    return [str(root / 'summary_full.contig.tsv'), str(root / 'summary_full.MAG.tsv')]
+    write(root / 'summary_detail.MAG.tsv', fields, rows)
+    return [str(root / 'summary_detail.contig.tsv'), str(root / 'summary_detail.MAG.tsv')]
 
 
 def full_tables_current(root):
     root = Path(root)
-    targets = [root / 'summary_full.contig.tsv', root / 'summary_full.MAG.tsv']
+    targets = [root / 'summary_detail.contig.tsv', root / 'summary_detail.MAG.tsv']
     if not all(path.is_file() for path in targets):
         return False
     oldest = min(path.stat().st_mtime_ns for path in targets)
@@ -444,6 +444,15 @@ def full_tables_current(root):
 
 def migrate(root):
     root = Path(root)
+    # Migrate older public names without leaving duplicate summary tables.
+    for level in ('contig', 'MAG'):
+        old = root / f'summary_full.{level}.tsv'
+        new = root / f'summary_detail.{level}.tsv'
+        if old.is_file():
+            if not new.exists():
+                os.replace(old, new)
+            else:
+                old.unlink()
     for old, internal in MOVED:
         if (root / old).is_file() and not (root / internal).exists():
             (root / internal).parent.mkdir(parents=True, exist_ok=True)

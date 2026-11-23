@@ -137,7 +137,7 @@ FINAL_TABLES = {
                           '08_false_duplication/false_duplication.MAG.tsv'),
     'variants': ('09_assembly_variants/variants.site.tsv', '09_assembly_variants/variants.contig.tsv',
                  '09_assembly_variants/variants.MAG.tsv'),
-    'summary': ('summary.MAG.tsv', 'summary.contig.tsv', 'summary_full.MAG.tsv', 'summary_full.contig.tsv'),
+    'summary': ('summary.MAG.tsv', 'summary.contig.tsv', 'summary_detail.MAG.tsv', 'summary_detail.contig.tsv'),
 }
 GENERATED_RESULTS_NAMES = {
     'mapping_manifest.tsv', 'clipping_sites.tsv', 'clipping_mag.tsv', 'clipping_contig.tsv', 'gene_taxonomy.tsv',
@@ -1084,9 +1084,8 @@ def stage_run(args):
         for table in ('clipping_table', 'clipping_all_table', 'assembler_circularity'):
             need_result(table, args, root, env, stage)
     if stage == 'circularity':
-        table = need_result('assembler_circularity', args, root, env, stage, optional=True)
-        print(f'Assembler circularity: {table}' if table else
-              'Assembler circularity: none (Circular = read-supported call)', flush=True)
+        table = need_result('assembler_circularity', args, root, env, stage)
+        print(f'Assembler circularity: {table}', flush=True)
     if stage == 'false-duplication':
         need_result('clipping_table', args, root, env, stage)
     if getattr(args, 'mag_map', None) and stage == 'clipping':
@@ -1321,11 +1320,15 @@ def pipeline_plan(args):
         root = root.parent
     have = lambda key: (root / RESULTS[key]).is_file() and (root / RESULTS[key]).stat().st_size > 0
     missing = []
-    if 'false-closure' not in skip:
-        for key, command in (('assembler_circularity', 'prep-circularity -c FILE [-c FILE ...] -g DIR'),
-                             ('scg_table', 'prep-scg -a DIR')):
-            if not have(key):
-                missing.append(f'  false-closure: {root / RESULTS[key]} (run MAGverify {command} -o {root})')
+    if 'circularity' not in skip or 'false-closure' not in skip:
+        key = 'assembler_circularity'
+        if not have(key):
+            modules = ', '.join(step for step in ('circularity', 'false-closure') if step not in skip)
+            missing.append(f'  {modules}: {root / RESULTS[key]} '
+                           f'(run MAGverify prep-circularity -c FILE [-c FILE ...] -g DIR -o {root})')
+    if 'false-closure' not in skip and not have('scg_table'):
+        missing.append(f'  false-closure: {root / RESULTS["scg_table"]} '
+                       f'(run MAGverify prep-scg -a DIR -o {root})')
     if 'chimera' not in skip and not have('taxonomy'):
         prefix = (Path(args.database).expanduser().resolve() if args.database else root / RESULTS['database'])
         if not Path(str(prefix) + '.dbtype').is_file():

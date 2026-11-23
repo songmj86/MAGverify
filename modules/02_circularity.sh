@@ -131,6 +131,20 @@ if ((${#HIFI_FILES[@]} == 0)); then
     HIFI_FILES=("$DEFAULT_HIFI")
 fi
 
+# Keep one module-level log for all assembler groups. Workers inherit the
+# parent's stdout/stderr so they must not reopen or overwrite this file.
+if [[ "$WORKER_MODE" == "N" ]]; then
+    mkdir -p "$OUT/00_log"
+    LOG="$OUT/00_log/02_circularity.log"
+    exec > >(tee "$LOG") 2>&1
+fi
+
+if [[ "$WORKER_MODE" == "N" ]]; then
+    CIRCULARITY_TSV="${CIRCULARITY_TSV:-$OUT/00_prep/assembler_circularity.MAG.tsv}"
+    if [[ ! -s "$CIRCULARITY_TSV" ]]; then
+        die "Missing assembler circularity table: $CIRCULARITY_TSV. Run MAGverify prep-circularity first."
+    fi
+fi
 require_dir "$MAG_DIR"
 require_file "$CIRCULARITY_FINALIZE"
 for file in "${HIFI_FILES[@]}"; do require_file "$file"; done
