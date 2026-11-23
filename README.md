@@ -15,21 +15,19 @@ MAGverify doctor
 MAGverify list
 ```
 
-The environment includes anvi'o 9 and the other programs used by MAGverify (versions pinned in `environment.yml`) and registers the `MAGverify` command from this directory. `MAGverify doctor` shows the code directory in use and checks every required program and its version; it ends with `All 22 required programs found.`
+MAGverify doctor checks the installation path and availability of required programs.
+MAGverify list displays the available commands and analysis modules with brief descriptions.
 
-- **Updating:** update the code in this directory (`git pull`, or copy new files over it) instead of deleting and recreating it. After `environment.yml` changes, run `mamba env update -f environment.yml --prune`.
-- **If the directory was moved**, or `MAGverify` reports `ModuleNotFoundError: No module named 'magverify_cli'`, register the current directory once with `pip install -e . --no-deps --no-build-isolation` (run inside the activated environment, from the repository root).
+## 2. Preparation
 
-## 2. Preparation (run first, separately)
-
-Four commands prepare the reference data and annotations that the analysis modules read. Run them before the analysis, each with the **same `-o`** as the analysis, so that the analysis finds their outputs in `00_prep/`. They are not part of `end-to-end`.
+Run the four preparation commands before analysis using the same -o (not included in end-to-end module).
 
 | Command | Required | Output in `00_prep/` | Used by |
 | --- | --- | --- | --- |
-| [`prep-chimera`](#21-prep-chimera-gtdb-r232-database) | for `chimera` (once) | `GTDB_R232*` | `chimera` |
-| [`prep-scg`](#22-prep-scg-single-copy-genes) | yes | `scg.contig.tsv`, `genes.*` | `false-closure`, `chimera` |
-| [`prep-circularity`](#23-prep-circularity-assembler-circularity) | yes | `assembler_circularity.MAG.tsv`, `assembler_circularity.contig.tsv` | `false-closure`, `circularity` |
-| [`prep-taxonomy`](#24-prep-taxonomy-mag-taxonomy) | optional | `gtdbtk_taxonomy.MAG.tsv` | `chimera` |
+| [`prep-chimera`](#21-prep-chimera-gtdb-r232-database) | `GTDB_R232*` | `chimera` |
+| [`prep-scg`](#22-prep-scg-single-copy-genes) | `scg.contig.tsv`, `genes.*` | `false-closure`, `chimera` |
+| [`prep-circularity`](#23-prep-circularity-assembler-circularity) | `assembler_circularity.MAG.tsv`, `assembler_circularity.contig.tsv` | `false-closure`, `circularity` |
+| [`prep-taxonomy`](#24-prep-taxonomy-mag-taxonomy) | `gtdbtk_taxonomy.MAG.tsv` | `chimera` |
 
 Download commands and the format of each table are in [Input preparation](docs/INPUT_PREPARATION.md).
 
@@ -41,8 +39,8 @@ Builds the MMseqs2 protein taxonomy database that `chimera` uses to classify the
 MAGverify prep-chimera -d /path/to/GTDB_R232_downloads -o /path/to/MAGverify_output -t 100
 ```
 
-- `-d DIR`: folder with the three GTDB R232 downloads below.
-- Output: `00_prep/GTDB_R232*` (several files with this prefix). The temporary folder `00_prep/.cache/prep_chimera_work/` needs much more disk space than the archive and can be deleted afterwards.
+- `-d DIR`: Directory of the three GTDB R232 downloads below.
+- Output: `00_prep/GTDB_R232*` (several files with this prefix). The temporary directory `00_prep/.cache/prep_chimera_work/` needs much more disk space than the archive and can be deleted afterwards.
 
 | Download | Content |
 | --- | --- |
@@ -58,7 +56,7 @@ Predicts genes on all assemblies (Pyrodigal) and annotates single-copy genes wit
 MAGverify prep-scg -a /path/to/assemblies -o /path/to/MAGverify_output -t 100
 ```
 
-- `-a DIR`: the original assembly FASTA of each assembler (the same `-a` as the analysis).
+- `-a DIR`: Input directory of contig files from each assembler (same `-a` as in the analysis).
 - Output: `00_prep/scg.contig.tsv` (SCG hits per contig) and `00_prep/genes.faa`, `genes.gff`, `genes.coordinates.tsv` (reused by `chimera` and `variants`).
 
 ### 2.3 `prep-circularity`: assembler circularity
@@ -75,7 +73,7 @@ MAGverify prep-circularity \
 ```
 
 - `-c FILE`: one per assembler: hifiasm-meta `*.p_ctg.gfa` (or `*.p_ctg.noseq.gfa`), metaMDBG `contigs.fasta.gz`, metaFlye `assembly_info.txt`. The assembler is detected from the file content.
-- `-g DIR`: MAG FASTA files (the same `-g` as the analysis).
+- `-g DIR`: Input directory of MAG files (one file per MAG; same `-g` as in the analysis).
 - Output: `00_prep/assembler_circularity.MAG.tsv` and `assembler_circularity.contig.tsv`.
 
 ### 2.4 `prep-taxonomy`: MAG taxonomy
@@ -86,17 +84,17 @@ Converts GTDB-Tk results into a MAG taxonomy table. `chimera` uses the MAG domai
 MAGverify prep-taxonomy -d /path/to/GTDBTk_results -g /path/to/MAGs -o /path/to/MAGverify_output
 ```
 
-- `-d DIR`: GTDB-Tk `classify_wf` output folder (`gtdbtk.bac120.summary.tsv`, `gtdbtk.ar53.summary.tsv`). Any GTDB-Tk release can be used.
-- `-g DIR`: MAG FASTA files.
+- `-d DIR`: GTDB-Tk `classify_wf` output directory (`gtdbtk.bac120.summary.tsv`, `gtdbtk.ar53.summary.tsv`). Any GTDB-Tk release can be used.
+- `-g DIR`: Input directory of MAG files (one file per MAG; same `-g` as in the analysis).
 - Output: `00_prep/gtdbtk_taxonomy.MAG.tsv`.
 
 ## 3. Analysis (end-to-end)
 
-After the preparation, one command runs all analysis modules in order. Its inputs:
+After the preparation, one command runs all analysis modules in order. Inputs and output:
 
-- **Assemblies** — An input directory of assembly FASTA files generated by multiple assemblers (.fa, .fasta or .fna), specified using `-a`. Contig IDs must be unique across assembly files.
-- **MAGs** — An input directory of MAG FASTA files (one file per MAG), specified using `-g`. MAG contig IDs must match those in the original assembly files.
-- **Reads** — An input directory of PacBio HiFi read files (.fastq, .fq, .fastq.gz or .fq.gz), specified using `-r` for read mapping. Several files are joined once into `00_prep/hifi_reads.fastq[.gz]`. The mapping manifest records the reads, so later modules reuse them without `-r`.
+- **Assemblies** — An input directory of contig files (`.fa`, `.fasta`, or `.fna`), specified using `-a`. Contig IDs must be unique across assembly files.
+- **MAGs** — An input directory of MAG files (one file per MAG), specified using `-g`. MAG contig IDs must match those in the assembly files.
+- **Reads** — An input directory of PacBio HiFi read files (`.fastq`, `.fq`, `.fastq.gz`, or `.fq.gz`), specified using `-r` for read mapping. Several files are joined once into `00_prep/hifi_reads.fastq[.gz]`. The mapping manifest records the reads, so later modules reuse them without `-r`.
 - **Output** — An output directory specified using `-o`. Use the same directory across all modules to reuse completed results.
 
 ```bash
@@ -122,17 +120,17 @@ Each module can also be run on its own, for example to rerun one step with other
 
 ## 4. Results
 
-The summary is written in two versions at the top of the output folder:
+The summary is written in two versions at the top of the output directory:
 
 - **`summary.MAG.tsv` (Y/N version) — start here:** one row per MAG, the number of checks that flagged it (`n_flagged_checks`) and one `Y`/`N`/`NA` column per check (`NA`: not assessable or not run; `Checks_not_run` names the checks that were not run). `summary.contig.tsv` has the same checks for every contig (`MAG_ID` is `NA` for unbinned contigs).
 - **`summary_full.MAG.tsv` (full version):** the same columns, then key counts, then every column of every module MAG table in one row per MAG, named `MODULE.COLUMN` (for example `clipping.n_candidate_sites`). `summary_full.contig.tsv` does the same for every MAG contig.
 
-Each module writes its tables to its own folder as `MODULE.LEVEL.tsv`, where `LEVEL` is the unit of one row. The modules themselves read the complete internal tables in each hidden `.cache/` folder, which also holds intermediate files and fingerprints that later runs reuse; do not delete it. Keep `01_mapping/` (BAMs, `.csi` indexes and `.cache/`) together when moving results.
+Each module writes its tables to its own directory as `MODULE.LEVEL.tsv`, where `LEVEL` is the unit of one row. The modules themselves read the complete internal tables in each hidden `.cache/` directory, which also holds intermediate files and fingerprints that later runs reuse; do not delete it. Keep `01_mapping/` (BAMs, `.csi` indexes and `.cache/`) together when moving results.
 
-| Module | Folder | Tables |
+| Module | Directory | Tables |
 | --- | --- | --- |
 | Preparation | `00_prep/` | `all_assemblies.fa`, `MAG_contig_map.tsv`, genes, `scg.contig.tsv`, `assembler_circularity.*.tsv`, `gtdbtk_taxonomy.MAG.tsv`, `taxonomy.gene.tsv` |
-| Read mapping | `01_mapping/` | `mapping.assembler.tsv` (BAMs are in the same folder) |
+| Read mapping | `01_mapping/` | `mapping.assembler.tsv` (BAMs are in the same directory) |
 | Circularity | `02_circularity/` | `circularity.MAG.tsv`, `circularity.contig.tsv` |
 | Clipping | `03_clipping/` | `clipping.site.tsv`, `clipping.contig.tsv`, `clipping.MAG.tsv`, `clipping.assembler.tsv` |
 | False closure | `04_false_closure/` | `false_closure.contig.tsv`, `false_closure.MAG.tsv` |
@@ -141,7 +139,7 @@ Each module writes its tables to its own folder as `MODULE.LEVEL.tsv`, where `LE
 | Taxonomic chimera | `07_chimera/` | `chimera.region.tsv`, `chimera.contig.tsv`, `chimera.MAG.tsv` |
 | False duplication | `08_false_duplication/` | `false_duplication.pair.tsv`, `false_duplication.contig.tsv`, `false_duplication.MAG.tsv` |
 | Assembly variants | `09_assembly_variants/` | `variants.site.tsv`, `variants.contig.tsv`, `variants.MAG.tsv` |
-| Integrated QC summary | top of the output folder | `summary.MAG.tsv`, `summary.contig.tsv` (Y/N); `summary_full.MAG.tsv`, `summary_full.contig.tsv` (full) |
+| Integrated QC summary | top of the output directory | `summary.MAG.tsv`, `summary.contig.tsv` (Y/N); `summary_full.MAG.tsv`, `summary_full.contig.tsv` (full) |
 
 Every column of every table is defined in [Result tables](docs/OUTPUTS.md).
 
