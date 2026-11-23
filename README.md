@@ -24,12 +24,12 @@ Run the preparation commands before analysis using the same `-o` to save their o
 
 | Command | Output in `00_prep/` | Used by |
 | --- | --- | --- |
-| [`prep-chimera`](docs/INPUT_PREPARATION.md#1-gtdb-r232-database) | `GTDB_R232*` | `chimera` |
-| [`prep-scg`](docs/INPUT_PREPARATION.md#2-single-copy-gene-annotation) | `scg.contig.tsv`, `genes.*` | `false-closure`, `chimera` |
-| [`prep-circularity`](docs/INPUT_PREPARATION.md#3-assembler-circularity) | `assembler_circularity.MAG.tsv`, `assembler_circularity.contig.tsv` | `circularity`, `false-closure` |
-| [`prep-taxonomy`](docs/INPUT_PREPARATION.md#4-mag-taxonomy) | `gtdbtk_taxonomy.MAG.tsv` | `chimera` |
+| [`prep-chimera`](docs/USAGE.md#gtdb-r232-database) | `GTDB_R232*` | `chimera` |
+| [`prep-scg`](docs/USAGE.md#single-copy-gene-annotation) | `scg.contig.tsv`, `genes.*` | `false-closure`, `chimera` |
+| [`prep-circularity`](docs/USAGE.md#assembler-circularity) | `assembler_circularity.MAG.tsv`, `assembler_circularity.contig.tsv` | `circularity`, `false-closure` |
+| [`prep-taxonomy`](docs/USAGE.md#mag-taxonomy) | `gtdbtk_taxonomy.MAG.tsv` | `chimera` |
 
-See [Input preparation](docs/INPUT_PREPARATION.md) for commands, download links and input formats.
+See [Usage](docs/USAGE.md#preparation) for commands, download links and input formats.
 
 ## 3. Quick start
 
@@ -55,7 +55,7 @@ MAGverify end-to-end \
 
 **Note:** `end-to-end` runs the modules in the following order: `map` → `circularity` → `clipping` → `false-closure` → `phantom` → `repeats` → `false-duplication` → `variants` → `chimera` → `summary`. Before analysis, MAGverify checks for missing preparation outputs in `00_prep/` and identifies the necessary `prep-` commands. Interrupted analyses can be resumed by rerunning the same command, automatically skipping completed modules with unchanged inputs.
 
-Each module can also be run separately. See [Modules](docs/MODULES.md) for detailed descriptions and options.
+Each module can also be run separately. See [Usage](docs/USAGE.md#analysis-modules) for detailed descriptions and options.
 
 
 ## 4. Results
