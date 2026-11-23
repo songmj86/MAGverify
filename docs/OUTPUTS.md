@@ -25,11 +25,16 @@ Conventions used in all tables:
 
 ## Summary
 
-Start with `summary.MAG.tsv`. Each check column repeats the call of one module so that the MAGs and contigs flagged by any check can be found in one table; the module in parentheses holds the full evidence.
+The summary comes in two versions, both at the top of the output folder:
+
+- `summary.MAG.tsv`, `summary.contig.tsv`: the **Y/N version**. One Y/N/NA column per check, so that the MAGs and contigs flagged by any check can be found at once. Start here.
+- `summary_full.MAG.tsv`, `summary_full.contig.tsv`: the **full version**. The same columns, then key counts, then every column of each module table of the same level, named `MODULE.COLUMN` (for example `clipping.n_candidate_sites` is `n_candidate_sites` of `03_clipping/clipping.MAG.tsv`). Those columns are defined in the section of each module below; a module that was not run has no columns, and rows missing from a module table are NA.
+
+The module in parentheses holds the full evidence of each check.
 
 #### `summary.MAG.tsv`
 
-One row per MAG.
+Y/N version, one row per MAG.
 
 | Column | Definition |
 |---|---|
@@ -47,22 +52,12 @@ One row per MAG.
 | `Circular` | `Circular` (circularity) |
 | `Small_genome_proxy` | `Small_genome_proxy` (false-closure) |
 | `Premature_circularization_screen` | `Premature_circularization_screen` (false-closure) |
-| `False_closure_partner_contigs` | `Partner_contigs` of false-closure breakpoints |
-| `n_clipping_sites` | `Clipping` Y sites |
-| `n_chimera_contigs` | Contigs with `Taxonomic_chimera` Y |
-| `n_variant_contigs` | Contigs with `Assembly_variant` Y |
-| `n_phantom_contigs` | Contigs with `Phantom` Y |
-| `Repeat_fraction` | Contig: `Intra_repeat_fraction`; MAG: `Total_repeat_fraction` |
-| `n_excessive_repeat_contigs` | Contigs with `Excessive_repeat_contig` Y |
-| `n_false_duplication_contigs` | Contigs with `False_duplication` Y |
-| `n_duplicated_pairs` | Duplicated pairs |
-| `n_unresolved_duplicated_pairs` | Pairs with call NA |
 | `False_duplication_with_clipping` | Y when a boundary of a false-duplication pair has a `Clipping` Y site; NA without false duplication |
 | `Checks_not_run` | Checks whose module was not run (their columns are NA) |
 
 #### `summary.contig.tsv`
 
-One row per contig of every assembly (`MAG_ID` NA for unbinned contigs).
+Y/N version, one row per contig of every assembly (`MAG_ID` NA for unbinned contigs).
 
 | Column | Definition |
 |---|---|
@@ -76,14 +71,67 @@ One row per contig of every assembly (`MAG_ID` NA for unbinned contigs).
 | `Phantom` | Y when >= 1 phantom region (phantom) |
 | `Excessive_repeat` | Contig: `Excessive_repeat_contig`; MAG: `Excessive_repeat_MAG` (repeats) |
 | `False_duplication` | `False_duplication` (false-duplication) |
+| `False_duplication_with_clipping` | Y when a boundary of a false-duplication pair has a `Clipping` Y site; NA without false duplication |
+| `Checks_not_run` | Checks whose module was not run (their columns are NA) |
+
+#### `summary_full.MAG.tsv`
+
+Full version, one row per MAG: these columns, then `MODULE.COLUMN` columns from `circularity`, `clipping`, `false_closure`, `phantom`, `repeats`, `chimera`, `false_duplication` and `variants` `*.MAG.tsv`.
+
+| Column | Definition |
+|---|---|
+| `MAG_ID` | MAG ID (MAG FASTA file name without extension); `NA` for unbinned contigs |
+| `n_contigs` | Number of contigs in the MAG |
+| `n_flagged_checks` | Number of checks with Y (MAG table: the checks from `Clipping` to `Premature_circularization`) |
+| `Clipping` | Y when >= 1 `Clipping` Y site (clipping) |
+| `Taxonomic_chimera` | `Taxonomic_chimera` (chimera) |
+| `Assembly_variant` | Y when >= 1 minority or unsupported assembly variant (variants) |
+| `Phantom` | Y when >= 1 phantom region (phantom) |
+| `Excessive_repeat` | Contig: `Excessive_repeat_contig`; MAG: `Excessive_repeat_MAG` (repeats) |
+| `False_duplication` | `False_duplication` (false-duplication) |
+| `False_closure` | `False_closure` (false-closure) |
+| `Premature_circularization` | `Premature_circularization_candidate` (false-closure) |
+| `Circular` | `Circular` (circularity) |
+| `Small_genome_proxy` | `Small_genome_proxy` (false-closure) |
+| `Premature_circularization_screen` | `Premature_circularization_screen` (false-closure) |
+| `False_duplication_with_clipping` | Y when a boundary of a false-duplication pair has a `Clipping` Y site; NA without false duplication |
+| `Checks_not_run` | Checks whose module was not run (their columns are NA) |
+| `False_closure_partner_contigs` | `Partner_contigs` of false-closure breakpoints |
+| `n_clipping_sites` | `Clipping` Y sites |
+| `n_chimera_contigs` | Contigs with `Taxonomic_chimera` Y |
+| `n_variant_contigs` | Contigs with `Assembly_variant` Y |
+| `n_phantom_contigs` | Contigs with `Phantom` Y |
+| `Repeat_fraction` | Contig: `Intra_repeat_fraction`; MAG: `Total_repeat_fraction` |
+| `n_excessive_repeat_contigs` | Contigs with `Excessive_repeat_contig` Y |
+| `n_false_duplication_contigs` | Contigs with `False_duplication` Y |
+| `n_duplicated_pairs` | Duplicated pairs |
+| `n_unresolved_duplicated_pairs` | Pairs with call NA |
+
+#### `summary_full.contig.tsv`
+
+Full version, one row per MAG contig (unbinned contigs are in `summary.contig.tsv` and the module tables): these columns, then `MODULE.COLUMN` columns from the `*.contig.tsv` table of each module.
+
+| Column | Definition |
+|---|---|
+| `Contig` | Contig ID (first word of the FASTA header) |
+| `MAG_ID` | MAG ID (MAG FASTA file name without extension); `NA` for unbinned contigs |
+| `Length_bp` | Contig length (bp) |
+| `Assembler` | Assembly file (assembler) the contig comes from |
+| `n_flagged_checks` | Number of checks with Y (MAG table: the checks from `Clipping` to `Premature_circularization`) |
+| `Clipping` | Y when >= 1 `Clipping` Y site (clipping) |
+| `Taxonomic_chimera` | `Taxonomic_chimera` (chimera) |
+| `Assembly_variant` | Y when >= 1 minority or unsupported assembly variant (variants) |
+| `Phantom` | Y when >= 1 phantom region (phantom) |
+| `Excessive_repeat` | Contig: `Excessive_repeat_contig`; MAG: `Excessive_repeat_MAG` (repeats) |
+| `False_duplication` | `False_duplication` (false-duplication) |
+| `False_duplication_with_clipping` | Y when a boundary of a false-duplication pair has a `Clipping` Y site; NA without false duplication |
+| `Checks_not_run` | Checks whose module was not run (their columns are NA) |
 | `n_clipping_sites` | `Clipping` Y sites |
 | `Chimera_ranks` | Ranks of the taxonomic transitions |
 | `Repeat_fraction` | Contig: `Intra_repeat_fraction`; MAG: `Total_repeat_fraction` |
 | `n_duplicated_pairs` | Duplicated pairs |
 | `n_false_duplication_pairs` | Pairs with false-duplication call Y |
 | `n_unresolved_duplicated_pairs` | Pairs with call NA |
-| `False_duplication_with_clipping` | Y when a boundary of a false-duplication pair has a `Clipping` Y site; NA without false duplication |
-| `Checks_not_run` | Checks whose module was not run (their columns are NA) |
 
 ## Read mapping
 

@@ -1,6 +1,6 @@
 # Modules
 
-Run the [preparation](#preparation) commands first. `MAGverify end-to-end` then runs analysis steps 1–10 below in this order (see the [README](../README.md#4-analysis-end-to-end)). Each step can also be run on its own with the commands here, for example to rerun one module or to run only some of them. Use the **same `-o`** for every command: each module finds the results of earlier steps (mapping manifest, clipping tables, preparation tables) there automatically. The column definitions of every output table are in [Result tables](OUTPUTS.md).
+Run the [preparation](#preparation) commands first. `MAGverify end-to-end` then runs analysis steps 1–10 below in this order (see the [README](../README.md#3-analysis-end-to-end)). Each step can also be run on its own with the commands here, for example to rerun one module or to run only some of them. Use the **same `-o`** for every command: each module finds the results of earlier steps (mapping manifest, clipping tables, preparation tables) there automatically. The column definitions of every output table are in [Result tables](OUTPUTS.md).
 
 The examples use these variables:
 
@@ -25,7 +25,7 @@ Out=/path/to/MAGverify_output
 | 9 | `chimera` | `clipping`, `prep-chimera` (and `prep-scg`, `prep-taxonomy` for SCG redundancy) |
 | 10 | `summary` | the modules to summarize |
 
-**Threads and memory.** `-t N` sets the threads (default: all available CPUs, at most 100). Read mapping (`map`, `circularity`) and anvi'o profiling (`variants`) process one assembler at a time with all threads; `clipping`, `phantom` and `false-duplication` process assemblers in parallel and divide `-t` between them (`PARALLEL_JOBS=N` before the command runs fewer at once). `-m N` (GB) keeps `map`, `circularity`, `repeats` and `variants` within a memory limit. Read mapping and the BLAST steps of `repeats` print progress with the remaining time every 5 minutes (`PROGRESS_INTERVAL=SECONDS` changes the interval).
+**Threads and memory.** `-t N` sets the threads (default: all available CPUs, at most 100). Read mapping (`map`, `circularity`) and anvi'o profiling (`variants`) process one assembler at a time with all threads; `clipping`, `phantom` and `false-duplication` process assemblers in parallel and divide `-t` between them (`PARALLEL_JOBS=N` before the command runs fewer at once). `-m N` (GB) keeps `map`, `circularity`, `repeats` and `variants` within a memory limit. **Progress.** Every module prints its progress (%), elapsed and remaining time every 5 minutes (`PROGRESS_INTERVAL=SECONDS` changes the interval), estimated from its earlier run time in the same `-o` (`.cache/run_times.tsv`); without an earlier run only the elapsed time is shown. Read mapping (`map`, `circularity`) and the BLAST steps of `repeats` also report their own progress from the first run.
 
 ## Preparation
 
@@ -130,7 +130,7 @@ Output: `09_assembly_variants/variants.site.tsv`, `variants.contig.tsv`, `varian
 ## 9. Taxonomic chimera
 
 ```bash
-MAGverify chimera -g $In_MAG -o $Out -t 100 --database /path/to/database_dir/00_prep/GTDB_R232
+MAGverify chimera -g $In_MAG -o $Out -t 100
 ```
 
 Classifies the predicted genes of all assemblies against GTDB R232 (MMseqs2) and looks for gene boundaries where the dominant taxon of the neighbouring genes changes at domain, phylum, class or order. A transition is a taxonomic chimera when a validated clipping site lies in it, and high-confidence when that site is stringent; the HiFi structural evidence across the junction is reported alongside. The database (`prep-chimera`) and the MAG taxonomy table (`prep-taxonomy`) are read from `00_prep/` when they were built with the same `-o`; `--database PREFIX` gives a database elsewhere, and `--taxonomy TSV` a compatible gene taxonomy table that already exists. SCG annotation comes from `prep-scg`.
@@ -145,4 +145,4 @@ MAGverify summary -g $In_MAG -o $Out
 
 Collects the calls of the completed modules into one row per MAG and per contig and validates MAG IDs, contig memberships, counts and table consistency; validation failures return a nonzero exit status. For a partial run, give the modules that were completed, for example `--include clipping,chimera`. The summary does not rerun analysis modules.
 
-Output: `summary.MAG.tsv`, `summary.contig.tsv` at the top of the output folder.
+Output, at the top of the output folder: `summary.MAG.tsv`, `summary.contig.tsv` (Y/N version: one Y/N/NA column per check) and `summary_full.MAG.tsv`, `summary_full.contig.tsv` (full version: the same columns followed by every column of each module table, named `MODULE.COLUMN`).

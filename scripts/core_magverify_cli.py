@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from pathlib import Path
 
@@ -136,7 +137,7 @@ FINAL_TABLES = {
                           '08_false_duplication/false_duplication.MAG.tsv'),
     'variants': ('09_assembly_variants/variants.site.tsv', '09_assembly_variants/variants.contig.tsv',
                  '09_assembly_variants/variants.MAG.tsv'),
-    'summary': ('summary.MAG.tsv', 'summary.contig.tsv'),
+    'summary': ('summary.MAG.tsv', 'summary.contig.tsv', 'summary_full.MAG.tsv', 'summary_full.contig.tsv'),
 }
 GENERATED_RESULTS_NAMES = {
     'mapping_manifest.tsv', 'clipping_sites.tsv', 'clipping_mag.tsv', 'clipping_contig.tsv', 'gene_taxonomy.tsv',
@@ -316,12 +317,112 @@ def mag_inputs(args, output_root):
     return parent
 
 
+RUN_TIMES = '.cache/run_times.tsv'
+PROGRESS = {'step': None, 'pipeline': None}
+
+
+def progress_interval():
+    try:
+        return max(1.0, float(os.environ.get('PROGRESS_INTERVAL', '300')))
+    except ValueError:
+        return 300.0
+
+
+def expected_seconds(root, step):
+    """Longest recorded run of a step in this output folder (a run that recomputed everything)."""
+    path = Path(root) / RUN_TIMES
+    if not step or not path.is_file():
+        return None
+    times = []
+    with open(path, encoding='utf-8') as handle:
+        for row in csv.DictReader(handle, delimiter='\t'):
+            if row.get('Step') == step:
+                try:
+                    times.append(float(row['Seconds']))
+                except (TypeError, ValueError):
+                    pass
+    return max(times) if times else None
+
+
+def record_run_time(root, step, seconds, threads):
+    path = Path(root) / RUN_TIMES
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        new = not path.is_file()
+        with open(path, 'a', encoding='utf-8') as handle:
+            if new:
+                handle.write('Step\tSeconds\tFinished\tThreads\n')
+            handle.write(f'{step}\t{seconds:.0f}\t{time.strftime("%Y-%m-%d %H:%M:%S")}\t{threads}\n')
+    except OSError:
+        pass
+
+
+def step_estimate(step, elapsed, expected):
+    if expected is None:
+        return f'[{step}] elapsed {format_duration(elapsed)} | no earlier run in this -o to estimate from'
+    if elapsed <= expected:
+        return (f'[{step}] {min(99, int(100 * elapsed / expected))}% | elapsed {format_duration(elapsed)} '
+                f'| remaining ~{format_duration(expected - elapsed)} (earlier run: {format_duration(expected)})')
+    return (f'[{step}] elapsed {format_duration(elapsed)} | {format_duration(elapsed - expected)} longer '
+            f'than the earlier run ({format_duration(expected)})')
+
+
+def pipeline_estimate(elapsed_step):
+    """Overall progress of MAGverify end-to-end, from the earlier run time of each step."""
+    pipe = PROGRESS['pipeline']
+    if not pipe:
+        return None
+    done_time = time.monotonic() - pipe['start'] - elapsed_step
+    current = pipe['current']
+    left, unknown = 0.0, []
+    for index, step in enumerate(pipe['steps']):
+        if index < current:
+            continue
+        expected = expected_seconds(pipe['root'], step)
+        if expected is None:
+            unknown.append(step)
+        elif index == current:
+            left += max(0.0, expected - elapsed_step)
+        else:
+            left += expected
+    elapsed = done_time + elapsed_step
+    head = f'[end-to-end] step {current + 1}/{len(pipe["steps"])} | elapsed {format_duration(elapsed)}'
+    if unknown:
+        return head + (f' | remaining >= {format_duration(left)} (no earlier run of: {", ".join(unknown)})'
+                       if left else ' | remaining time is estimated after a first complete run in this -o')
+    return head + f' | {int(100 * elapsed / (elapsed + left)) if elapsed + left else 100}% | remaining ~{format_duration(left)}'
+
+
 def run(cmd, env, dry_run):
     print('$ ' + shlex.join(map(str, cmd)), flush=True)
-    if not dry_run:
-        start = time.monotonic()
+    if dry_run:
+        return
+    step, root = PROGRESS['step'], env.get('OUT')
+    expected = expected_seconds(root, step) if root else None
+    if step and expected is not None:
+        print(f'Expected run time: ~{format_duration(expected)} (earlier run in this -o)', flush=True)
+    start = time.monotonic()
+    stop = threading.Event()
+
+    def report():
+        while not stop.wait(progress_interval()):
+            elapsed = time.monotonic() - start
+            print(step_estimate(step or 'run', elapsed, expected), flush=True)
+            overall = pipeline_estimate(elapsed)
+            if overall:
+                print(overall, flush=True)
+
+    reporter = threading.Thread(target=report, daemon=True)
+    reporter.start()
+    try:
         subprocess.run(cmd, cwd=ROOT, env=env, check=True)
-        print('Elapsed: ' + format_duration(time.monotonic() - start), flush=True)
+    finally:
+        stop.set()
+        reporter.join()
+    seconds = time.monotonic() - start
+    print('Elapsed: ' + format_duration(seconds), flush=True)
+    if step and root:
+        record_run_time(root, step, seconds, env.get('THREADS', ''))
 
 
 def format_duration(seconds):
@@ -1266,9 +1367,16 @@ def pipeline_run(parser, args):
             print('MAGverify ' + shlex.join(argv), flush=True)
         return
     started = time.monotonic()
-    for number, (step, argv) in enumerate(plan, 1):
-        print(f'\n=== [{number}/{len(plan)}] MAGverify {step} ===', flush=True)
-        dispatch(parser.parse_args(argv))
+    root = Path(plan[0][1][plan[0][1].index('-o') + 1])
+    PROGRESS['pipeline'] = {'start': started, 'steps': [step for step, _ in plan], 'current': 0, 'root': root}
+    try:
+        for number, (step, argv) in enumerate(plan, 1):
+            PROGRESS['pipeline']['current'] = number - 1
+            print(f'\n=== [{number}/{len(plan)}] MAGverify {step} ===', flush=True)
+            print(pipeline_estimate(0.0), flush=True)
+            dispatch(parser.parse_args(argv))
+    finally:
+        PROGRESS['pipeline'] = None
     print(f'\nAll steps finished. Total elapsed: {format_duration(time.monotonic() - started)}', flush=True)
 
 
@@ -1289,6 +1397,7 @@ def build_parser():
 
 def dispatch(args):
     args.dry_run = DRY_RUN
+    PROGRESS['step'] = args.module
     if args.module == 'prep-chimera':
         prep_chimera_run(args)
     elif args.module == 'prep-taxonomy':

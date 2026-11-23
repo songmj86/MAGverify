@@ -449,6 +449,13 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
         self.assertIn(f'MAGverify repeats -g {self.mag_dir} -o {self.output} -t 1 -m 4', p.stdout)
         self.assertNotIn('prep-', p.stdout)
 
+    def test_run_reads_database_from_preparation(self):
+        self.prepared()
+        (self.output / '00_prep' / 'GTDB_R232.dbtype').write_text('db')
+        p = self.call(*self.run_args(), '--dry-run')
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertIn(f'MAGverify chimera -g {self.mag_dir} -o {self.output} -t 1\n', p.stdout)
+
     def test_run_does_not_accept_preparation_inputs(self):
         p = self.call(*self.run_args('-c', self.generic_tsv))
         self.assertEqual(p.returncode, 2)
@@ -481,6 +488,26 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
         forwarded = (self.output / '03_clipping' / 'forwarded.txt').read_text().splitlines()
         self.assertEqual(forwarded[1], str(self.mag_dir))
         self.assertIn('All steps finished', p.stdout)
+
+    def test_run_reports_progress_and_remembers_step_times(self):
+        skip = 'circularity,false-closure,phantom,repeats,false-duplication,variants,chimera,summary'
+        p = self.call(*self.run_args('--skip', skip))
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertIn('remaining time is estimated after a first complete run', p.stdout)
+        times = (self.output / '.cache' / 'run_times.tsv').read_text().splitlines()
+        self.assertEqual(times[0], 'Step\tSeconds\tFinished\tThreads')
+        self.assertEqual([line.split('\t')[0] for line in times[1:]], ['map', 'clipping'])
+        (self.repo / 'modules/03_clipping.sh').write_text('#!/bin/bash\nsleep 2.5\n')
+        with (self.output / '.cache' / 'run_times.tsv').open('a') as handle:
+            handle.write('map\t100\tx\t1\nclipping\t200\tx\t1\n')
+        env = dict(self.env, PROGRESS_INTERVAL='1')
+        p = subprocess.run([str(self.repo / 'bin/MAGverify'), *map(str, self.run_args('--skip', skip))],
+                           cwd=self.repo, env=env, text=True, capture_output=True)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertIn('Expected run time: ~3m20s (earlier run in this -o)', p.stdout)
+        self.assertIn('[end-to-end] step 1/2 | elapsed 0m00s | 0% | remaining ~5m00s', p.stdout)
+        self.assertRegex(p.stdout, r'\[clipping\] \d+% \| elapsed 0m0\ds \| remaining ~3m1\ds \(earlier run: 3m20s\)')
+        self.assertRegex(p.stdout, r'\[end-to-end\] step 2/2 \| elapsed \S+ \| \d+% \| remaining ~3m1\ds')
 
     def test_missing_stage_specific_table_explained(self):
         p = self.call('false-closure', '-a', self.source_dir,

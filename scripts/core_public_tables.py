@@ -295,12 +295,8 @@ def summary_contig(internal, public):
             missing.append('clipping')
         new['Checks_not_run'] = ','.join(sorted(set(missing))) or 'NA'
         out.append(new)
-    fields = ['Contig', 'MAG_ID', 'Length_bp', 'n_flagged_checks', 'Clipping', 'Taxonomic_chimera',
-              'Assembly_variant', 'Phantom', 'Excessive_repeat', 'False_duplication', 'n_clipping_sites',
-              'Chimera_ranks', 'Repeat_fraction', 'n_duplicated_pairs', 'n_false_duplication_pairs',
-              'n_unresolved_duplicated_pairs', 'False_duplication_with_clipping', 'Checks_not_run']
-    write(public, fields, out)
-    return {row['contig']: row for row in rows}
+    write(public, SUMMARY_CONTIG_FIELDS, out)
+    return {row['contig']: row for row in rows}, out
 
 
 MAG_CHECKS = (
@@ -362,12 +358,88 @@ def summary_mag(internal, public, contigs):
             'Checks_not_run': ','.join(sorted(set(not_run))) or 'NA',
         })
         out.append(new)
-    fields = ['MAG_ID', 'n_contigs', 'n_flagged_checks'] + [name for name, _c, _r in MAG_CHECKS] + [
-        'Circular', 'Small_genome_proxy', 'Premature_circularization_screen', 'False_closure_partner_contigs',
-        'n_clipping_sites', 'n_chimera_contigs', 'n_variant_contigs', 'n_phantom_contigs', 'Repeat_fraction',
-        'n_excessive_repeat_contigs', 'n_false_duplication_contigs', 'n_duplicated_pairs',
-        'n_unresolved_duplicated_pairs', 'False_duplication_with_clipping', 'Checks_not_run']
-    write(public, fields, out)
+    write(public, SUMMARY_MAG_FIELDS, out)
+    return out
+
+
+SUMMARY_CONTIG_FIELDS = ['Contig', 'MAG_ID', 'Length_bp', 'n_flagged_checks', 'Clipping', 'Taxonomic_chimera',
+                         'Assembly_variant', 'Phantom', 'Excessive_repeat', 'False_duplication',
+                         'False_duplication_with_clipping', 'Checks_not_run']
+SUMMARY_CONTIG_DETAILS = ['Assembler', 'n_clipping_sites', 'Chimera_ranks', 'Repeat_fraction', 'n_duplicated_pairs',
+                          'n_false_duplication_pairs', 'n_unresolved_duplicated_pairs']
+SUMMARY_MAG_FIELDS = ['MAG_ID', 'n_contigs', 'n_flagged_checks'] + [name for name, _c, _r in MAG_CHECKS] + [
+    'Circular', 'Small_genome_proxy', 'Premature_circularization_screen', 'False_duplication_with_clipping',
+    'Checks_not_run']
+SUMMARY_MAG_DETAILS = ['False_closure_partner_contigs', 'n_clipping_sites', 'n_chimera_contigs', 'n_variant_contigs',
+                       'n_phantom_contigs', 'Repeat_fraction', 'n_excessive_repeat_contigs',
+                       'n_false_duplication_contigs', 'n_duplicated_pairs', 'n_unresolved_duplicated_pairs']
+FULL_MODULES = (
+    ('circularity', '02_circularity/circularity'), ('clipping', '03_clipping/clipping'),
+    ('false_closure', '04_false_closure/false_closure'), ('phantom', '05_phantom/phantom'),
+    ('repeats', '06_repeats/repeats'), ('chimera', '07_chimera/chimera'),
+    ('false_duplication', '08_false_duplication/false_duplication'), ('variants', '09_assembly_variants/variants'),
+)
+FULL_SKIP = {'MAG': {'MAG_ID', 'n_contigs', 'MAG_length_bp', 'Assembler'},
+             'contig': {'Contig', 'MAG_ID', 'Assembler', 'Length_bp', 'n_contigs'}}
+
+
+def full_table(root, level, rows, key, lead):
+    """Summary rows followed by every column of each module table of this level, named MODULE.COLUMN."""
+    root = Path(root)
+    wanted = {row[key] for row in rows}
+    fields = list(lead)
+    merged = {name: {} for name in wanted}
+    for module, stem in FULL_MODULES:
+        path = root / f'{stem}.{level}.tsv'
+        if not path.is_file():
+            continue
+        with open(path, encoding='utf-8', newline='') as handle:
+            reader = csv.reader(handle, delimiter='\t')
+            header = next(reader, [])
+            if key not in header:
+                continue
+            index = header.index(key)
+            assembler = header.index('Assembler') if 'Assembler' in header else None
+            keep = [(i, f'{module}.{name}') for i, name in enumerate(header) if name not in FULL_SKIP[level]]
+            fields += [name for _i, name in keep]
+            for values in reader:
+                target = merged.get(values[index] if index < len(values) else None)
+                if target is not None:
+                    if assembler is not None and assembler < len(values) and values[assembler] not in ('', 'NA'):
+                        target.setdefault('Assembler', values[assembler])
+                    for i, name in keep:
+                        target[name] = values[i] if i < len(values) else ''
+    out = []
+    for row in rows:
+        extra = merged.get(row[key], {})
+        full = {name: row.get(name, extra.get(name, 'NA')) for name in lead}
+        for name in fields[len(lead):]:
+            full[name] = extra.get(name, 'NA')
+        out.append(full)
+    return fields, out
+
+
+def write_full_tables(root, contig_rows, mag_rows):
+    root = Path(root)
+    mag_contigs = [row for row in contig_rows if row.get('MAG_ID') not in ('', 'NA', None)]
+    fields, rows = full_table(root, 'contig', mag_contigs, 'Contig',
+                              SUMMARY_CONTIG_FIELDS[:3] + ['Assembler'] + SUMMARY_CONTIG_FIELDS[3:]
+                              + SUMMARY_CONTIG_DETAILS[1:])
+    write(root / 'summary_full.contig.tsv', fields, rows)
+    fields, rows = full_table(root, 'MAG', mag_rows, 'MAG_ID', SUMMARY_MAG_FIELDS + SUMMARY_MAG_DETAILS)
+    write(root / 'summary_full.MAG.tsv', fields, rows)
+    return [str(root / 'summary_full.contig.tsv'), str(root / 'summary_full.MAG.tsv')]
+
+
+def full_tables_current(root):
+    root = Path(root)
+    targets = [root / 'summary_full.contig.tsv', root / 'summary_full.MAG.tsv']
+    if not all(path.is_file() for path in targets):
+        return False
+    oldest = min(path.stat().st_mtime_ns for path in targets)
+    sources = [root / '.cache/summary/summary.contig.tsv', root / '.cache/summary/summary.MAG.tsv']
+    sources += [root / f'{stem}.{level}.tsv' for _m, stem in FULL_MODULES for level in ('contig', 'MAG')]
+    return all(path.stat().st_mtime_ns <= oldest for path in sources if path.is_file())
 
 
 def migrate(root):
@@ -389,6 +461,9 @@ def publish(root, force=False):
     root = Path(root)
     written = []
     contigs = None
+    summary_internal = (root / '.cache/summary/summary.contig.tsv', root / '.cache/summary/summary.MAG.tsv')
+    force_summary = None
+    contig_rows = mag_rows = None
     for public, internal, kind in TABLES:
         source, target = root / internal, root / public
         if kind is None:
@@ -397,19 +472,23 @@ def publish(root, force=False):
             continue
         if not source.is_file():
             continue
+        if kind in ('summary_contig', 'summary_mag') and force_summary is None:
+            force_summary = all(path.is_file() for path in summary_internal) and not full_tables_current(root)
         if kind == 'summary_mag' and contigs is None:
             contig_internal = root / '.cache/summary/summary.contig.tsv'
             contigs = {r['contig']: r for r in read(contig_internal)[1]} if contig_internal.is_file() else {}
         current = target.is_file() and target.stat().st_mtime_ns >= source.stat().st_mtime_ns
-        if current and not force:
+        if current and not force and not (force_summary and kind in ('summary_contig', 'summary_mag')):
             continue
         if kind == 'summary_contig':
-            contigs = summary_contig(source, target)
+            contigs, contig_rows = summary_contig(source, target)
         elif kind == 'summary_mag':
-            summary_mag(source, target, contigs or {})
+            mag_rows = summary_mag(source, target, contigs or {})
         else:
             generic(source, target, kind)
         written.append(str(target))
+    if contig_rows is not None and mag_rows is not None:
+        written += write_full_tables(root, contig_rows, mag_rows)
     return written
 
 

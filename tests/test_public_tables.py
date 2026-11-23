@@ -97,6 +97,30 @@ class PublicTableTests(unittest.TestCase):
         self.assertEqual((m['Taxonomic_chimera'], m['Circular'], m['False_closure']), ('NA', 'NA', 'NA'))
         self.assertIn('circularity', m['Checks_not_run'])
 
+    def test_summary_has_yes_no_and_full_versions(self):
+        self.test_summary_tables_go_to_the_top()
+        write(self.root / '03_clipping/.cache/clipping.MAG.tsv', ['MAG_ID', 'n_contigs', 'Clipping', 'n_clipping_sites'],
+              [['B1', '1', 'Y', '2']])
+        write(self.root / '03_clipping/.cache/clipping.contig.tsv', ['contig', 'MAG_ID', 'length_bp', 'Clipping'],
+              [['c1', 'B1', '100', 'Y'], ['u1', 'NA', '50', 'N']])
+        write(self.root / '05_phantom/.cache/phantom.contig.tsv', ['Contig', 'MAG_ID', 'length_bp', 'LR_PHANTOM'],
+              [['c1', 'B1', '100', 'Y']])
+        pt.publish(self.root)
+        m = read(self.root / 'summary.MAG.tsv')[0]
+        for detail in ('n_clipping_sites', 'Repeat_fraction', 'False_closure_partner_contigs'):
+            self.assertNotIn(detail, m)
+        self.assertTrue(all(m[k] in ('Y', 'N', 'NA') for k in ('Clipping', 'Phantom', 'Circular')))
+        full = read(self.root / 'summary_full.MAG.tsv')[0]
+        self.assertEqual(list(full)[:len(m)], list(m))
+        self.assertEqual((full['n_clipping_sites'], full['clipping.Clipping'], full['clipping.n_clipping_sites']),
+                         ('NA', 'Y', '2'))
+        self.assertNotIn('clipping.MAG_ID', full)
+        contigs = read(self.root / 'summary_full.contig.tsv')
+        self.assertEqual([row['Contig'] for row in contigs], ['c1'])
+        self.assertEqual((contigs[0]['clipping.Clipping'], contigs[0]['phantom.Phantom'], contigs[0]['n_clipping_sites']),
+                         ('Y', 'Y', '2'))
+        self.assertNotIn('Chimera_ranks', read(self.root / 'summary.contig.tsv')[0])
+
     def test_earlier_tables_move_to_cache(self):
         write(self.root / '06_repeats/repeats.dataset.tsv', ['scope_id'], [['ALL']])
         write(self.root / '06_repeats/repeats.MAG.tsv', ['MAG_ID', 'INTRA_REPEAT'], [['B1', 'Y']])
