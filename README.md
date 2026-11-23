@@ -45,12 +45,12 @@ MAGverify prep-chimera -d /path/to/GTDB_R232_downloads -o /path/to/MAGverify_out
 | Download | Content |
 | --- | --- |
 | [`gtdb_proteins_aa_reps_r232.tar.gz`](https://data.gtdb.ecogenomic.org/releases/release232/232.0/genomic_files_reps/gtdb_proteins_aa_reps_r232.tar.gz) | Predicted amino-acid sequences from GTDB representative genomes (~123 GB compressed) |
-| [`bac120_taxonomy_r232.tsv`](https://data.gtdb.ecogenomic.org/releases/release232/232.0/bac120_taxonomy_r232.tsv) | Bacterial genome accession → full GTDB lineage |
-| [`ar53_taxonomy_r232.tsv`](https://data.gtdb.ecogenomic.org/releases/release232/232.0/ar53_taxonomy_r232.tsv) | Archaeal genome accession → full GTDB lineage |
+| [`bac120_taxonomy_r232.tsv`](https://data.gtdb.ecogenomic.org/releases/release232/232.0/bac120_taxonomy_r232.tsv) | Bacterial genome accession |
+| [`ar53_taxonomy_r232.tsv`](https://data.gtdb.ecogenomic.org/releases/release232/232.0/ar53_taxonomy_r232.tsv) | Archaeal genome accession |
 
 ### 2.2 `prep-scg`: single-copy genes
 
-Predicts genes on all assemblies (Pyrodigal) and annotates single-copy genes with anvi'o (Bacteria_71, Archaea_76). `false-closure` uses the ribosomal proteins to screen small circular genomes, and `chimera` uses SCG redundancy.
+Predicts genes on all assemblies using Pyrodigal and annotates single-copy genes with anvi'o (Bacteria_71, Archaea_76). `false-closure` uses the ribosomal proteins to screen small circular genomes, and `chimera` evaluates SCG redundancy.
 
 ```bash
 MAGverify prep-scg -a /path/to/assemblies -o /path/to/MAGverify_output -t 100
@@ -88,14 +88,15 @@ MAGverify prep-taxonomy -d /path/to/GTDBTk_results -g /path/to/MAGs -o /path/to/
 - `-g DIR`: Input directory of MAG files (one file per MAG; same `-g` as in the analysis).
 - Output: `00_prep/gtdbtk_taxonomy.MAG.tsv`.
 
-## 3. Analysis (end-to-end)
+## 3. Quick start
 
 After the preparation, one command runs all analysis modules in order. Inputs and output:
 
-- **Assemblies** — An input directory of contig files (`.fa`, `.fasta`, or `.fna`), specified using `-a`. Contig IDs must be unique across assembly files.
-- **MAGs** — An input directory of MAG files (one file per MAG), specified using `-g`. MAG contig IDs must match those in the assembly files.
-- **Reads** — An input directory of PacBio HiFi read files (`.fastq`, `.fq`, `.fastq.gz`, or `.fq.gz`), specified using `-r` for read mapping. Several files are joined once into `00_prep/hifi_reads.fastq[.gz]`. The mapping manifest records the reads, so later modules reuse them without `-r`.
-- **Output** — An output directory specified using `-o`. Use the same directory across all modules to reuse completed results.
+- `-a DIR`: Input directory of contig files (`.fa`, `.fasta`, or `.fna`). Contig IDs must be unique across assembly files.
+- `-g DIR`: Input directory of MAG files (one file per MAG). MAG contig IDs must match those in the assembly files.
+- `-r DIR`: Input directory of PacBio HiFi read files (`.fastq`, `.fq`, `.fastq.gz`, or `.fq.gz`). Multiple files are merged into `00_prep/hifi_reads.fastq[.gz]` and reused by subsequent modules without `-r`.
+- `-o DIR`: Output directory. Use the same directory across all modules to reuse completed results.
+
 
 ```bash
 MAGverify end-to-end \
