@@ -1,4 +1,4 @@
-"""Tables for people are written from the internal tables in .cache/."""
+"""Result tables are written from the internal tables in .cache/."""
 from pathlib import Path
 import csv
 import re
@@ -50,7 +50,7 @@ class PublicTableTests(unittest.TestCase):
               [['metaflye', '/a.fa', '/b.bam', '/c.bam', '/d.bam', '/o', '/r.fq', '10', '100.00']])
         pt.publish(self.root)
         rows = read(self.root / '01_mapping/mapping.assembler.tsv')
-        self.assertEqual(list(rows[0]), ['Assembler', 'Primary', 'Mapped_percent'])
+        self.assertEqual(list(rows[0]), ['Assembler', 'Mapped_reads'])
 
     def test_circularity_contig(self):
         write(self.root / '02_circularity/.cache/circularity.contig.tsv',

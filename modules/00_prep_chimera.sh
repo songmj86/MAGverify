@@ -2,7 +2,7 @@
 set -euo pipefail
 
 if [[ $# -ne 4 ]]; then
-    echo 'Internal helper: use MAGverify prep-chimera --gtdb-dir DIR --output-dir DIR [--database-prefix PREFIX] --threads N' >&2
+    echo 'Internal helper: use MAGverify prep-chimera -d DIR -o DIR -t N' >&2
     exit 2
 fi
 

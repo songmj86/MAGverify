@@ -9,6 +9,7 @@
 
 ## Unreleased
 
+- Documentation: `docs/` keeps `INPUT_PREPARATION.md` and `OUTPUTS.md` (result table columns). Installation is in the README; `INSTALL.md`, `MODULES.md`, `ARCHITECTURE.md`, `INPUT_FORMATS.md`, `TOOL_VERSIONS.md` and `SCRIPT_INDEX.md` were removed or merged.
 - `00_prep/all_assemblies.fasta` renamed `00_prep/all_assemblies.fa` (FASTA outputs use `.fa`; Pyrodigal outputs keep `.faa`/`.gff`). Existing files are renamed automatically.
 - `-o` given as `OUTPUT/00_prep` or a module folder is read as `OUTPUT`. The old visible `00_prep/assembler_links/` is removed (the links are made in `00_prep/.cache/assembler_links/` when needed).
 - `prep-taxonomy` writes `00_prep/gtdbtk_taxonomy.MAG.tsv` (earlier `taxonomy.MAG.tsv` and `gtdb_taxonomy.MAG.tsv` are renamed automatically). `-o` given as a file path (for example `.../x.tsv`) now stops with a message instead of creating a folder with that name.
@@ -16,7 +17,7 @@
 - `chimera validate`: event windows are computed once and looked up through a per-contig interval index (same evidence, faster on contigs with many events); `chimera evaluate` reads `samtools bedcov` output line by line.
 - `false-duplication detect`: `samtools view -F 260` skips secondary alignments, which were discarded afterwards anyway.
 - Code comments and merge leftovers removed; scg.contig.tsv column `source` renamed `HMM_collection` (both are read).
-- Tables for people: each module folder now holds tables with plain column names (`Copy1_left_supported`, `HiFi_END_START_supported`, `Small_genome_proxy`, ...), `Y`/`N`/`NA` values and no file paths or repeated columns; the full tables the modules read are in `.cache/` (written by `scripts/core_public_tables.py`). Tables of earlier versions are moved to `.cache/` automatically and the tables for people are written on the next run of any module.
+- Readable result tables: each module folder now holds tables with plain column names (`Copy1_left_supported`, `HiFi_END_START_supported`, `Small_genome_proxy`, ...), `Y`/`N`/`NA` values and no file paths or repeated columns; the full tables the modules read are in `.cache/` (written by `scripts/core_public_tables.py`). Tables of earlier versions are moved to `.cache/` automatically and the result tables are written on the next run of any module.
 - `summary.MAG.tsv` and `summary.contig.tsv` are at the top of the output folder (were in `10_summary/`): one `Y`/`N`/`NA` column per check, `n_flagged_checks`, counts and `Checks_not_run`; `MAG_integrated_QC_call`, `Circularity_eligibility`, `excessive_repeat_call` and `false_duplication_clipping_summary` are removed.
 - `map`: `01_mapping/mapping.assembler.tsv` (read counts); the manifest with paths moved to `01_mapping/.cache/mapping_manifest.tsv`.
 - `phantom.dataset.tsv` and `repeats.dataset.tsv` are kept in `.cache/` only.

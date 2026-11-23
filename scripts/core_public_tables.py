@@ -18,10 +18,10 @@ TABLES = (
     ('01_mapping/mapping.assembler.tsv', '01_mapping/.cache/mapping_manifest.tsv', 'mapping'),
     ('02_circularity/circularity.MAG.tsv', '02_circularity/.cache/circularity.MAG.tsv', 'circularity_mag'),
     ('02_circularity/circularity.contig.tsv', '02_circularity/.cache/circularity.contig.tsv', 'circularity_contig'),
-    ('03_clipping/clipping.site.tsv', '03_clipping/.cache/clipping.site.tsv', 'contig'),
+    ('03_clipping/clipping.site.tsv', '03_clipping/.cache/clipping.site.tsv', 'clipping_site'),
     ('03_clipping/clipping.contig.tsv', '03_clipping/.cache/clipping.contig.tsv', 'contig'),
     ('03_clipping/clipping.MAG.tsv', '03_clipping/.cache/clipping.MAG.tsv', 'mag'),
-    ('03_clipping/clipping.assembler.tsv', '03_clipping/.cache/clipping.assembler.tsv', 'plain'),
+    ('03_clipping/clipping.assembler.tsv', '03_clipping/.cache/clipping.assembler.tsv', 'clipping_assembler'),
     ('04_false_closure/false_closure.contig.tsv', '04_false_closure/.cache/false_closure.contig.tsv', 'false_closure'),
     ('04_false_closure/false_closure.MAG.tsv', '04_false_closure/.cache/false_closure.MAG.tsv', 'false_closure'),
     ('05_phantom/phantom.region.tsv', '05_phantom/.cache/phantom.region.tsv', 'phantom_region'),
@@ -31,12 +31,12 @@ TABLES = (
     ('06_repeats/repeats.contig.tsv', '06_repeats/.cache/repeats.contig.tsv', 'contig'),
     ('06_repeats/repeats.MAG.tsv', '06_repeats/.cache/repeats.MAG.tsv', 'mag'),
     ('06_repeats/repeats.region.tsv', '06_repeats/.cache/repeats.region.tsv', 'contig'),
-    ('06_repeats/repeats.HSP.tsv', '06_repeats/.cache/repeats.HSP.tsv', 'plain'),
+    ('06_repeats/repeats.HSP.tsv', '06_repeats/.cache/repeats.HSP.tsv', 'hsp'),
     ('06_repeats/repeats.dataset.tsv', '06_repeats/.cache/repeats.dataset.tsv', None),
-    ('07_chimera/chimera.region.tsv', '07_chimera/.cache/chimera.region.tsv', 'contig'),
-    ('07_chimera/chimera.contig.tsv', '07_chimera/.cache/chimera.contig.tsv', 'contig'),
-    ('07_chimera/chimera.MAG.tsv', '07_chimera/.cache/chimera.MAG.tsv', 'mag'),
-    ('08_false_duplication/false_duplication.pair.tsv', '08_false_duplication/.cache/false_duplication.pair.tsv', 'false_dup'),
+    ('07_chimera/chimera.region.tsv', '07_chimera/.cache/chimera.region.tsv', 'chimera_region'),
+    ('07_chimera/chimera.contig.tsv', '07_chimera/.cache/chimera.contig.tsv', 'chimera_contig'),
+    ('07_chimera/chimera.MAG.tsv', '07_chimera/.cache/chimera.MAG.tsv', 'chimera_mag'),
+    ('08_false_duplication/false_duplication.pair.tsv', '08_false_duplication/.cache/false_duplication.pair.tsv', 'false_dup_pair'),
     ('08_false_duplication/false_duplication.contig.tsv', '08_false_duplication/.cache/false_duplication.contig.tsv', 'false_dup'),
     ('08_false_duplication/false_duplication.MAG.tsv', '08_false_duplication/.cache/false_duplication.MAG.tsv', 'false_dup'),
     ('09_assembly_variants/variants.site.tsv', '09_assembly_variants/.cache/variants.site.tsv', 'contig'),
@@ -52,9 +52,13 @@ MOVED = (
 )
 
 DROP = {
+    'ROTATION_VALIDATED', 'REPEAT_ANALYZABLE', 'k', 'meryl_interpretation',
     'Assembly_FASTA', 'HiFi_all_BAM', 'HiFi_primary_BAM', 'HiFi_primary_supplementary_BAM',
     'Output_directory', 'Reads', 'MAG_FASTA', 'File', 'taxonomy_source', 'taxonomy_release',
-    'final_taxonomic_chimera_policy', 'high_confidence_policy',
+    'final_taxonomic_chimera_policy', 'high_confidence_policy', 'depth_bam', 'depth_mapq_filter',
+    'maximum_search_genes_per_side', 'target_classified_genes_per_side', 'minimum_classified_genes_per_side',
+    'minimum_block_dominance', 'unclassified_gene_policy', 'final_call_ranks', 'hifi_anchor_bp',
+    'hifi_min_support_qnames', 'event_id',
     'Large_insertion_sensitivity_min_bp', 'Large_insertion_sensitivity_min_QNAMEs',
     'Min_connected_QNAMEs_per_side',
     'MAG_integrated_QC_call', 'integrated_interpretation', 'excessive_repeat_call',
@@ -64,11 +68,54 @@ DROP = {
     'MAG_LEVEL_INPUT_ASSEMBLER_CIRCULARITY', 'HIFI_PRIMARY_SUPPLEMENTARY_FALSE_CLOSURE_Y_N',
     'HIFI_PRIMARY_SUPPLEMENTARY_FALSE_CLOSURE_BREAKPOINT_COUNT',
 }
+RENAME_BY_KIND = {
+    'hsp': {'qseqid': 'Query_contig', 'sseqid': 'Subject_contig', 'length': 'Alignment_length_bp',
+            'qstart': 'Query_start', 'qend': 'Query_end', 'sstart': 'Subject_start', 'send': 'Subject_end',
+            'qlen': 'Query_length_bp', 'slen': 'Subject_length_bp'},
+    'phantom_region': {'length_bp': 'Region_length_bp'},
+    'false_dup': {'n_fully_evaluable_pairs': 'n_analyzable_pairs',
+                  'n_false_duplication_candidates': 'n_false_duplication_pairs',
+                  'n_no_false_duplication_signal_pairs': 'n_no_false_duplication_pairs',
+                  'n_insufficient_evidence_pairs': 'n_not_analyzable_pairs'},
+    'chimera_region': {'assessment_class': 'Structural_assessment',
+                       'final_taxonomic_chimera_status': 'Taxonomic_assessment'},
+    'chimera_contig': {'GTDB_assessment_status': 'Taxonomic_assessment'},
+    'chimera_mag': {'GTDB_assessment_status': 'Taxonomic_assessment'},
+    'mapping': {'Primary': 'Mapped_reads', 'Secondary': 'Secondary_alignments',
+                'Supplementary': 'Supplementary_alignments'},
+}
+ASSEMBLER_METRIC_NAMES = {'Clipping_ge1_Y_sites': 'clipping_ge1_sites', 'Clipping_Y_sites': 'clipping_sites'}
+RENAME_BY_KIND['clipping_assembler'] = {
+    f'{prefix}{old}{suffix}': f'{prefix.capitalize() if prefix else "Terminal_to_internal_"}{new}{suffix}'
+    for old, new in ASSEMBLER_METRIC_NAMES.items()
+    for prefix, suffix in (('INTERNAL_', ''), ('INTERNAL_', '_per_Mbp'), ('TERMINAL_', ''),
+                           ('TERMINAL_', '_per_Mbp'))
+}
+RENAME_BY_KIND['clipping_assembler'].update({
+    f'terminal_to_internal_{old}_density_ratio': f'Terminal_to_internal_{new}_density_ratio'
+    for old, new in ASSEMBLER_METRIC_NAMES.items()})
+
 DROP_BY_KIND = {
+    'clipping_assembler': {f'{prefix}validated_clipping_sites{suffix}'
+                           for prefix in ('INTERNAL_', 'TERMINAL_')
+                           for suffix in ('', '_per_Mbp')} | {'terminal_to_internal_validated_clipping_sites_density_ratio'},
+    'mapping': {'Duplicates', 'Mapped', 'Primary_mapped', 'Mapped_percent', 'Primary_mapped_percent'},
+    'clipping_site': {'default_candidate', 'valid_spanning_reads', 'support_class', 'evidence_class', 'validated_clipping',
+                      'candidate_clipping', 'Clipping_analyzable', 'Clipping_analysis_reason'},
     'false_dup': {'FALSE_DUPLICATION', 'TANDEM_ORIENTATION', 'false_duplication_call',
                   'false_duplication_candidate_detected', 'false_duplication_assessment_call',
                   'structural_assessment_complete', 'structural_assessment_status'},
     'circularity_mag': {'Contig_length_bp'},
+    'false_dup_pair': {'FALSE_DUPLICATION', 'TANDEM_ORIENTATION', 'LR_ANALYZABLE_Y_N'},
+    'chimera_region': {'CHIMERA_EVIDENCE', 'final_taxonomic_chimera_evidence', 'HIFI_PRIMARY_SUPP_STRUCTURAL_CALL',
+                       'default_clipping_support'},
+    'chimera_contig': {'CHIMERA_EVIDENCE', 'n_taxonomic_shift_events', 'n_taxonomic_chimera_with_clipping_support_events',
+                       'n_clipping_independent_taxonomic_shift_events', 'taxonomic_chimera_with_clipping_support_ranks',
+                       'taxonomic_chimera_with_clipping_support_positions_1based',
+                       'clipping_independent_taxonomic_shift_positions_1based',
+                       'Taxonomic_chimera_with_clipping_support', 'Clipping_independent_taxonomic_shift',
+                       'Clipping_independent_taxonomic_chimera'},
+    'chimera_mag': {'CHIMERA_EVIDENCE', 'n_taxonomic_shift_events'},
     'phantom_region': {'raw_read_blast_hsps', 'best_hit_pident', 'best_hit_aligned_bp',
                        'raw_read_blast_query_covered_bp', 'raw_read_blast_query_coverage',
                        'phantom_sequence_call'},
@@ -92,17 +139,19 @@ RENAME = {
     'Candidate_additional_target_MAGs': 'Partner_MAGs',
     'GTDB_assessment_status': 'GTDB_assessment',
     'pos_1based': 'Position', 'anvio_pos_0based': 'Anvio_position_0based', 'pident': 'Identity_percent',
-    'source_table': 'Anvio_table', 'assembly_allele_support_call': 'Assembly_variant_class',
+    'source_table': 'Anvio_table', 'SCG_HMM_source': 'SCG_HMM_collection', 'k': 'Kmer_size',
+    'qname_clipping_ratio': 'Read_clipping_ratio', 'relative_pos': 'Relative_position', 'assembly_allele_support_call': 'Assembly_variant_class',
     'MAG_assembly_allele_support_call': 'Assembly_variant_class',
 }
 REPLACE = (
-    ('HIFI_PRIMARY_SUPPLEMENTARY_', 'HiFi_'), ('HIFI_ALL_MAPPED_', 'HiFi_all_'),
+    ('HIFI_PRIMARY_SUPPLEMENTARY_', 'HiFi_'), ('HIFI_PRIMARY_SUPP_', 'HiFi_'), ('hifi_primary_supp_', 'HiFi_'),
+    ('HIFI_ALL_MAPPED_', 'HiFi_all_'),
     ('HIFI_PRIMARY_', 'HiFi_primary_'), ('HIFI_SUPPLEMENTARY_', 'HiFi_supplementary_'),
     ('HIFI_SECONDARY_', 'HiFi_secondary_'), ('HIFI_', 'HiFi_all_'), ('hifi_', 'HiFi_'),
-    ('_UNIQUE_READS', '_reads'), ('_QNAMEs', '_reads'),
+    ('_UNIQUE_READS', '_reads'), ('_QNAMEs', '_reads'), ('_qnames', '_reads'), ('_pos_', '_position_'),
     ('Paper_', ''), ('PAPER_', ''),
 )
-KEEP_UPPER = {'MAG', 'MAGs', 'ID', 'GTDB', 'SCG', 'END', 'START', 'HSP', 'HSPs',
+KEEP_UPPER = {'MAG', 'MAGs', 'ID', 'GTDB', 'SCG', 'HMM', 'END', 'START', 'HSP', 'HSPs',
               'SNV', 'GC', 'IDN', 'MAPQ', 'QC', 'I', 'D', 'N', 'HiFi', 'Mbp', 'bp'}
 
 
@@ -166,12 +215,12 @@ def column_plan(fields, kind):
     for field in fields:
         if field in drop:
             continue
-        name = plain_name(field)
+        name = RENAME_BY_KIND.get(kind, {}).get(field) or plain_name(field)
         if name in used:
             name = field
         used.add(name)
         plan.append((field, name))
-    lead = LEAD_MAG if kind in ('mag', 'circularity_mag') else LEAD_CONTIG
+    lead = LEAD_MAG if kind in ('mag', 'circularity_mag', 'chimera_mag') else LEAD_CONTIG
     first = [item for key in lead for item in plan if item[1] == key]
     return first + [item for item in plan if item not in first]
 
@@ -358,8 +407,6 @@ def publish(root, force=False):
             contigs = summary_contig(source, target)
         elif kind == 'summary_mag':
             summary_mag(source, target, contigs or {})
-        elif kind == 'mapping':
-            generic(source, target, 'plain')
         else:
             generic(source, target, kind)
         written.append(str(target))

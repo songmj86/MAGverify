@@ -427,6 +427,53 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
                 self.assertNotEqual(p.returncode, 0)
                 self.assertIn('invalid choice', p.stderr)
 
+    def run_args(self, *extra):
+        return ('end-to-end', '-a', self.source_dir, '-r', self.reads_dir, '-g', self.mag_dir,
+                '-o', self.output, '-t', '1', *extra)
+
+    def test_run_lists_every_step_in_order(self):
+        gfa = self.home / 'p_ctg.gfa'
+        gfa.write_text('S\tctg1\tACGT\n')
+        p = self.call(*self.run_args('-m', '4', '-c', gfa, '--database', self.prefix), '--dry-run')
+        self.assertEqual(p.returncode, 0, p.stderr)
+        steps = [line.split()[1] for line in p.stdout.splitlines() if line.startswith('MAGverify ')]
+        self.assertEqual(steps, ['prep-circularity', 'prep-scg', 'map', 'circularity', 'clipping',
+                                 'false-closure', 'phantom', 'repeats', 'false-duplication',
+                                 'variants', 'chimera', 'summary'])
+        self.assertIn(f'MAGverify chimera -g {self.mag_dir} -o {self.output} -t 1 --database {self.prefix}',
+                      p.stdout)
+        self.assertIn(f'MAGverify repeats -g {self.mag_dir} -o {self.output} -t 1 -m 4', p.stdout)
+        self.assertFalse(self.output.exists())
+
+    def test_run_checks_inputs_before_starting(self):
+        p = self.call(*self.run_args('--database', self.prefix))
+        self.assertEqual(p.returncode, 2)
+        self.assertIn('pass -c FILE for each assembler', p.stderr)
+        p = self.call(*self.run_args('--skip', 'false-closure'))
+        self.assertEqual(p.returncode, 2)
+        self.assertIn('pass --database PREFIX', p.stderr)
+        p = self.call(*self.run_args('--skip', 'map'))
+        self.assertIn('--skip map is not possible', p.stderr)
+        p = self.call(*self.run_args('--skip', 'clippin'))
+        self.assertIn('unknown module(s) clippin', p.stderr)
+        self.assertFalse(self.output.exists())
+
+    def test_run_summary_includes_only_modules_that_ran(self):
+        p = self.call(*self.run_args('--skip', 'false-closure,chimera,variants'), '--dry-run')
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertNotIn('prep-scg', p.stdout)
+        self.assertIn('--include clipping,circularity,phantom,repeats,false-duplication', p.stdout)
+
+    def test_run_executes_steps_with_shared_inputs(self):
+        skip = 'circularity,false-closure,phantom,repeats,false-duplication,variants,chimera,summary'
+        p = self.call(*self.run_args('--skip', skip))
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertIn('=== [1/2] MAGverify map ===', p.stdout)
+        self.assertIn('=== [2/2] MAGverify clipping ===', p.stdout)
+        forwarded = (self.output / '03_clipping' / 'forwarded.txt').read_text().splitlines()
+        self.assertEqual(forwarded[1], str(self.mag_dir))
+        self.assertIn('All steps finished', p.stdout)
+
     def test_missing_stage_specific_table_explained(self):
         p = self.call('false-closure', '-a', self.source_dir,
                       '--mag-map', self.map_table, '--mapping-manifest', self.manifest,

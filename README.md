@@ -1,6 +1,6 @@
 # MAGverify
 
-MAGverify assesses the integrity of metagenome assemblies and metagenome-assembled genomes (MAGs) using PacBio HiFi reads. Its ten modules cover read mapping, circularity, clipping, false closure, phantom sequences, repeats, taxonomic chimeras, false duplication, assembly variants and integrated QC.
+MAGverify assesses the integrity of metagenome assemblies and metagenome-assembled genomes (MAGs) using PacBio HiFi reads. Its modules cover read mapping, circularity, clipping, false closure, phantom sequences, repeats, taxonomic chimeras, false duplication, assembly variants and an integrated QC summary.
 
 ## 1. Installation
 
@@ -15,20 +15,23 @@ MAGverify doctor
 MAGverify list
 ```
 
-The environment includes anvi'o v9 and the command-line tools used by MAGverify. `MAGverify doctor` shows the code directory in use and checks every required program and its version. Detailed installation and environment verification are described in [Installation](docs/INSTALL.md). See [Recorded tool versions](docs/TOOL_VERSIONS.md) for software versions.
+The environment includes anvi'o 9 and the other programs used by MAGverify (versions pinned in `environment.yml`) and registers the `MAGverify` command from this directory. `MAGverify doctor` shows the code directory in use and checks every required program and its version; it ends with `All 22 required programs found.`
 
-## 2. Input preparation
+- **Updating:** update the code in this directory (`git pull`, or copy new files over it) instead of deleting and recreating it. After `environment.yml` changes, run `mamba env update -f environment.yml --prune`.
+- **If the directory was moved**, or `MAGverify` reports `ModuleNotFoundError: No module named 'magverify_cli'`, register the current directory once with `pip install -e . --no-deps --no-build-isolation` (run inside the activated environment, from the repository root).
 
-Run these steps once before the analysis modules.
+## 2. Input data
 
-| Step | Command | Used by |
-| --- | --- | --- |
-| GTDB R232 MMseqs2 database | `MAGverify prep-chimera --gtdb-dir DIR -o OUTPUT -t N` | `chimera` |
-| MAG taxonomy table | `MAGverify prep-taxonomy -d DIR -g DIR -o OUTPUT` | `chimera` |
-| Single-copy gene annotation (anvi'o) | `MAGverify prep-scg -a DIR -o OUTPUT -t N` | `false-closure`, `chimera` |
-| Assembler circularity table | `MAGverify prep-circularity -c FILE [-c FILE ...] -g DIR -o OUTPUT` | `circularity` (optional), `false-closure` |
+| Option | Input |
+| --- | --- |
+| `-a DIR` | The original, unbinned assembly FASTA of each assembler (.fa, .fasta or .fna, uncompressed). Do not give MAG FASTAs here: reads are mapped to the whole assemblies so that alignments to unbinned contigs are kept. Contig IDs (the first word after `>`) must be unique across the files. |
+| `-g DIR` | MAG FASTA files, one per MAG. The file name without `.fa`, `.fna` or `.fasta` is the MAG ID. MAG contig IDs and sequences must match the assembly files. |
+| `-r DIR` | PacBio HiFi reads (.fastq, .fq, .fastq.gz or .fq.gz). Several files are joined once into `00_prep/hifi_reads.fastq[.gz]`. |
+| `-c FILE` | The circularity output of each assembler, one `-c` per assembler (hifiasm-meta `p_ctg.gfa`, metaMDBG `contigs.fasta.gz`, metaFlye `assembly_info.txt`). |
+| `-d DIR` | GTDB-Tk `classify_wf` results of the MAGs (optional; adds SCG redundancy to `chimera`). |
+| `-o DIR` | Output directory. Every command uses the same `-o`, so finished results are reused. |
 
-All preparation commands use the same `-o` as the analysis modules, so their outputs are found automatically. The MMseqs2 database uses three files from **GTDB R232**:
+The GTDB R232 MMseqs2 database for `chimera` is built once with `MAGverify prep-chimera` from three GTDB R232 downloads:
 
 | Download | Content |
 | --- | --- |
@@ -36,164 +39,67 @@ All preparation commands use the same `-o` as the analysis modules, so their out
 | [`bac120_taxonomy_r232.tsv`](https://data.gtdb.ecogenomic.org/releases/release232/232.0/bac120_taxonomy_r232.tsv) | Bacterial genome accession → full GTDB lineage |
 | [`ar53_taxonomy_r232.tsv`](https://data.gtdb.ecogenomic.org/releases/release232/232.0/ar53_taxonomy_r232.tsv) | Archaeal genome accession → full GTDB lineage |
 
-Download commands, database construction, the MAG taxonomy format and SCG annotation are described in [Input preparation](docs/INPUT_PREPARATION.md).
+```bash
+MAGverify prep-chimera -d /path/to/GTDB_R232_downloads -o /path/to/database_dir -t 100
+```
 
-## 3. Run the analysis modules
+Download commands and the format of each preparation table are in [Input preparation](docs/INPUT_PREPARATION.md).
 
-Run each command separately in the following order, using the **same `-o`** throughout. The examples use 100 threads; adjust this to the CPU allocation. The mapping manifest created in Step 1 is reused automatically by later modules. No `00_config.sh` or separate gene-taxonomy module is needed; complete [Input preparation](#2-input-preparation) first. Detailed module prerequisites and outputs are described in [Module inputs and outputs](docs/MODULES.md).
+## 3. Run
 
-Read mapping (`map`, `circularity`) and anvi'o profiling (`variants`) process one assembler at a time with all `-t` threads, because these steps already use many threads and much memory. In `map`, the alignment-class BAMs of one assembler are built while the next assembler is mapped. `clipping`, `phantom` and `false-duplication` process assemblers in parallel and divide `-t` between them; set `PARALLEL_JOBS=N` before the command to run fewer at once. Use `-m N` (GB) with `map`, `circularity`, `repeats` or `variants` to keep memory within a limit.
-
-
-
-## Input data
-
-- **Assemblies** — An input directory of assembly FASTA files generated by multiple assemblers (.fa, .fasta or .fna), specified using `-a`. Contig IDs must be unique across assembly files.
-- **MAGs** — An input directory of MAG FASTA files (one file per MAG), specified using `-g`. MAG contig IDs must match those in the original assembly files.
-- **Reads** — An input directory of PacBio HiFi read files (.fastq, .fq, .fastq.gz or .fq.gz), specified using `-r` for read mapping. Several files are joined once into `00_prep/hifi_reads.fastq[.gz]`. The mapping manifest records the reads, so later modules reuse them without `-r`.
-- **Output** — An output directory specified using `-o`. Use the same directory across all modules to reuse completed results.
-
-Detailed input specifications are described in [Input formats](docs/INPUT_FORMATS.md).
-
-
-
-
-
-### 1. Read mapping
+One command runs every step in order with the same inputs:
 
 ```bash
-MAGverify map \
+conda activate MAGverify
+
+MAGverify end-to-end \
   -a /path/to/assemblies \
   -r /path/to/hifi_reads \
-  -o /path/to/MAGverify_output \
-  -t 100
-```
-
-Maps PacBio HiFi reads separately to each original assembler FASTA, generating alignment evidence for downstream integrity assessments. The module writes `01_mapping/mapping.assembler.tsv` (the `samtools flagstat` counts per assembler) and, for the later modules, the mapping manifest `01_mapping/.cache/mapping_manifest.tsv` with the assembler FASTA, BAM and read paths.
-
-### 2. Circularity
-
-```bash
-MAGverify circularity \
-  -a /path/to/assemblies \
   -g /path/to/MAGs \
+  -c /path/to/hifiasm_meta/Read.p_ctg.gfa \
+  -c /path/to/metaMDBG/contigs.fasta.gz \
+  -c /path/to/metaflye/assembly_info.txt \
+  -d /path/to/GTDBTk_results \
+  --database /path/to/database_dir/00_prep/GTDB_R232 \
   -o /path/to/MAGverify_output \
-  -t 100
+  -t 100 -m 900
 ```
 
-Evaluates read support for circular junctions to assess whether assembled contigs are circular. The assembler circularity table from `prep-circularity` is optional. Without it, `Circular` is the read-supported call. With the assembler-reported circularity per MAG, `Circular` is Y only when the assembler and the reads agree (`High_confidence_circular`), and MAGs the reads support but the assembler did not call circular are listed as `Additional_circular_candidate`.
+Steps, in order: `prep-circularity` → `prep-taxonomy` → `prep-scg` → `map` → `circularity` → `clipping` → `false-closure` → `phantom` → `repeats` → `false-duplication` → `variants` → `chimera` → `summary`.
 
-### 3. Clipping
+- **Before anything starts**, the inputs are checked: the run stops at once if a step would fail later (for example, no `-c` and no assembler circularity table for `false-closure`, or no MMseqs2 database for `chimera`).
+- **Finished steps are reused.** Each step keeps fingerprints of its inputs, so an interrupted run is restarted with the same command and continues where it stopped.
+- **`-c` and `-d` are needed only once:** later runs with the same `-o` reuse `00_prep/assembler_circularity.MAG.tsv` and `00_prep/gtdbtk_taxonomy.MAG.tsv`. `--database` can be left out when the database was built with the same `-o`.
+- **`--skip MODULES`** leaves out modules, for example `--skip chimera,variants`; `summary` then reports only the modules that ran.
+- `-t` sets the threads and `-m` (GB) the memory limit of `map`, `circularity`, `repeats` and `variants`.
+- Each step prints its commands and run time (`Elapsed`). `MAGVERIFY_DRY_RUN=1 MAGverify end-to-end ...` only prints the step commands.
 
-```bash
-MAGverify clipping \
-  -a /path/to/assemblies \
-  -g /path/to/MAGs \
-  -o /path/to/MAGverify_output \
-  -t 100
-```
-
-Detects clipping events and evaluates their support from HiFi read alignments. This and later modules reuse Step 1 mapping from the same output directory. If no mapping exists, supply `-r` alongside the assemblies so mapping can be prepared.
-
-### 4. False closure
-
-```bash
-MAGverify false-closure \
-  -a /path/to/assemblies \
-  -g /path/to/MAGs \
-  -o /path/to/MAGverify_output \
-  -t 100
-```
-
-Identifies potential false circular closures by evaluating assembler circularity calls against read and clipping evidence. Requires `MAGverify prep-scg` and `MAGverify prep-circularity` with the same `-o`; another assembler circularity table can be given with `--assembler-circularity TSV`.
-
-### 5. Phantom sequences
-
-```bash
-MAGverify phantom \
-  -a /path/to/assemblies \
-  -g /path/to/MAGs \
-  -o /path/to/MAGverify_output \
-  -t 100
-```
-
-Screens assembled sequences for regions lacking support from HiFi read coverage and raw-read k-mers.
-
-### 6. Repeats
-
-```bash
-MAGverify repeats \
-  -a /path/to/assemblies \
-  -g /path/to/MAGs \
-  -o /path/to/MAGverify_output \
-  -t 100
-```
-
-Identifies repetitive sequence regions and quantifies their extent across contigs and MAGs. Repeat detection and false-duplication testing are separate assessments.
-
-### 7. Taxonomic chimera
-
-```bash
-MAGverify chimera \
-  -a /path/to/assemblies \
-  -g /path/to/MAGs \
-  -o /path/to/MAGverify_output \
-  -t 100
-```
-
-Screens for taxonomically inconsistent assembled sequences using gene-level taxonomy and HiFi read evidence. The MMseqs2 database (`prep-chimera`) and the MAG taxonomy table (`prep-taxonomy`) are read automatically from `00_prep/`; see [Input preparation](docs/INPUT_PREPARATION.md). Use `--database PREFIX` for a database in another directory, or `--taxonomy /path/to/gene_taxonomy.tsv` when a compatible gene taxonomy table already exists. Gene taxonomy is computed within this module; SCG annotation comes from `MAGverify prep-scg`. Chimera assessment also uses validated clipping results.
-
-### 8. False duplication
-
-```bash
-MAGverify false-duplication \
-  -a /path/to/assemblies \
-  -g /path/to/MAGs \
-  -o /path/to/MAGverify_output \
-  -t 100
-```
-
-Evaluates candidate false duplications using HiFi read mapping and clipping evidence.
-
-### 9. Assembly variants
-
-```bash
-MAGverify variants \
-  -a /path/to/assemblies \
-  -g /path/to/MAGs \
-  -o /path/to/MAGverify_output \
-  -t 100
-```
-
-Identifies assembly variants and evaluates read-level support for alternative alleles. This step may need substantial RAM; set `-m N` (GB) when appropriate.
-
-### 10. Integrated QC summary
-
-```bash
-MAGverify summary \
-  -a /path/to/assemblies \
-  -g /path/to/MAGs \
-  -o /path/to/MAGverify_output \
-  -t 100
-```
-
-Integrates results from completed modules into a genome integrity summary and validates MAG IDs, contig memberships, counts and table consistency. Validation failures return a nonzero exit status. For a partial run, use `--include clipping,chimera` (or the modules completed). The summary does not rerun analysis modules.
+Each module can also be run on its own, for example to rerun one step with other settings; see [Modules](docs/MODULES.md) for every command, what each module tests and its options.
 
 ## 4. Results
 
 **Start with `summary.MAG.tsv`** at the top of the output folder: one row per MAG, the number of checks that flagged it (`n_flagged_checks`), then one `Y`/`N`/`NA` column per check (`NA`: not assessable or not run; `Checks_not_run` names the checks that were not run), then counts. `summary.contig.tsv` has the same checks for every contig (`MAG_ID` is `NA` for unbinned contigs).
 
-Each module writes its tables to its own directory as `MODULE.LEVEL.tsv`, where `LEVEL` is the unit of one row: `MAG`, `contig`, or another unit named below. These tables use plain column names and `Y`/`N`/`NA` values and leave out what only the pipeline needs (file paths, repeated columns). The modules themselves read the full internal tables in each hidden `.cache/` folder, which also holds intermediate files and fingerprints that later runs reuse; do not delete it.
+Each module writes its tables to its own folder as `MODULE.LEVEL.tsv`, where `LEVEL` is the unit of one row. The modules themselves read the full internal tables in each hidden `.cache/` folder, which also holds intermediate files and fingerprints that later runs reuse; do not delete it. Keep `01_mapping/` (BAMs, `.csi` indexes and `.cache/`) together when moving results.
 
-| Module | Directory | Final tables |
+| Module | Folder | Tables |
 | --- | --- | --- |
-| Read mapping | `01_mapping/` | `mapping.assembler.tsv` (read counts per assembler; BAMs are in the same folder) |
-| Circularity | `02_circularity/` | `circularity.MAG.tsv` (calls and END\|START junction read counts), `circularity.contig.tsv` (every contig) |
+| Preparation | `00_prep/` | `all_assemblies.fa`, `MAG_contig_map.tsv`, genes, `scg.contig.tsv`, `assembler_circularity.*.tsv`, `gtdbtk_taxonomy.MAG.tsv`, `taxonomy.gene.tsv` |
+| Read mapping | `01_mapping/` | `mapping.assembler.tsv` (BAMs are in the same folder) |
+| Circularity | `02_circularity/` | `circularity.MAG.tsv`, `circularity.contig.tsv` |
 | Clipping | `03_clipping/` | `clipping.site.tsv`, `clipping.contig.tsv`, `clipping.MAG.tsv`, `clipping.assembler.tsv` |
-| False closure | `04_false_closure/` | `false_closure.MAG.tsv`, `false_closure.contig.tsv` (every breakpoint in `Breakpoint_details`) |
+| False closure | `04_false_closure/` | `false_closure.contig.tsv`, `false_closure.MAG.tsv` |
 | Phantom sequences | `05_phantom/` | `phantom.region.tsv`, `phantom.contig.tsv`, `phantom.MAG.tsv` |
 | Repeats | `06_repeats/` | `repeats.contig.tsv`, `repeats.MAG.tsv`, `repeats.region.tsv`, `repeats.HSP.tsv` |
 | Taxonomic chimera | `07_chimera/` | `chimera.region.tsv`, `chimera.contig.tsv`, `chimera.MAG.tsv` |
 | False duplication | `08_false_duplication/` | `false_duplication.pair.tsv`, `false_duplication.contig.tsv`, `false_duplication.MAG.tsv` |
 | Assembly variants | `09_assembly_variants/` | `variants.site.tsv`, `variants.contig.tsv`, `variants.MAG.tsv` |
-| Integrated QC summary | top of the output folder | `summary.MAG.tsv`, `summary.contig.tsv` (all contigs) |
+| Integrated QC summary | top of the output folder | `summary.MAG.tsv`, `summary.contig.tsv` |
+
+Every column of every table is defined in [Result tables](docs/OUTPUTS.md).
+
+## Citation
+
+If you use MAGverify, please cite:
+
+Song MJ, Yun T, Yoon S, Lee JY, Pinto AJ, Yoon S. HiFi long-read metagenomics reshapes genome-resolved interpretations of activated sludge microbiome. *bioRxiv* (2026). https://doi.org/10.64898/2026.11.18.767492

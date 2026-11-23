@@ -1,6 +1,6 @@
 # Input preparation
 
-Activate the `MAGverify` Conda environment before running the preparation steps. These steps build the reference data and annotations that the analysis modules read; the analysis modules do not download data or run these steps themselves.
+Activate the `MAGverify` Conda environment before running the preparation steps. These steps build the reference data and annotations that the analysis modules read. `MAGverify end-to-end` runs steps 2–4 itself (step 2 when given `-d`, step 4 when given `-c`); step 1 builds the GTDB database once and is run separately. The analysis modules do not download data.
 
 | Step | Command | Output | Used by |
 | --- | --- | --- | --- |
@@ -56,7 +56,7 @@ aria2c -c -d "$GTDB_DIR" "$BASE/ar53_taxonomy_r232.tsv"
 OUTPUT=/path/to/MAGverify_output
 
 MAGverify prep-chimera \
-  --gtdb-dir "$GTDB_DIR" \
+  -d "$GTDB_DIR" \
   -o "$OUTPUT" \
   -t 100
 
@@ -65,7 +65,7 @@ ls -lh "$OUTPUT"/00_prep/GTDB_R232.dbtype "$OUTPUT"/00_prep/GTDB_R232_mapping "$
 
 | Option | Input or output |
 | --- | --- |
-| `--gtdb-dir DIR` | Directory containing `gtdb_proteins_aa_reps_r232.tar.gz`, `bac120_taxonomy_r232.tsv` and `ar53_taxonomy_r232.tsv` |
+| `-d DIR` | Directory containing `gtdb_proteins_aa_reps_r232.tar.gz`, `bac120_taxonomy_r232.tsv` and `ar53_taxonomy_r232.tsv` |
 | `-o DIR` | Analysis output directory. The database is written as `DIR/00_prep/GTDB_R232*`; temporary files go to `DIR/00_prep/.cache/prep_chimera_work/` |
 
 `chimera` finds the database automatically; a database built in another directory can be given with `chimera --database PREFIX`. `DIR/00_prep/.cache/prep_chimera_work/` needs substantially more disk space than the compressed archive and can be deleted once the database is built.
@@ -95,6 +95,8 @@ MAGverify prep-taxonomy \
 | `-d DIR` | GTDB-Tk `classify_wf` output directory containing `gtdbtk.bac120.summary.tsv` and/or `gtdbtk.ar53.summary.tsv` |
 | `-g DIR` | Directory of MAG FASTA files (`.fa`, `.fna`, `.fasta`; file name = MAG ID). Only these MAGs are written; other genomes in the GTDB-Tk results are ignored. Every MAG must have a Bacteria or Archaea classification |
 | `-o DIR` | Analysis output directory. The table is written as `DIR/00_prep/gtdbtk_taxonomy.MAG.tsv`, where `chimera` finds it |
+
+Any GTDB-Tk release can be used; only the domain to order ranks are read. The gene-level taxonomy of `chimera` is separate and always uses the GTDB R232 MMseqs2 database from `prep-chimera`.
 
 If no GTDB-Tk result is available, classify the MAGs first with `gtdbtk classify_wf`, then convert its summary files as above. GTDB-Tk is not installed with MAGverify; see [GTDB-Tk](https://github.com/ecogenomics/gtdbtk) for installation, reference data and options.
 
@@ -143,4 +145,14 @@ The format and assembler are detected from the file content, gzip-compressed fil
 | --- | --- |
 | `assembler_circularity.MAG.tsv` | `MAG_ID`, `Assembler`, `Assembler_circularity` (`Y` when the MAG is one contig that its assembler reported as circular), `Number_of_contigs`, `Contig` |
 | `assembler_circularity.contig.tsv` | `Contig`, `Assembler`, `Assembler_circularity`, `File` for every contig in the given files |
+
+For hifiasm-meta, `Read.p_ctg.noseq.gfa` (written next to `Read.p_ctg.gfa`) gives the same result and is read faster, because only the contig names are needed.
+
+A table made in another way can be given to `circularity` and `false-closure` with `--assembler-circularity FILE`: tab-delimited, with a MAG ID column (`MAG_ID` or `ID`) and a circularity column (`Assembler_circularity`, `circularity` or `circular`, case-insensitive) holding `Y` or `N`:
+
+```text
+MAG_ID	Assembler_circularity
+Bin13L	Y
+Bin23L	N
+```
 

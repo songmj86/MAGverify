@@ -9,7 +9,7 @@ Accepted files (format detected from the content, gzip allowed):
 Outputs in OUT/00_prep/:
   assembler_circularity.contig.tsv  Contig, Assembler, Assembler_circularity, File
   assembler_circularity.MAG.tsv     MAG_ID, Assembler, Assembler_circularity, Number_of_contigs, Contig
-The source files are read in parallel, one process per file.
+The assembler files are read in parallel, one process per file.
 A MAG is Y when it consists of one contig that its assembler reported as circular.
 """
 

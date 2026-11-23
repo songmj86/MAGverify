@@ -50,7 +50,7 @@ class PrepChimeraCLITests(unittest.TestCase):
     def test_help_shows_standard_options(self):
         result = self.run_cli('prep-chimera', '-h')
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn('--gtdb-dir', result.stdout)
+        self.assertIn('-d', result.stdout)
         self.assertNotIn('--database-prefix', result.stdout)
         self.assertIn('(database: 00_prep/GTDB_R232)', result.stdout)
         self.assertIn('  -o ', result.stdout)
@@ -61,7 +61,7 @@ class PrepChimeraCLITests(unittest.TestCase):
         self.assertNotIn('--dry-run', result.stdout)
 
     def test_prep_uses_local_inputs_and_default_database_prefix(self):
-        result = self.run_cli('prep-chimera', '--gtdb-dir', self.gtdb,
+        result = self.run_cli('prep-chimera', '-d', self.gtdb,
                               '-o', self.output, '-t', '1')
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         argv = (self.output / '00_prep/.cache/prep_chimera_work/invocation.txt').read_text().splitlines()
@@ -70,13 +70,13 @@ class PrepChimeraCLITests(unittest.TestCase):
         self.assertFalse((self.output / '00_prep/.cache/prep_chimera_work/0_prep').exists())
 
     def test_database_prefix_option_removed(self):
-        result = self.run_cli('prep-chimera', '--gtdb-dir', self.gtdb,
+        result = self.run_cli('prep-chimera', '-d', self.gtdb,
                               '--database-prefix', self.output / 'x', '-o', self.output, '-t', '1')
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('unrecognized arguments', result.stderr)
 
     def test_dry_run_no_output_mutation(self):
-        result = self.run_cli('prep-chimera', '--gtdb-dir', self.gtdb,
+        result = self.run_cli('prep-chimera', '-d', self.gtdb,
                               '-o', self.output, '-t', '1', '--dry-run')
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn('00_prep_chimera.sh', result.stdout)
@@ -85,7 +85,7 @@ class PrepChimeraCLITests(unittest.TestCase):
 
     def test_reject_missing_files(self):
         (self.gtdb / FILES[0]).unlink()
-        result = self.run_cli('prep-chimera', '--gtdb-dir', self.gtdb,
+        result = self.run_cli('prep-chimera', '-d', self.gtdb,
                               '-o', self.output, '-t', '1')
         self.assertEqual(result.returncode, 2)
         self.assertIn('gtdb_proteins_aa_reps_r232.tar.gz', result.stderr)
@@ -94,10 +94,10 @@ class PrepChimeraCLITests(unittest.TestCase):
     def test_reject_missing_gtdb_dir(self):
         result = self.run_cli('prep-chimera', '-o', self.output, '-t', '1')
         self.assertEqual(result.returncode, 2)
-        self.assertIn('required: --gtdb-dir', result.stderr)
+        self.assertIn('required: -d', result.stderr)
 
     def test_reject_bad_threads(self):
-        result = self.run_cli('prep-chimera', '--gtdb-dir', self.gtdb,
+        result = self.run_cli('prep-chimera', '-d', self.gtdb,
                               '-o', self.output, '-t', '0')
         self.assertEqual(result.returncode, 2)
         self.assertIn('positive integer', result.stderr)
@@ -105,9 +105,10 @@ class PrepChimeraCLITests(unittest.TestCase):
     def test_prep_appears_separately_in_list(self):
         result = self.run_cli('list')
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn('Preparation (run once):', result.stdout)
+        self.assertIn('Preparation:', result.stdout)
         self.assertIn('  prep-chimera', result.stdout)
-        self.assertIn('Analysis modules (run separately):', result.stdout)
+        self.assertIn('Analysis modules:', result.stdout)
+        self.assertIn('  end-to-end ', result.stdout)
 
 
 if __name__ == '__main__':
