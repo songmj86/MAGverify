@@ -14,7 +14,11 @@ MAGverify runs four preparation commands and ten analysis modules. Run the appli
 | 7 | [`false-duplication`](#7-false-duplication) | `clipping` |
 | 8 | [`variants`](#8-assembly-variants) | `map` |
 | 9 | [`chimera`](#9-taxonomic-chimera) | `clipping`, `prep-chimera`; `prep-scg` and `prep-taxonomy` for SCG redundancy |
+<<<<<<< HEAD
 | 10 | [`summary`](#10-integrated-qc-summary) | Modules to be summarized |
+=======
+| 10 | [`summary`](#10-integrated-summary) | Modules to be summarized |
+>>>>>>> 645efbd (Update MAGverify)
 
 ## Resource settings
 
@@ -180,7 +184,21 @@ MAGverify circularity -g /path/to/MAGs -o /path/to/MAGverify_output -t 100 -m 90
 
 ### 3. Clipping
 
+<<<<<<< HEAD
 Finds candidate positions using `anvi-script-find-misassemblies` (default clipping ratio > 0.8) and validates them against HiFi alignments. `Clipping` is `Y` when at least two distinct reads are clipped at the exact position and no read spans it. Stringent candidates additionally have anvi'o coverage ≥ 10 and clipping ratio = 1.0. Positions within 100 bp of a contig end are `TERMINAL`; all others are `INTERNAL`.
+=======
+Finds candidate positions using `anvi-script-find-misassemblies` (default clipping ratio > 0.8, `--min-dist-to-end 0`) and validates them against HiFi alignments. Positions within 100 bp of a contig end are `TERMINAL`; all others are `INTERNAL`.
+
+**Clipping calls**
+
+| Call | Criterion |
+| --- | --- |
+| `Clipping` | ≥ 2 distinct HiFi reads clipped at the exact position **and** no read spanning that position with aligned bases on both sides; `NA` at the first or last base of a contig |
+| `Stringent_candidate` | anvi'o coverage ≥ 10 **and** anvi'o clipping ratio = 1.0 (thresholds only, without read validation) |
+| `Stringent_clipping` | **High-confidence clipping:** `Clipping` is `Y` **and** `Stringent_candidate` is `Y`, following [Trigodet et al., 2026](https://doi.org/10.1038/s41587-025-02971-8) |
+
+The thresholds alone are not sufficient for high-confidence clipping: a position with ≥ 10× coverage and a clipping ratio of 1.0 that is not validated against the reads is `Stringent_candidate` `Y` but `Stringent_clipping` `N`.
+>>>>>>> 645efbd (Update MAGverify)
 
 Validated sites are reused by `false-closure`, `false-duplication`, `chimera` and `summary`.
 

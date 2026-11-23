@@ -24,10 +24,17 @@ Run the preparation commands before analysis using the same `-o` to save their o
 
 | Command | Output in `00_prep/` | Used by |
 | --- | --- | --- |
+<<<<<<< HEAD
 | [`prep-chimera`](docs/USAGE.md#gtdb-r232-database) | `GTDB_R232*` | `chimera` |
 | [`prep-scg`](docs/USAGE.md#single-copy-gene-annotation) | `scg.contig.tsv`, `genes.*` | `false-closure`, `chimera` |
 | [`prep-circularity`](docs/USAGE.md#assembler-circularity) | `assembler_circularity.MAG.tsv`, `assembler_circularity.contig.tsv` | `circularity`, `false-closure` |
 | [`prep-taxonomy`](docs/USAGE.md#mag-taxonomy) | `gtdbtk_taxonomy.MAG.tsv` | `chimera` |
+=======
+| [`prep-chimera`](docs/USAGE.md#1-gtdb-r232-database) | `GTDB_R232*` | `chimera` |
+| [`prep-scg`](docs/USAGE.md#2-single-copy-gene-annotation) | `scg.contig.tsv`, `genes.*` | `false-closure`, `chimera` |
+| [`prep-circularity`](docs/USAGE.md#3-assembler-circularity) | `assembler_circularity.MAG.tsv`, `assembler_circularity.contig.tsv` | `circularity`, `false-closure` |
+| [`prep-taxonomy`](docs/USAGE.md#4-mag-taxonomy) | `gtdbtk_taxonomy.MAG.tsv` | `chimera` |
+>>>>>>> 645efbd (Update MAGverify)
 
 See [Usage](docs/USAGE.md#preparation) for commands, download links and input formats.
 
