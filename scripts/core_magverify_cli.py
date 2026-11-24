@@ -734,7 +734,7 @@ def mapping_result(stage, args, root, env, sources):
     raise UsageError(f'{stage} needs the map result in this -o DIR: run MAGverify map first')
 
 
-def reads_from_manifest(args, root):
+def reads_from_manifest(args, root, announce=True):
     """HiFi reads recorded by MAGverify map (Reads column), if available."""
     manifest = getattr(args, 'mapping_manifest', None)
     path = Path(manifest).expanduser() if manifest else root / RESULTS['mapping_manifest']
@@ -748,7 +748,8 @@ def reads_from_manifest(args, root):
     if len(values) > 1:
         raise UsageError(f'Mapping manifest lists more than one read file: {path}')
     reads = file_input(values.pop(), f'Reads in mapping manifest {path}')
-    print(f'HiFi reads: {reads} (from mapping manifest)', flush=True)
+    if announce:
+        print(f'HiFi reads: {reads} (from mapping manifest)', flush=True)
     return reads
 
 
@@ -759,7 +760,15 @@ def choose_inputs(args, root, env):
         main_input = assembly_fasta(args.input)
         env['ASSEMBLY_FA'] = str(main_input)
     if getattr(args, 'reads', None):
-        env['READS'] = str(reads_input(args.reads, root, args.dry_run))
+        chosen = reads_input(args.reads, root, args.dry_run)
+        if stage != 'map':
+            recorded = reads_from_manifest(args, root, announce=False)
+            if recorded and Path(recorded).resolve() != Path(chosen).resolve():
+                raise UsageError(
+                    f'-r {chosen} differs from the reads recorded by MAGverify map '
+                    f'({recorded}). Every module must use the reads the assemblies were '
+                    'built from: omit -r to use the recorded reads, or rerun map with these reads.')
+        env['READS'] = str(chosen)
     elif stage != 'map':
         recorded = reads_from_manifest(args, root)
         if recorded:

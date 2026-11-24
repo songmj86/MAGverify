@@ -66,7 +66,20 @@ MAGverify prep-chimera -d "$GTDB_DIR" -o /path/to/MAGverify_output -t 100
 
 **Output:** `GTDB_R232*`.
 
-**Alternative:** To skip the 123 GB download and the build, take the prebuilt `GTDB_R232.tar.gz` from the [test dataset](../README.md#2-test-dataset) and extract it into `00_prep/` under the same `-o`. `chimera` then finds the database without `prep-chimera`.
+**Alternative:** A prebuilt database is available on [Hugging Face](https://huggingface.co/datasets/ATCC19718/MAGverify-resources), which skips both the 123 GB download and the build. Extract `GTDB_R232.tar.gz` (131 GB) into `00_prep/` under the output directory used for `-o`:
+
+```bash
+Base=/path/to/MAGverify_output
+mkdir -p "$Base/00_prep"
+
+aria2c -c -x 8 -s 8 -k 8M \
+  -d "$Base" -o GTDB_R232.tar.gz \
+  "https://huggingface.co/datasets/ATCC19718/MAGverify-resources/resolve/main/GTDB_R232.tar.gz"
+
+tar -xzf "$Base/GTDB_R232.tar.gz" -C "$Base/00_prep"
+```
+
+`chimera` then finds the database under the same `-o` without running `prep-chimera`.
 
 ---
 

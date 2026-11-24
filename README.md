@@ -20,43 +20,27 @@ MAGverify list displays the available commands and analysis modules with brief d
 
 ## 2. Test dataset
 
-Use the test dataset to check that MAGverify runs correctly before applying it to your own data. It is available on [Hugging Face](https://huggingface.co/datasets/ATCC19718/MAGverify-resources) together with a prebuilt GTDB R232 MMseqs2 database, so `chimera` can be run without building one.
+Use the test dataset to check that MAGverify runs correctly before applying it to your own data. [input_dataset.tar.gz](https://huggingface.co/datasets/ATCC19718/MAGverify-resources/resolve/main/input_dataset.tar.gz) (1.1 GB) is available on [Hugging Face](https://huggingface.co/datasets/ATCC19718/MAGverify-resources) and holds one complete set of MAGverify inputs:
 
-| File | Size | Description |
-|---|---|---|
-| [input_dataset.tar.gz](https://huggingface.co/datasets/ATCC19718/MAGverify-resources/resolve/main/input_dataset.tar.gz) | 1.1 GB | Test dataset containing 30 MAGs, three assemblies, PacBio HiFi reads, GTDB-Tk results and assembler circularity inputs |
-| [GTDB_R232.tar.gz](https://huggingface.co/datasets/ATCC19718/MAGverify-resources/resolve/main/GTDB_R232.tar.gz) | 131 GB | Prebuilt MMseqs2 taxonomy database for the `chimera` module |
+| Input | Contents |
+|---|---|
+| Assemblies (`-a`) | Three assemblies of the same sample: hifiasm-meta, metaMDBG and metaFlye |
+| MAGs (`-g`) | 30 MAGs binned from those assemblies |
+| HiFi reads (`-r`) | The PacBio HiFi reads the three assemblies were built from |
+| Assembler circularity (`prep-circularity -c`) | The assembler output files that record circularity |
+| GTDB-Tk results (`prep-taxonomy -d`) | `classify_wf` output for the 30 MAGs |
 
-Download both files with `aria2c`:
+Download and extract it:
 
 ```bash
-Out="/path/to/download"
-mkdir -p "$Out"
+Data="/path/to/test_dataset"
+mkdir -p "$Data"
 
-# Test dataset
 aria2c -c -x 8 -s 8 -k 8M \
-  -d "$Out" -o input_dataset.tar.gz \
+  -d "$Data" -o input_dataset.tar.gz \
   "https://huggingface.co/datasets/ATCC19718/MAGverify-resources/resolve/main/input_dataset.tar.gz"
 
-# GTDB R232 database
-aria2c -c -x 8 -s 8 -k 8M \
-  -d "$Out" -o GTDB_R232.tar.gz \
-  "https://huggingface.co/datasets/ATCC19718/MAGverify-resources/resolve/main/GTDB_R232.tar.gz"
-```
-
-Extract the test dataset:
-
-```bash
-tar -xzf "$Out/input_dataset.tar.gz" -C "$Out"
-```
-
-Extract the database into `00_prep/` under the MAGverify output directory, then use the same `-o "$Base"` for every MAGverify command so that `chimera` finds it without running `prep-chimera`:
-
-```bash
-Base="/path/to/MAGverify_output"
-mkdir -p "$Base/00_prep"
-
-tar -xzf "$Out/GTDB_R232.tar.gz" -C "$Base/00_prep"
+tar -xzf "$Data/input_dataset.tar.gz" -C "$Data"
 ```
 
 ## 3. Preparation
@@ -78,7 +62,7 @@ After preparation, run all analysis modules using end-to-end with the following 
 
 - `-a DIR`: Input directory of contig files (`.fa`, `.fasta`, or `.fna`), one per assembler. Contig IDs must be unique across assembly files.
 - `-g DIR`: Input directory of MAG files (one file per MAG). MAG contig IDs must match those in the assembly files.
-- `-r PATH`: A PacBio HiFi read file (`.fastq`, `.fq`, `.fastq.gz`, or `.fq.gz`), or a directory of them. A single file is used in place. Several files in a directory are joined once into `00_prep/hifi_reads.fastq[.gz]`, which needs disk space for a second copy of the reads; pass the file directly to avoid the copy. Either way the reads are reused by subsequent modules without `-r`.
+- `-r PATH`: The PacBio HiFi reads the assemblies were built from, as one file (`.fastq`, `.fq`, `.fastq.gz`, or `.fq.gz`) or a directory of them. Every assembly given with `-a` must come from this same read set, because these reads are mapped to all of them: withholding reads the assembly used produces clipping and phantom calls that are not real, and adding unrelated reads hides real ones. Several files in a directory are concatenated into `00_prep/hifi_reads.fastq[.gz]`, which doubles the disk space the reads occupy; passing a single file avoids that copy. Later modules reuse the recorded reads without `-r`.
 - `-o DIR`: Output directory. Use the same `-o` for all commands to reuse intermediate results.
 - `-t N`: Number of threads (default: 80% of the available CPUs).
 - `-m N`: Memory limit in GB for `map`, `circularity`, `repeats` and `variants` (default: 80% of the detected memory).
