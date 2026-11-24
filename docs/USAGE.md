@@ -64,7 +64,7 @@ aria2c -c -d "$GTDB_DIR" "$BASE/ar53_taxonomy_r232.tsv"
 MAGverify prep-chimera -d "$GTDB_DIR" -o /path/to/MAGverify_output -t 100
 ```
 
-**Disk space:** The build needs substantial temporary storage in `.cache/prep_chimera_work/`. This temporary working directory can be deleted after the build completes. To reuse an existing database from another output directory, pass its prefix using `--database` with `chimera` or `end-to-end`.
+**Disk space:** The build needs substantial temporary storage in `.cache/prep_chimera_work/`, which can be deleted once the build completes.
 
 **Output:** `GTDB_R232*` (MMseqs2 database files).
 
@@ -90,7 +90,7 @@ The SCG table is used by `false-closure` and for SCG annotation in `chimera`. Th
 
 ### 3. Assembler circularity
 
-`prep-circularity` collects assembler-reported circularity calls for `circularity` and `false-closure`. Provide one `-c` file per assembler: a `*.p_ctg.gfa` or `*.p_ctg.noseq.gfa` file for hifiasm-meta, which marks circular contigs with the name suffix `c` and linear contigs with `l`; `contigs.fasta.gz` for metaMDBG, whose headers carry `circular=yes` or `circular=no`; and `assembly_info.txt` for metaFlye, whose `circ.` column holds `Y` or `N`.
+`prep-circularity` collects assembler-reported circularity calls for `circularity` and `false-closure`. Provide one `-c` file per assembler: `*.p_ctg.gfa` or `*.p_ctg.noseq.gfa` for hifiasm-meta, `contigs.fasta.gz` for metaMDBG, and `assembly_info.txt` for metaFlye.
 
 **Command**
 
