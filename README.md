@@ -56,6 +56,26 @@ Run the preparation commands before analysis using the same `-o` to save their o
 
 See [Usage](docs/USAGE.md#preparation) for commands, download links and input formats.
 
+With the [test dataset](#2-test-dataset), the three preparation commands are:
+
+```bash
+Data=/path/to/input_subset          # extracted test dataset
+Base=/path/to/MAGverify_output
+
+MAGverify prep-scg -a "$Data/contigs" -o "$Base" -t 16
+
+MAGverify prep-circularity \
+  -c "$Data/assembler_circularity/Read.p_ctg.noseq.gfa" \
+  -c "$Data/assembler_circularity/contigs.fasta.gz" \
+  -c "$Data/assembler_circularity/assembly_info.txt" \
+  -g "$Data/MAGs" \
+  -o "$Base"
+
+MAGverify prep-taxonomy -d "$Data/gtdbtk" -g "$Data/MAGs" -o "$Base"
+```
+
+`prep-chimera` is the fourth command. Building its database takes a 123 GB download; for a test run, extract the prebuilt database into `"$Base/00_prep"` instead, or leave `chimera` out with `--skip chimera`. See [Usage](docs/USAGE.md#1-gtdb-r232-database).
+
 ## 4. Quick start
 
 After preparation, run all analysis modules using end-to-end with the following options:
@@ -76,6 +96,17 @@ MAGverify end-to-end \
   -g /path/to/MAGs \
   -o /path/to/MAGverify_output \
   -t 100 -m 900
+```
+
+With the [test dataset](#2-test-dataset):
+
+```bash
+MAGverify end-to-end \
+  -a "$Data/contigs" \
+  -r "$Data/reads/read.fastq.gz" \
+  -g "$Data/MAGs" \
+  -o "$Base" \
+  -t 16
 ```
 
 **Note:** `end-to-end` runs the modules in the following order: `map` → `circularity` → `clipping` → `false-closure` → `phantom` → `repeats` → `false-duplication` → `variants` → `chimera` → `summary`. Before analysis, MAGverify checks for missing preparation outputs in `00_prep/` and identifies the necessary `prep-` commands. Interrupted analyses can be resumed by rerunning the same command, automatically skipping completed modules with unchanged inputs.
