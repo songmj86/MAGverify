@@ -1,6 +1,8 @@
 # Usage
 
-MAGverify runs four preparation commands and ten analysis modules. Run the applicable preparation steps first, then `MAGverify end-to-end` for all QC modules or the commands below for individual steps. Use the same `-o` throughout to reuse intermediate files and generate MAG- and contig-level summaries.
+MAGverify runs four preparation commands and ten analysis modules. Run the applicable preparation steps first, then `MAGverify end-to-end` for all QC modules or the commands below for individual steps.
+
+Use the same `-o` throughout. `-o` is the base output directory, and every command writes inside it: preparation files go to `BASE/00_prep/`, each module to its own numbered subdirectory (`BASE/01_mapping/`, `BASE/02_circularity/`, and so on), and the integrated tables to the top of `BASE`. Because later modules look for earlier results under that base directory, reusing the same `-o` is what lets them find the mapping BAMs, clipping sites and preparation tables instead of recomputing them, and what lets `summary` build the MAG- and contig-level tables.
 
 | Step | Command | Needs first |
 | --- | --- | --- |
@@ -13,14 +15,13 @@ MAGverify runs four preparation commands and ten analysis modules. Run the appli
 | 6 | [`repeats`](#6-repeats) | `map` |
 | 7 | [`false-duplication`](#7-false-duplication) | `clipping` |
 | 8 | [`variants`](#8-assembly-variants) | `map` |
-| 9 | [`chimera`](#9-taxonomic-chimera) | `clipping`, `prep-chimera`; `prep-scg` and `prep-taxonomy` for SCG redundancy |
+| 9 | [`chimera`](#9-taxonomic-chimera) | `clipping`, `prep-chimera`, `prep-scg`, `prep-taxonomy` |
 | 10 | [`summary`](#10-integrated-summary) | Modules to be summarized |
 
 ## Resource settings
 
 - **Threads (`-t N`):** Number of threads (default: all available CPUs, capped at 100).
 - **Memory (`-m N`):** Memory limit in GB for `map`, `circularity`, `repeats` and `variants`.
-- **Parallel jobs (`PARALLEL_JOBS=N`):** Maximum number of assemblers processed concurrently.
 
 **Execution modes**
 
@@ -29,14 +30,9 @@ MAGverify runs four preparation commands and ten analysis modules. Run the appli
 
 ## Preparation
 
-Run the applicable preparation commands **before** `end-to-end`, which does not include preparation. Keep the same `-o` for preparation and analysis to reuse files in `00_prep/`.
+Run the applicable preparation commands **before** `end-to-end`, which does not include preparation. Keep the same `-o` for preparation and analysis.
 
-| Command | Main output in `00_prep/` | Used by |
-| --- | --- | --- |
-| [`prep-chimera`](#1-gtdb-r232-database) | `GTDB_R232*` | `chimera` |
-| [`prep-scg`](#2-single-copy-gene-annotation) | `scg.contig.tsv`, `genes.*` | `false-closure`, `chimera` |
-| [`prep-circularity`](#3-assembler-circularity) | `assembler_circularity.MAG.tsv`, `assembler_circularity.contig.tsv` | `circularity`, `false-closure` |
-| [`prep-taxonomy`](#4-mag-taxonomy) | `gtdbtk_taxonomy.MAG.tsv` | `chimera` (optional annotation) |
+**Every preparation output is written to `/path/to/MAGverify_output/00_prep/`.** The output names below are relative to that directory. The [README](../README.md#2-preparation) lists what each command produces.
 
 ### 1. GTDB R232 database
 
@@ -66,9 +62,9 @@ aria2c -c -d "$GTDB_DIR" "$BASE/ar53_taxonomy_r232.tsv"
 MAGverify prep-chimera -d "$GTDB_DIR" -o /path/to/MAGverify_output -t 100
 ```
 
-**Disk space:** The build needs substantial temporary storage in `00_prep/.cache/prep_chimera_work/`. This temporary working directory can be deleted after the build completes. To reuse an existing database from another output directory, pass its prefix using `--database` with `chimera` or `end-to-end`.
+**Disk space:** The build needs substantial temporary storage in `.cache/prep_chimera_work/`. This temporary working directory can be deleted after the build completes. To reuse an existing database from another output directory, pass its prefix using `--database` with `chimera` or `end-to-end`.
 
-**Output:** `00_prep/GTDB_R232*` (MMseqs2 database files).
+**Output:** `GTDB_R232*` (MMseqs2 database files).
 
 ---
 
@@ -86,13 +82,13 @@ MAGverify prep-scg -a /path/to/assemblies -o /path/to/MAGverify_output -t 100
 
 The SCG table is used by `false-closure` and for SCG annotation in `chimera`. The gene predictions are reused by `chimera` and `variants`.
 
-**Output:** `00_prep/scg.contig.tsv` and reusable gene predictions (`genes.faa`, `genes.gff`, `genes.coordinates.tsv`).
+**Output:** `scg.contig.tsv`, `genes.faa`, `genes.gff`, `genes.coordinates.tsv`.
 
 ---
 
 ### 3. Assembler circularity
 
-`prep-circularity` collects assembler-reported circularity calls. **This step is mandatory for `circularity` and `false-closure`.** Provide one `-c` file per assembler.
+`prep-circularity` collects assembler-reported circularity calls for `circularity` and `false-closure`. Provide one `-c` file per assembler.
 
 **Command**
 
@@ -115,13 +111,13 @@ MAGverify prep-circularity \
 
 Provide complete assembler outputs so every MAG contig can be matched. Missing contigs are reported by the command. For hifiasm-meta, `*.p_ctg.noseq.gfa` is faster to read because only contig IDs are needed. For individual module execution, a compatible existing MAG circularity table can instead be supplied with `--assembler-circularity FILE`.
 
-**Output:** `00_prep/assembler_circularity.MAG.tsv` and `00_prep/assembler_circularity.contig.tsv`.
+**Output:** `assembler_circularity.MAG.tsv` and `assembler_circularity.contig.tsv`.
 
 ---
 
 ### 4. MAG taxonomy
 
-`prep-taxonomy` converts GTDB-Tk `classify_wf` results to a MAG taxonomy table for `chimera`. **This step is optional:** without MAG taxonomy, `chimera` runs without SCG redundancy annotation.
+`prep-taxonomy` converts GTDB-Tk `classify_wf` results to the MAG taxonomy table that `chimera` needs for its SCG redundancy annotation.
 
 **Command**
 
@@ -144,7 +140,7 @@ ExampleMAG	d__Bacteria	p__Nitrospirota	c__Nitrospiria	o__Nitrospirales
 
 Use a bare rank prefix for an unassigned rank (for example, `o__`). If GTDB-Tk results are unavailable, generate them first with [GTDB-Tk](https://github.com/Ecogenomics/GTDBTk), which is installed separately from MAGverify.
 
-**Output:** `00_prep/gtdbtk_taxonomy.MAG.tsv`.
+**Output:** `gtdbtk_taxonomy.MAG.tsv`.
 
 ## Analysis modules
 
@@ -280,7 +276,7 @@ MAGverify variants -g /path/to/MAGs -o /path/to/MAGverify_output -t 100 -m 900
 
 Classifies genes against GTDB R232 with MMseqs2, then finds neighbouring gene blocks whose dominant taxa differ at domain, phylum, class or order. A transition is called a taxonomic chimera when it overlaps a validated clipping site; high-confidence calls additionally need a stringent clipping site. HiFi structural evidence across the boundary is reported separately.
 
-The database from `prep-chimera` is reused automatically under the same `-o`. Specify `--database PREFIX` to use one elsewhere or `--taxonomy TSV` to use an existing gene taxonomy table. SCG annotation uses `prep-scg`; optional MAG taxonomy uses `prep-taxonomy`.
+The database from `prep-chimera` is reused automatically under the same `-o`. Specify `--database PREFIX` to use one elsewhere or `--taxonomy TSV` to use an existing gene taxonomy table. SCG annotation uses `prep-scg` and MAG taxonomy uses `prep-taxonomy`.
 
 **Command**
 

@@ -309,7 +309,8 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
             'clipping': ['-a', str(self.source_dir), '-g', str(self.mag_dir),
                          '-o', str(self.output)] + mapped,
             'chimera': base + mapped + ['--taxonomy', str(self.generic_tsv),
-                                        '--clipping-table', str(self.generic_tsv)],
+                                        '--clipping-table', str(self.generic_tsv),
+                                        '--mag-taxonomy', str(self.generic_tsv)],
             'circularity': ['-g', str(self.mag_dir), '-r', str(self.reads_dir),
                             '-a', str(self.source_dir), '-o', str(self.output),
                             '--assembler-circularity', str(self.generic_tsv)],
@@ -361,7 +362,7 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
         case = {
             'map': shared + reads,
             'clipping': shared + mags + reads,
-            'chimera': shared + mags + manifest + ['--taxonomy', str(self.generic_tsv), '--clipping-table', str(self.generic_tsv)],
+            'chimera': shared + mags + manifest + ['--taxonomy', str(self.generic_tsv), '--clipping-table', str(self.generic_tsv), '--mag-taxonomy', str(self.generic_tsv)],
             'circularity': shared + mags + reads + ['--assembler-circularity', str(self.generic_tsv)],
             'false-closure': shared + mags + manifest + ['--clipping-table', str(self.generic_tsv), '--clipping-all-table', str(self.generic_tsv), '--scg-table', str(self.generic_tsv), '--assembler-circularity', str(self.generic_tsv)],
             'variants': shared + mags + manifest + reads,
@@ -391,12 +392,16 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
         self.assertNotIn('repeats:', message)
         self.assertIn('--include repeats', message)
 
-    def test_chimera_accepts_database_without_taxonomy_table(self):
+    def test_chimera_needs_the_mag_taxonomy_table(self):
         args = ('chimera', '-a', self.source_dir, '--mag-map', self.map_table,
                 '--mapping-manifest', self.manifest,
                 '--database', self.prefix, '--clipping-table', self.generic_tsv,
                 '-o', self.output, '-t', '2', '--dry-run')
         p = self.call(*args)
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn('--mag-taxonomy', p.stderr)
+        self.assertIn('prep-taxonomy', p.stderr)
+        p = self.call(*args, '--mag-taxonomy', self.generic_tsv)
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         self.assertIn('07_chimera.sh', p.stdout)
 

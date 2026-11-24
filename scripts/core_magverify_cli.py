@@ -218,9 +218,26 @@ def assembly_fasta(value):
 READ_SUFFIXES = ('.fastq', '.fq', '.fastq.gz', '.fq.gz')
 
 
-def reads_input(directory, root, dry_run):
-    """HiFi reads from a directory. One FASTQ file is used as is; several files (all gzipped or all plain) are joined once into OUTPUT/00_prep/hifi_reads.fastq[.gz]."""
-    parent = dir_input(directory, '-r')
+def reads_path_input(value):
+    """A HiFi FASTQ file or a directory of HiFi FASTQ files, resolved and checked."""
+    path = Path(value).expanduser().resolve()
+    if path.is_file():
+        if not path.name.lower().endswith(READ_SUFFIXES):
+            raise UsageError(f'-r file is not a HiFi FASTQ ({", ".join(READ_SUFFIXES)}): {path}')
+        if not path.stat().st_size:
+            raise UsageError(f'-r file is empty: {path}')
+        return path
+    if not path.is_dir():
+        raise UsageError(f'-r file or directory not found: {path}')
+    return path
+
+
+def reads_input(reads, root, dry_run):
+    """HiFi reads from a FASTQ file or a directory of them. A single file is used as is; several files (all gzipped or all plain) are joined once into OUTPUT/00_prep/hifi_reads.fastq[.gz]."""
+    parent = reads_path_input(reads)
+    if parent.is_file():
+        print('HiFi read file: ' + str(parent), flush=True)
+        return parent
     files = sorted(p for p in parent.iterdir()
                    if p.is_file() and p.name.lower().endswith(READ_SUFFIXES) and p.stat().st_size)
     if not files:
@@ -1078,10 +1095,7 @@ def stage_run(args):
             env['MMSEQS_TAX_DB'] = str(prefix)
             env['GTDB_GENE_TAX_TSV'] = str(root / RESULTS['taxonomy'])
         need_result('clipping_table', args, root, env, stage)
-        table = need_result('mag_taxonomy', args, root, env, stage, optional=True)
-        print(f'MAG taxonomy: {table}' if table else
-              'MAG taxonomy: none (SCG redundancy annotation is skipped; run MAGverify prep-taxonomy)',
-              flush=True)
+        print(f"MAG taxonomy: {need_result('mag_taxonomy', args, root, env, stage)}", flush=True)
     if stage == 'false-closure':
         for table in ('clipping_table', 'clipping_all_table', 'assembler_circularity'):
             need_result(table, args, root, env, stage)
@@ -1168,8 +1182,8 @@ def add_stage_parser(subparsers, stage):
     def handles(*names):
         return bool(members.intersection(names))
     if handles('map', 'clipping', 'chimera', 'circularity', 'false-closure', 'variants', 'phantom', 'false-duplication'):
-        p.add_argument('-r', dest='reads', metavar='DIR',
-                       help='Directory of HiFi reads (*.fastq.gz; *.fq.gz)')
+        p.add_argument('-r', dest='reads', metavar='PATH',
+                       help='HiFi read file, or a directory of them (*.fastq.gz; *.fq.gz)')
     p.add_argument('-a', dest='source_assemblies', metavar='DIR',
                    help='Directory of assembled contigs (*.fa)')
     mag_stage = handles('clipping','chimera','circularity','false-closure','variants','phantom','repeats','false-duplication','summary')
@@ -1292,8 +1306,8 @@ def add_run_parser(subparsers):
     p.add_argument('-h', action='help', help=argparse.SUPPRESS)
     p.add_argument('-a', dest='source_assemblies', required=True, metavar='DIR',
                    help='Directory of assembled contigs (*.fa)')
-    p.add_argument('-r', dest='reads', required=True, metavar='DIR',
-                   help='Directory of HiFi reads (*.fastq.gz; *.fq.gz)')
+    p.add_argument('-r', dest='reads', required=True, metavar='PATH',
+                   help='HiFi read file, or a directory of them (*.fastq.gz; *.fq.gz)')
     p.add_argument('-g', dest='mag_dir', required=True, metavar='DIR', help='Directory of MAGs (*.fa)')
     p.add_argument('-o', dest='output_directory', required=True, metavar='DIR', help='Directory of base output')
     p.add_argument('-t', dest='threads', type=int, metavar='N', help='Number of threads')
@@ -1315,7 +1329,7 @@ def pipeline_plan(args):
     if 'map' in skip:
         raise UsageError('--skip map is not possible: every analysis module reads the map result')
     dir_input(args.source_assemblies, '-a')
-    dir_input(args.reads, '-r')
+    reads_path_input(args.reads)
     dir_input(args.mag_dir, '-g')
     root = Path(args.output_directory).expanduser().resolve()
     if root.name in {'00_prep', '10_summary'} | {folder for _script, folder, _text in STAGES.values()}:
