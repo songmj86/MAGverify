@@ -58,14 +58,18 @@ One row per MAG; columns appear in the following order.
 
 ### `summary.contig.tsv`
 
-One row per contig across all assemblies. `MAG_ID` is `NA` for unbinned contigs.
+One row per contig across all assemblies. `MAG_ID` is `NA` for unbinned contigs. After the three identity columns the flags are the same, in the same order, as in `summary.MAG.tsv`.
 
 | Column | Definition |
 |---|---|
 | `Contig` | Contig identifier |
 | `MAG_ID` | Associated MAG identifier, or `NA` |
 | `Length_bp` | Contig length in base pairs |
+| `Assembler_reported_circularity` | Y/N/NA call from `prep-circularity` |
+| `Read_supported_circularity` | HiFi read evidence supporting circular topology, from `Read_supported_circular_topology`; `NA` for contigs of multi-contig MAGs, which are not evaluated |
+| `High_confidence_circularity` | High-confidence circularity: both assembler-reported and read-supported calls are Y; NA when the assembler call is unavailable or the contig was not evaluated |
 | `High_confidence_clipping` | At least one high-confidence clipping site (`Stringent_clipping` Y in the clipping module); NA when clipping was not assessable or not run |
+| `Premature_circularization` | Contig reported circular by its assembler with false-closure evidence, from `Premature_circularization_candidate`; NA when false closure was not run |
 | `Phantom_sequence` | Phantom sequence flag |
 | `Excessive_repeat` | Intra-contig excessive repeat flag |
 | `False_duplication` | False-duplication flag |
@@ -74,9 +78,22 @@ One row per contig across all assemblies. `MAG_ID` is `NA` for unbinned contigs.
 
 ### Detail tables
 
-`detail.MAG.tsv` starts with the MAG flags, followed by diagnostic annotations and the available `MODULE.COLUMN` fields from the module MAG tables, in end-to-end module order. `Chimera` and `Assembly_variant` sit immediately before their own module blocks (`chimera.*`, `variants.*`) rather than with the leading flags. `detail.contig.tsv` is built the same way from the contig-level tables and includes only contigs assigned to MAGs. For the full meanings of `MODULE.COLUMN`, consult the relevant module table section below.
+The detail tables are grouped by module. `detail.MAG.tsv` opens with the identity columns `MAG_ID` and `n_contigs`, then carries one block per module in end-to-end order: circularity, clipping, false closure, phantom, repeats, false duplication, chimera, variants. Each block holds that module's summary flag and its diagnostic annotations, followed by every column of that module's MAG table as `MODULE.COLUMN`.
 
-`Clipping_candidate` is the validated clipping call (`Clipping` Y at >= 1 site), kept alongside `High_confidence_clipping` so both clipping tiers are visible. The detail tables carry no check counters.
+| Module block | Flags and annotations before the `MODULE.COLUMN` fields |
+|---|---|
+| circularity | `Assembler_reported_circularity`, `Read_supported_circularity`, `High_confidence_circularity` |
+| clipping | `Clipping_candidate`, `High_confidence_clipping`, `n_clipping_sites` |
+| false closure | `Premature_circularization`, `False_closure`, `Premature_circularization_screen`, `Small_genome_proxy`, `False_closure_partner_contigs` |
+| phantom | `Phantom_sequence`, `n_phantom_contigs` |
+| repeats | `Excessive_repeat`, `Repeat_fraction`, `n_excessive_repeat_contigs` |
+| false duplication | `False_duplication`, `False_duplication_with_clipping`, `n_false_duplication_contigs`, `n_duplicated_pairs`, `n_unresolved_duplicated_pairs` |
+| chimera | `Chimera`, `n_chimera_contigs` |
+| variants | `Assembly_variant`, `n_variant_contigs` |
+
+`detail.contig.tsv` is built the same way from the contig-level tables and includes only contigs assigned to MAGs. Its identity columns are `Contig`, `MAG_ID`, `Length_bp` and `Assembler`, and its module blocks carry the same names in the same order as the MAG table. Three MAG-level counts have no contig equivalent and are absent (`n_phantom_contigs`, `n_excessive_repeat_contigs`, `n_variant_contigs`), `n_false_duplication_contigs` is replaced by `n_false_duplication_pairs`, and `n_chimera_contigs` by `Chimera_ranks`. For the full meanings of `MODULE.COLUMN`, consult the relevant module table section below.
+
+`Clipping_candidate` is the validated clipping call (`Clipping` Y at >= 1 site), kept alongside `High_confidence_clipping` so both clipping tiers are visible. The detail tables carry no check counters and no list of skipped checks; a check that was not run shows `NA` in its own column.
 
 They also retain the following summary-level fields that are omitted from the concise summaries:
 
@@ -86,7 +103,6 @@ They also retain the following summary-level fields that are omitted from the co
 | `Premature_circularization_screen` | Combined screen for premature circularization or the small-genome proxy, not identical to the final premature-circularization flag |
 | `Small_genome_proxy` | Small-genome indicator from false closure |
 | `False_duplication_with_clipping` | Co-occurrence of false duplication and validated clipping; additional evidence, not a separate primary diagnostic flag |
-| `Checks_not_run` | Names of check groups not run, or `NA` if none |
 
 Other annotations include supporting counts, affected contigs, and repeat fractions. The module analysis algorithms and original call criteria are unchanged.
 

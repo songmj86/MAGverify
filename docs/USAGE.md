@@ -144,6 +144,21 @@ Use a bare rank prefix for an unassigned rank (for example, `o__`). If GTDB-Tk r
 
 ## Analysis modules
 
+### High-confidence calls
+
+Two calls are reported as **high confidence**. Each one means that two independent lines of evidence agree, and each is `Y` / `N` / `NA` like every other flag.
+
+| Call | `Y` when | Module column | Summary column |
+| --- | --- | --- | --- |
+| High-confidence circularity | the assembler reports the contig circular **and** HiFi reads span its END\|START junction (>= 2 reads, >= 2,000 bp aligned on each side, no deletion or skip across it) | `High_confidence_circularity` in `circularity.MAG.tsv` and `circularity.contig.tsv` | `High_confidence_circularity` in `summary.MAG.tsv` |
+| High-confidence clipping | a clipping site is validated against the reads (>= 2 distinct clipped reads, no spanning read) **and** has anvi'o coverage >= 10 with a clipping ratio of 1.0 | `Stringent_clipping` in `clipping.site.tsv`, `clipping.contig.tsv` and `clipping.MAG.tsv` | `High_confidence_clipping` in `summary.MAG.tsv` and `summary.contig.tsv` |
+
+Neither call can be reached from one source of evidence alone. An assembler circularity claim with no junction-spanning reads stays `Read_supported_circularity` `N`, and a position that clears the clipping thresholds without read validation is `Stringent_candidate` `Y` but `Stringent_clipping` `N`. `NA` means the check was not assessable: no assembler circularity table for circularity, or a clipping candidate at a contig boundary that no read can span.
+
+The high-confidence clipping criterion follows [Trigodet et al., 2026](https://doi.org/10.1038/s41587-025-02971-8). `chimera` builds on it: a taxonomic transition is a high-confidence chimera only when the clipping site it overlaps is itself high confidence.
+
+---
+
 ### 1. Read mapping
 
 Maps HiFi reads separately to each assembler's complete assembly with minimap2, including unbinned contigs. Saves BAMs of all mapped alignments, primary alignments, and primary plus supplementary alignments for later modules. A mapping manifest (`01_mapping/.cache/mapping_manifest.tsv`) records the reads, assemblies and BAM paths so later modules do not need `-a` or `-r`.

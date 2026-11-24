@@ -86,8 +86,8 @@ class PublicTableTests(unittest.TestCase):
         self.assertEqual((c['High_confidence_clipping'], c['Chimera'], c['Phantom_sequence']),
                          ('NA', 'NA', 'Y'))
         detail_c = read(self.root / 'detail.contig.tsv')[0]
-        self.assertEqual((detail_c['Clipping_candidate'], detail_c['Checks_not_run']),
-                         ('Y', 'taxonomic_chimera'))
+        self.assertEqual(detail_c['Clipping_candidate'], 'Y')
+        self.assertNotIn('Checks_not_run', detail_c)
         for removed in ('QC_call', 'MAG_integrated_QC_call', 'integrated_interpretation', 'excessive_repeat_call',
                         'false_duplication_clipping_summary', 'Circularity_eligibility'):
             self.assertNotIn(removed, c)
@@ -104,8 +104,8 @@ class PublicTableTests(unittest.TestCase):
                         'false_duplication_clipping_summary'):
             self.assertNotIn(removed, m)
         self.assertEqual((m['Chimera'], m['Read_supported_circularity'], m['Premature_circularization']), ('NA', 'NA', 'NA'))
-        self.assertEqual(list(detail_m)[:len(pt.DETAIL_MAG_LEAD)], pt.DETAIL_MAG_LEAD)
-        self.assertIn('circularity', read(self.root / 'detail.MAG.tsv')[0]['Checks_not_run'])
+        self.assertEqual([n for n in detail_m if '.' not in n], pt.detail_plain_fields('MAG'))
+        self.assertNotIn('Checks_not_run', read(self.root / 'detail.MAG.tsv')[0])
 
     def test_summary_has_yes_no_and_full_versions(self):
         self.test_summary_tables_go_to_the_top()
@@ -123,8 +123,8 @@ class PublicTableTests(unittest.TestCase):
                             for k in ('High_confidence_clipping', 'Phantom_sequence',
                                       'Read_supported_circularity')))
         full = read(self.root / 'detail.MAG.tsv')[0]
-        self.assertEqual(list(full)[:len(pt.DETAIL_MAG_LEAD) + len(pt.SUMMARY_MAG_DETAILS)],
-                         pt.DETAIL_MAG_LEAD + pt.SUMMARY_MAG_DETAILS)
+        self.assertEqual([n for n in full if '.' not in n], pt.detail_plain_fields('MAG'))
+        self.assertEqual(list(full)[:len(pt.DETAIL_IDENTITY['MAG'])], pt.DETAIL_IDENTITY['MAG'])
         self.assertEqual((full['n_clipping_sites'], full['clipping.Clipping'], full['clipping.n_clipping_sites']),
                          ('NA', 'Y', '2'))
         self.assertNotIn('clipping.MAG_ID', full)
@@ -142,14 +142,20 @@ class PublicTableTests(unittest.TestCase):
             'Phantom_sequence', 'Excessive_repeat', 'False_duplication',
             'Chimera', 'Assembly_variant'])
         self.assertEqual(pt.SUMMARY_CONTIG_FIELDS, [
-            'Contig', 'MAG_ID', 'Length_bp', 'High_confidence_clipping',
+            'Contig', 'MAG_ID', 'Length_bp', 'Assembler_reported_circularity',
+            'Read_supported_circularity', 'High_confidence_circularity',
+            'High_confidence_clipping', 'Premature_circularization',
             'Phantom_sequence', 'Excessive_repeat', 'False_duplication',
             'Chimera', 'Assembly_variant'])
+        # The two levels carry the same flags, in the same order, after their identity columns.
+        self.assertEqual(pt.SUMMARY_CONTIG_FIELDS[3:], pt.SUMMARY_MAG_FIELDS[1:])
         self.assertEqual([name for name, _ in pt.FULL_MODULES], [
             'circularity', 'clipping', 'false_closure', 'phantom', 'repeats',
             'false_duplication', 'chimera', 'variants'])
-        self.assertEqual(pt.DETAIL_MODULE_FLAGS,
-                         {'chimera': ('Chimera',), 'variants': ('Assembly_variant',)})
+        self.assertEqual(pt.detail_plain_fields('MAG')[:2], ['MAG_ID', 'n_contigs'])
+        self.assertEqual(pt.DETAIL_MODULE_LEAD['MAG']['chimera'], ('Chimera', 'n_chimera_contigs'))
+        self.assertEqual(pt.DETAIL_MODULE_LEAD['MAG']['variants'],
+                         ('Assembly_variant', 'n_variant_contigs'))
         # Changing the column order does not change which flags enter the count.
         self.assertEqual(len(pt.MAG_CHECKS), 7)
 
@@ -208,7 +214,7 @@ class PublicTableTests(unittest.TestCase):
         self.assertIn('False_closure', detailed)
         self.assertIn('Premature_circularization_screen', detailed)
         self.assertIn('False_duplication_with_clipping', detailed)
-        self.assertIn('Checks_not_run', detailed)
+        self.assertNotIn('Checks_not_run', detailed)
 
     def test_previous_full_summary_names_migrate_to_detail(self):
         for level in ('contig', 'MAG'):
