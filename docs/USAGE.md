@@ -37,17 +37,11 @@ Downstream modules automatically reuse mapping BAMs, clipping sites and preparat
 
 Run the applicable preparation commands **before** `end-to-end`, which does not include preparation. Keep the same `-o` for preparation and analysis.
 
-**Every preparation output is written to `/path/to/MAGverify_output/00_prep/`.** The output names below are relative to that directory. The [README](../README.md#2-preparation) lists what each command produces.
+**Every preparation output is written to `/path/to/MAGverify_output/00_prep/`.**
 
 ### 1. GTDB R232 database
 
 `prep-chimera` builds an MMseqs2 taxonomy database from three files in the [GTDB R232 (232.0) release](https://data.gtdb.ecogenomic.org/releases/release232/232.0/).
-
-| Input file | Purpose |
-| --- | --- |
-| [`gtdb_proteins_aa_reps_r232.tar.gz`](https://data.gtdb.ecogenomic.org/releases/release232/232.0/genomic_files_reps/gtdb_proteins_aa_reps_r232.tar.gz) | Protein sequences (~123 GB compressed) |
-| [`bac120_taxonomy_r232.tsv`](https://data.gtdb.ecogenomic.org/releases/release232/232.0/bac120_taxonomy_r232.tsv) | Bacterial taxonomy |
-| [`ar53_taxonomy_r232.tsv`](https://data.gtdb.ecogenomic.org/releases/release232/232.0/ar53_taxonomy_r232.tsv) | Archaeal taxonomy |
 
 **Download input files** into the same directory with `aria2c`:
 
@@ -56,8 +50,11 @@ GTDB_DIR=/path/to/GTDB_R232_downloads
 BASE=https://data.gtdb.ecogenomic.org/releases/release232/232.0
 mkdir -p "$GTDB_DIR"
 
-aria2c -c -x 4 -s 4 -d "$GTDB_DIR" "$BASE/genomic_files_reps/gtdb_proteins_aa_reps_r232.tar.gz"
+# Protein sequences (~123 GB compressed)
+aria2c -c -x 8 -s 8 -d "$GTDB_DIR" "$BASE/genomic_files_reps/gtdb_proteins_aa_reps_r232.tar.gz"
+# Bacterial taxonomy
 aria2c -c -d "$GTDB_DIR" "$BASE/bac120_taxonomy_r232.tsv"
+# Archaeal taxonomy
 aria2c -c -d "$GTDB_DIR" "$BASE/ar53_taxonomy_r232.tsv"
 ```
 
@@ -83,7 +80,7 @@ MAGverify prep-chimera -d "$GTDB_DIR" -o /path/to/MAGverify_output -t 100
 MAGverify prep-scg -a /path/to/assemblies -o /path/to/MAGverify_output -t 100
 ```
 
-- `-a DIR`: Directory of contig files (`.fa`, `.fasta`, or `.fna`), one per assembler.
+- `-a DIR`: Input directory of contig files (`.fa`, `.fasta`, or `.fna`), one per assembler. Contig IDs must be unique across assembly files.
 
 The SCG table is used by `false-closure` and for SCG annotation in `chimera`. The gene predictions are reused by `chimera` and `variants`.
 
@@ -93,7 +90,7 @@ The SCG table is used by `false-closure` and for SCG annotation in `chimera`. Th
 
 ### 3. Assembler circularity
 
-`prep-circularity` collects assembler-reported circularity calls for `circularity` and `false-closure`. Provide one `-c` file per assembler.
+`prep-circularity` collects assembler-reported circularity calls for `circularity` and `false-closure`. Provide one `-c` file per assembler: a `*.p_ctg.gfa` or `*.p_ctg.noseq.gfa` file for hifiasm-meta, which marks circular contigs with the name suffix `c` and linear contigs with `l`; `contigs.fasta.gz` for metaMDBG, whose headers carry `circular=yes` or `circular=no`; and `assembly_info.txt` for metaFlye, whose `circ.` column holds `Y` or `N`.
 
 **Command**
 
@@ -106,13 +103,7 @@ MAGverify prep-circularity \
   -o /path/to/MAGverify_output
 ```
 
-| Assembler | Input (`-c`) | Circularity information |
-| --- | --- | --- |
-| hifiasm-meta | `*.p_ctg.gfa` or `*.p_ctg.noseq.gfa` | Contig-name suffix `c` (circular) or `l` (linear) |
-| metaMDBG | `contigs.fasta.gz` | Header `circular=yes` or `circular=no` |
-| metaFlye | `assembly_info.txt` | `circ.` column (`Y` / `N`) |
-
-- `-g DIR`: Directory of MAG FASTA files, one per MAG.
+- `-g DIR`: Input directory of MAG files (one file per MAG). MAG contig IDs must match those in the assembly files.
 
 Provide complete assembler outputs so every MAG contig can be matched. Missing contigs are reported by the command. For hifiasm-meta, `*.p_ctg.noseq.gfa` is faster to read because only contig IDs are needed. For individual module execution, a compatible existing MAG circularity table can instead be supplied with `--assembler-circularity FILE`.
 
@@ -134,7 +125,7 @@ MAGverify prep-taxonomy \
 ```
 
 - `-d DIR`: GTDB-Tk output directory with `gtdbtk.bac120.summary.tsv` and/or `gtdbtk.ar53.summary.tsv`.
-- `-g DIR`: Directory of MAG FASTA files, one per MAG.
+- `-g DIR`: Input directory of MAG files (one file per MAG). MAG contig IDs must match those in the assembly files.
 
 MAG IDs must match the FASTA filenames without their extensions. Alternatively, pass an existing table to `chimera` using `--mag-taxonomy TSV`:
 
