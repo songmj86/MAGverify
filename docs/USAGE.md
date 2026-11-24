@@ -41,7 +41,7 @@ Run the applicable preparation commands **before** `end-to-end`, which does not 
 
 ### 1. GTDB R232 database
 
-`prep-chimera` builds an MMseqs2 taxonomy database from three files in the [GTDB R232 (232.0) release](https://data.gtdb.ecogenomic.org/releases/release232/232.0/).
+`prep-chimera` builds an MMseqs2 taxonomy database from three [GTDB R232](https://data.gtdb.ecogenomic.org/releases/release232/232.0/) files.
 
 **Download input files** into the same directory with `aria2c`:
 
@@ -64,7 +64,7 @@ aria2c -c -d "$GTDB_DIR" "$BASE/ar53_taxonomy_r232.tsv"
 MAGverify prep-chimera -d "$GTDB_DIR" -o /path/to/MAGverify_output -t 100
 ```
 
-**Output:** `GTDB_R232*` (MMseqs2 database files).
+**Output:** `GTDB_R232*`.
 
 ---
 
@@ -122,13 +122,6 @@ MAGverify prep-taxonomy \
 
 - `-d DIR`: GTDB-Tk output directory with `gtdbtk.bac120.summary.tsv` and/or `gtdbtk.ar53.summary.tsv`.
 - `-g DIR`: Input directory of MAG files (one file per MAG). MAG contig IDs must match those in the assembly files.
-
-MAG IDs must match the FASTA filenames without their extensions. Alternatively, pass an existing table to `chimera` using `--mag-taxonomy TSV`:
-
-```text
-ID	GTDB_Domain	GTDB_Phylum	GTDB_Class	GTDB_Order
-ExampleMAG	d__Bacteria	p__Nitrospirota	c__Nitrospiria	o__Nitrospirales
-```
 
 **Output:** `gtdbtk_taxonomy.MAG.tsv`.
 
