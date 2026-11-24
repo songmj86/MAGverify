@@ -5,7 +5,6 @@ SCRIPT_NAME="02_circularity.sh"
 SCRIPT_ID="02_circularity"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib_config.sh"
-source "$SCRIPT_DIR/lib_qc.sh"
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
 
 usage() {
@@ -353,7 +352,7 @@ run_assembler_groups() {
         echo "MAG_read_supported_topology_rule: Read_supported_circular_topology preserves canonical Y/N/NA"
         echo "High_confidence_circular_rule: assembler-reported circularity=Y and read-supported circular topology=Y"
         echo "Additional_circular_candidate_rule: assembler-reported circularity=N and read-supported circular topology=Y"
-        echo "MAG_Circular_compatibility_alias: Circular equals High_confidence_circular"
+        echo "MAG_Circular_compatibility_alias: Circular equals High_confidence_circularity"
         } > "$merged_parameters"
 
     echo "[$SCRIPT_NAME] PASS: all assembler groups completed."

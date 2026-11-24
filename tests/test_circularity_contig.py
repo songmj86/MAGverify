@@ -10,7 +10,7 @@ SCRIPT = Path(__file__).resolve().parent.parent / 'scripts' / 'circularity_final
 
 MAG_TABLE = (
     'ID\tAssembler_reported_circularity\tCircularity_evaluable\tCircularity_eligibility\t'
-    'Read_supported_circular_topology\tHigh_confidence_circular\tAdditional_circular_candidate\t'
+    'Read_supported_circular_topology\tHigh_confidence_circularity\tAdditional_circular_candidate\t'
     'Circular\tNumber_of_contigs\tContig_ID\tContig_length_bp\tHIFI_END_START_SUPPORTED\n'
     'BinA\tY\tY\tY_single_contig\tY\tY\tN\tY\t1\tc1\t4\tY\n'
     'BinB\tN\tN\tN_not_single_contig\tNA\tN\tN\tN\t2\tNA\tNA\tNA\n'

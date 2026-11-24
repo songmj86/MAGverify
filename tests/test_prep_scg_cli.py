@@ -21,8 +21,8 @@ class PrepScgCLITests(unittest.TestCase):
                      'scripts/__init__.py', 'scripts/core_magverify_cli.py'):
             shutil.copy2(ROOT / name, self.root / name)
         (self.root / 'bin/MAGverify').chmod(0o755)
-        (self.root / 'modules/00_prep_scg.sh').write_text(
-            '#!/usr/bin/env bash\nset -euo pipefail\nmkdir -p "$2"\n'
+        (self.root / 'modules/00_prep.sh').write_text(
+            '#!/usr/bin/env bash\nset -euo pipefail\n[[ "$1" == scg ]]\nshift\nmkdir -p "$2"\n'
             'printf "%s\\n" "$1" "$3" > "$2/invocation.txt"\n'
             'printf "%s\\n" "$GENE_CALLS_DIR" >> "$2/invocation.txt"\n'
             'printf "contig\\thmm_name\\tgene_callers_id\\tsource\\n" > "$SCG_TSV"\n')

@@ -4,7 +4,6 @@ set -Eeuo pipefail
 SCRIPT_ID="03_clipping"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib_config.sh"
-source "$SCRIPT_DIR/lib_qc.sh"
 
 command -v python3 >/dev/null 2>&1 || { echo "ERROR: python3 not found on PATH" >&2; exit 1; }
 python3 "$CLIP_VALIDATE_SCRIPT" check \

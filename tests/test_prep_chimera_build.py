@@ -48,7 +48,7 @@ esac
             wget.write_text('#!/bin/sh\nexit 99\n')
             wget.chmod(0o755)
             prefix = root / 'shared db' / 'GTDB_R232'
-            result = subprocess.run(['bash', str(ROOT / 'modules/00_prep_chimera.sh'),
+            result = subprocess.run(['bash', str(ROOT / 'modules/00_prep.sh'), 'chimera',
                                      str(root / 'work'), '1', str(inputs), str(prefix)],
                                     env=dict(os.environ, PATH=str(bindir)+os.pathsep+os.environ['PATH']),
                                     text=True, capture_output=True)

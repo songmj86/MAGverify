@@ -6,7 +6,6 @@ REPEAT_EVIDENCE_CACHE_VERSION="repeat_evidence_contig_and_genome"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib_config.sh"
-source "$SCRIPT_DIR/lib_qc.sh"
 
 : "${OUT:?ERROR: OUT is not set in lib_config.sh}"
 : "${ASSEMBLY_FA:?ERROR: ASSEMBLY_FA is not set in lib_config.sh}"

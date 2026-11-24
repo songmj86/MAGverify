@@ -60,7 +60,7 @@ Each module can also be run separately. See [Usage](docs/USAGE.md#analysis-modul
 
 ## 4. Results
 
-MAGverify generates two summary formats: `summary.MAG.tsv` and `summary.contig.tsv` provide `Y`/`N`/`NA` flags for each analysis, whereas `summary_detail.MAG.tsv` and `summary_detail.contig.tsv` additionally include detailed results from each module.
+MAGverify generates two summary formats: `summary.MAG.tsv` and `summary.contig.tsv` provide `Y`/`N`/`NA` flags for each analysis, whereas `detail.MAG.tsv` and `detail.contig.tsv` additionally include detailed results from each module.
 
 Each module saves its results in a separate directory, as listed below. Intermediate files are stored in hidden `.cache/` directories for reuse in subsequent runs. Keep these directories to enable analysis resumption.
 
@@ -76,7 +76,7 @@ Each module saves its results in a separate directory, as listed below. Intermed
 | Taxonomic chimera | `07_chimera/` | `chimera.region.tsv`, `chimera.contig.tsv`, `chimera.MAG.tsv` |
 | False duplication | `08_false_duplication/` | `false_duplication.pair.tsv`, `false_duplication.contig.tsv`, `false_duplication.MAG.tsv` |
 | Assembly variants | `09_assembly_variants/` | `variants.site.tsv`, `variants.contig.tsv`, `variants.MAG.tsv` |
-| Integrated summary | top of the output directory | `summary.MAG.tsv`, `summary.contig.tsv` (Y/N); `summary_detail.MAG.tsv`, `summary_detail.contig.tsv` (detailed) |
+| Integrated summary | top of the output directory | `summary.MAG.tsv`, `summary.contig.tsv` (Y/N); `detail.MAG.tsv`, `detail.contig.tsv` (detailed) |
 
 See [Result tables](docs/OUTPUTS.md) for detailed descriptions of all output columns.
 

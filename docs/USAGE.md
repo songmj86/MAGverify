@@ -166,7 +166,7 @@ MAGverify map -a /path/to/assemblies -r /path/to/hifi_reads -o /path/to/MAGverif
 
 Tests single-contig MAGs for read-supported circular topology. The contig is rotated to position its END|START junction in the middle. Circularity is read-supported when at least two HiFi reads span the junction with at least 2,000 bp aligned on each side. The `prep-circularity` assembler call is also needed.
 
-The integrated MAG summary reports `Assembler_reported_circularity`, `Read_supported_circularity` and `High_confidence_circular` separately. High-confidence circularity is `Y` only when both the assembler and reads support the topology. Read-supported cases not reported circular by the assembler appear as `Additional_circular_candidate` in the module table.
+The integrated MAG summary reports `Assembler_reported_circularity`, `Read_supported_circularity` and `High_confidence_circularity` separately. High-confidence circularity is `Y` only when both the assembler and reads support the topology. Read-supported cases not reported circular by the assembler appear as `Additional_circular_candidate` in the module table.
 
 **Command**
 
@@ -250,7 +250,7 @@ MAGverify repeats -g /path/to/MAGs -o /path/to/MAGverify_output -t 100 -m 900
 
 ### 7. False duplication
 
-Identifies duplicated copies within a MAG by BLASTN (≥ 1,000 bp, ≥ 95% identity) and checks each copy boundary against HiFi alignments. A duplicated pair is flagged when one copy is spanned at both boundaries and the other at neither. For tandem copies, both outer boundaries must be spanned but the intervening junction must not be. Clipping evidence at the copy boundaries is also reported.
+Identifies duplicated copies within a MAG from a minimap2 self-alignment of each assembly (`-x asm5 -DP`, ≥ 1,000 bp, ≥ 95% identity) and checks each copy boundary against HiFi alignments. A duplicated pair is flagged when one copy is spanned at both boundaries and the other at neither. For tandem copies, both outer boundaries must be spanned but the intervening junction must not be. Clipping evidence at the copy boundaries is also reported.
 
 **Command**
 
@@ -302,6 +302,6 @@ Combines completed module calls into MAG- and contig-level summaries and checks 
 MAGverify summary -g /path/to/MAGs -o /path/to/MAGverify_output
 ```
 
-**Output:** `summary.MAG.tsv` and `summary.contig.tsv` (concise `Y` / `N` / `NA` flags); `summary_detail.MAG.tsv` and `summary_detail.contig.tsv` (full diagnostic tables).
+**Output:** `summary.MAG.tsv` and `summary.contig.tsv` (concise `Y` / `N` / `NA` flags); `detail.MAG.tsv` and `detail.contig.tsv` (full diagnostic tables).
 
 For all output column definitions, see [Result tables](OUTPUTS.md).

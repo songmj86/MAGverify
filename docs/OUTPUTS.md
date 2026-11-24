@@ -1,6 +1,6 @@
 # Result tables
 
-MAGverify writes four integrated summary tables to the output directory and module-specific tables to numbered subdirectories. This document defines every reported column, including diagnostic calls, supporting read evidence and measurements. See the [README](../README.md#4-results) for the output overview and [Usage](USAGE.md#analysis-modules) for the corresponding commands.
+MAGverify writes four integrated tables to the output directory and module-specific tables to numbered subdirectories. This document defines every reported column, including diagnostic calls, supporting read evidence and measurements. See the [README](../README.md#4-results) for the output overview and [Usage](USAGE.md#analysis-modules) for the corresponding commands.
 
 **Table naming:** `MODULE.LEVEL.tsv`, where `LEVEL` identifies one row (for example, `MAG`, `contig`, `site`, `region`, `pair` or `assembler`). The four integrated `summary*.tsv` files are saved at the top of the output directory.
 
@@ -18,7 +18,7 @@ MAGverify writes four integrated summary tables to the output directory and modu
 
 | Section | Tables |
 | --- | --- |
-| [1. Summary](#1-summary) | [`summary.MAG.tsv`](#summarymagtsv), [`summary.contig.tsv`](#summarycontigtsv), [`summary_detail.MAG.tsv`](#detailed-summaries), [`summary_detail.contig.tsv`](#detailed-summaries) |
+| [1. Summary](#1-summary) | [`summary.MAG.tsv`](#summarymagtsv), [`summary.contig.tsv`](#summarycontigtsv), [`detail.MAG.tsv`](#detail-tables), [`detail.contig.tsv`](#detail-tables) |
 | [2. Read mapping](#2-read-mapping) | [`mapping.assembler.tsv`](#mappingassemblertsv) |
 | [3. Circularity](#3-circularity) | [`circularity.MAG.tsv`](#circularitymagtsv), [`circularity.contig.tsv`](#circularitycontigtsv) |
 | [4. Clipping](#4-clipping) | [`clipping.site.tsv`](#clippingsitetsv), [`clipping.contig.tsv`](#clippingcontigtsv), [`clipping.MAG.tsv`](#clippingmagtsv), [`clipping.assembler.tsv`](#clippingassemblertsv) |
@@ -31,12 +31,12 @@ MAGverify writes four integrated summary tables to the output directory and modu
 
 ## 1. Summary
 
-Four integrated summary files are written at the top of the output directory:
+Four integrated files are written at the top of the output directory:
 
-- `summary.MAG.tsv` and `summary.contig.tsv`: concise Y/N/NA flags grouped by module, followed by `n_flagged_checks` and `n_checks_not_run`.
-- `summary_detail.MAG.tsv` and `summary_detail.contig.tsv`: the same summary fields, diagnostic annotations, and module tables joined as `MODULE.COLUMN`.
+- `summary.MAG.tsv` and `summary.contig.tsv`: concise Y/N/NA flags in end-to-end module order, with `Assembly_variant` last.
+- `detail.MAG.tsv` and `detail.contig.tsv`: the same flags, diagnostic annotations, and every module column joined as `MODULE.COLUMN`.
 
-`Y` indicates a positive call, `N` a negative call, and `NA` a check that was unavailable or not assessable. Circularity support fields describe positive circularity evidence rather than a defect. The two `n_*` columns are at the end of each concise summary table.
+`Y` indicates a positive call, `N` a negative call, and `NA` a check that was unavailable or not assessable. Circularity support fields describe positive circularity evidence rather than a defect. Counts and skipped-check names are kept in the detailed summaries.
 
 ### `summary.MAG.tsv`
 
@@ -45,19 +45,16 @@ One row per MAG; columns appear in the following order.
 | Column | Definition |
 |---|---|
 | `MAG_ID` | MAG identifier |
-| `n_contigs` | Number of contigs in the MAG |
 | `Assembler_reported_circularity` | Y/N/NA call from `prep-circularity` |
 | `Read_supported_circularity` | HiFi read evidence supporting circular topology, from `Read_supported_circular_topology` |
-| `High_confidence_circular` | High-confidence circularity: both assembler-reported and read-supported calls are Y; NA when the assembler call is unavailable |
-| `Clipping` | At least one validated clipping site |
+| `High_confidence_circularity` | High-confidence circularity: both assembler-reported and read-supported calls are Y; NA when the assembler call is unavailable |
+| `High_confidence_clipping` | At least one high-confidence clipping site: `Stringent_clipping` Y in the clipping module (validated clipping with anvi'o coverage >= 10 and clipping ratio = 1.0); NA when clipping was not assessable or not run |
 | `Premature_circularization` | Single-contig MAG reported circular by its assembler with false-closure evidence |
-| `Phantom` | At least one phantom region |
+| `Phantom_sequence` | At least one phantom region |
 | `Excessive_repeat` | MAG-level excessive repeat flag |
 | `False_duplication` | At least one false-duplication event |
-| `Assembly_variant` | At least one assembly-allele disagreement |
 | `Chimera` | Taxonomic chimera flag from the chimera module |
-| `n_flagged_checks` | Count of Y calls among the seven diagnostic flags from `Clipping` through `Chimera`; circularity support is not counted as a defect |
-| `n_checks_not_run` | Number of unavailable or skipped check groups (see `Checks_not_run` in the detailed summary) |
+| `Assembly_variant` | At least one assembly-allele disagreement |
 
 ### `summary.contig.tsv`
 
@@ -68,20 +65,20 @@ One row per contig across all assemblies. `MAG_ID` is `NA` for unbinned contigs.
 | `Contig` | Contig identifier |
 | `MAG_ID` | Associated MAG identifier, or `NA` |
 | `Length_bp` | Contig length in base pairs |
-| `Clipping` | At least one validated clipping site |
-| `Phantom` | Phantom sequence flag |
+| `High_confidence_clipping` | At least one high-confidence clipping site (`Stringent_clipping` Y in the clipping module); NA when clipping was not assessable or not run |
+| `Phantom_sequence` | Phantom sequence flag |
 | `Excessive_repeat` | Intra-contig excessive repeat flag |
 | `False_duplication` | False-duplication flag |
-| `Assembly_variant` | Assembly-allele disagreement flag |
 | `Chimera` | Taxonomic chimera flag |
-| `n_flagged_checks` | Number of positive diagnostic flags |
-| `n_checks_not_run` | Number of skipped or unavailable check groups |
+| `Assembly_variant` | Assembly-allele disagreement flag |
 
-### Detailed summaries
+### Detail tables
 
-`summary_detail.MAG.tsv` includes the MAG summary columns, followed by diagnostic annotations and the available `MODULE.COLUMN` fields from module MAG tables. `summary_detail.contig.tsv` similarly includes only contigs assigned to MAGs and the available contig-level module fields. For the full meanings of `MODULE.COLUMN`, consult the relevant module table section below.
+`detail.MAG.tsv` starts with the MAG flags, followed by diagnostic annotations and the available `MODULE.COLUMN` fields from the module MAG tables, in end-to-end module order. `Chimera` and `Assembly_variant` sit immediately before their own module blocks (`chimera.*`, `variants.*`) rather than with the leading flags. `detail.contig.tsv` is built the same way from the contig-level tables and includes only contigs assigned to MAGs. For the full meanings of `MODULE.COLUMN`, consult the relevant module table section below.
 
-The detailed files retain the following additional summary-level fields that are omitted from the concise summaries:
+`Clipping_candidate` is the validated clipping call (`Clipping` Y at >= 1 site), kept alongside `High_confidence_clipping` so both clipping tiers are visible. The detail tables carry no check counters.
+
+They also retain the following summary-level fields that are omitted from the concise summaries:
 
 | Column | Definition |
 |---|---|
@@ -91,7 +88,7 @@ The detailed files retain the following additional summary-level fields that are
 | `False_duplication_with_clipping` | Co-occurrence of false duplication and validated clipping; additional evidence, not a separate primary diagnostic flag |
 | `Checks_not_run` | Names of check groups not run, or `NA` if none |
 
-Other detailed annotations include supporting counts, affected contigs, and repeat fractions. The module analysis algorithms and original call criteria are unchanged.
+Other annotations include supporting counts, affected contigs, and repeat fractions. The module analysis algorithms and original call criteria are unchanged.
 
 ## 2. Read mapping
 
@@ -123,9 +120,9 @@ One row per MAG. Only single-contig MAGs can be evaluated: the contig is rotated
 | `Assembler_reported_circularity` | Circularity reported by the assembler (`prep-circularity` table): Y, N, or NA when not available |
 | `Circularity_evaluable` | Y when the MAG is a single contig and both contig ends are reached by >= 2 HiFi reads (primary + supplementary), so the END\|START junction can be tested |
 | `Read_supported_circular_topology` | Y when >= 2 HiFi reads (primary + supplementary) span the END\|START junction with >= 2,000 bp aligned on each side and no deletion/skip across it; N when evaluable but not spanned; NA when not evaluable |
-| `High_confidence_circular` | Y when the assembler reports the contig circular **and** the reads support the junction; NA without the assembler circularity table |
+| `High_confidence_circularity` | Y when the assembler reports the contig circular **and** the reads support the junction; NA without the assembler circularity table |
 | `Additional_circular_candidate` | Y when the reads support the junction but the assembler did not report the contig circular; NA without the assembler circularity table |
-| `Circular` | Final call: `High_confidence_circular` with the assembler table, otherwise `Read_supported_circular_topology` |
+| `Circular` | Final call: `High_confidence_circularity` with the assembler table, otherwise `Read_supported_circular_topology` |
 | `n_contigs` | Number of contigs in the MAG |
 | `Contig` | Contig of a single-contig MAG; NA for multi-contig MAGs |
 | `Terminal_overlap_bp` | Longest exact overlap between the contig end and start (checked up to 100,000 bp) |
@@ -180,9 +177,9 @@ One row per contig of every assembly. The read evidence columns are filled for t
 | `Assembler_reported_circularity` | Circularity reported by the assembler (`prep-circularity` table): Y, N, or NA when not available |
 | `Circularity_evaluable` | Y when the MAG is a single contig and both contig ends are reached by >= 2 HiFi reads (primary + supplementary), so the END\|START junction can be tested |
 | `Read_supported_circular_topology` | Y when >= 2 HiFi reads (primary + supplementary) span the END\|START junction with >= 2,000 bp aligned on each side and no deletion/skip across it; N when evaluable but not spanned; NA when not evaluable |
-| `High_confidence_circular` | Y when the assembler reports the contig circular **and** the reads support the junction; NA without the assembler circularity table |
+| `High_confidence_circularity` | Y when the assembler reports the contig circular **and** the reads support the junction; NA without the assembler circularity table |
 | `Additional_circular_candidate` | Y when the reads support the junction but the assembler did not report the contig circular; NA without the assembler circularity table |
-| `Circular` | Final call: `High_confidence_circular` with the assembler table, otherwise `Read_supported_circular_topology` |
+| `Circular` | Final call: `High_confidence_circularity` with the assembler table, otherwise `Read_supported_circular_topology` |
 | `Terminal_overlap_bp` | Longest exact overlap between the contig end and start (checked up to 100,000 bp) |
 | `HiFi_END_reaching_reads` | Reads (HiFi primary and supplementary alignments) with >= 2,000 bp aligned on the END side of the junction |
 | `HiFi_START_reaching_reads` | Reads (HiFi primary and supplementary alignments) with >= 2,000 bp aligned on the START side of the junction |
@@ -618,7 +615,7 @@ One row per repeat alignment (HSP).
 
 ### `false_duplication.pair.tsv`
 
-One row per duplicated pair. Duplicated pairs are BLASTN copies >= 1,000 bp with >= 95% identity inside a MAG. Each copy boundary is tested with HiFi reads (primary + supplementary, 500-bp anchors): supported (Y) when >= 2 reads span it, N when >= 2 reads reach each side but none spans it, NA otherwise. A false duplication is a pair where one copy is spanned at both boundaries and the other at neither (for tandem copies: both outer boundaries spanned and the junction between the copies not).
+One row per duplicated pair. Duplicated pairs come from a minimap2 self-alignment of each assembly (`-x asm5 -DP`), keeping copies >= 1,000 bp with >= 95% identity inside a MAG. Each copy boundary is tested with HiFi reads (primary + supplementary, 500-bp anchors): supported (Y) when >= 2 reads span it, N when >= 2 reads reach each side but none spans it, NA otherwise. A false duplication is a pair where one copy is spanned at both boundaries and the other at neither (for tandem copies: both outer boundaries spanned and the junction between the copies not).
 
 | Column | Definition |
 |---|---|

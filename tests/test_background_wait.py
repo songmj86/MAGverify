@@ -13,7 +13,8 @@ class BackgroundWaitTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             script = f'''
 set -Eeuo pipefail
-source "{ROOT}/modules/lib_qc.sh"
+export OUT="{tmp}"
+source "{ROOT}/modules/lib_config.sh"
 exec > >(tee -a "{tmp}/log.txt") 2>&1
 for i in 1 2 3 4 5; do ( sleep 0.3; : > "{tmp}/$i.done" ) & qc_wait_for_slot 2; done
 qc_wait_all

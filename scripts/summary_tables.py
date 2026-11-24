@@ -888,10 +888,15 @@ def cmd_build(argv):
             required = {
                 'ID', 'Assembler_reported_circularity',
                 'Circularity_evaluable', 'Circularity_eligibility',
-                'Read_supported_circular_topology', 'High_confidence_circular',
+                'Read_supported_circular_topology',
                 'Additional_circular_candidate', 'Circular',
             }
             missing = required - fields
+            high_confidence_field = next(
+                (name for name in ('High_confidence_circularity', 'High_confidence_circular')
+                 if name in fields), None)
+            if high_confidence_field is None:
+                missing = missing | {'High_confidence_circularity'}
             if missing:
                 raise SystemExit(
                     f'ERROR: circularity-only table lacks columns '
@@ -904,7 +909,7 @@ def cmd_build(argv):
                 assembler = row['Assembler_reported_circularity']
                 evaluable = row['Circularity_evaluable']
                 topology = row['Read_supported_circular_topology']
-                high_conf = row['High_confidence_circular']
+                high_conf = row[high_confidence_field]
                 additional_candidate = row['Additional_circular_candidate']
                 circ = row['Circular']
                 eligibility = row['Circularity_eligibility']

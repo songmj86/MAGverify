@@ -4,7 +4,6 @@ set -Eeuo pipefail
 SCRIPT_ID="09_assembly_variants"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib_config.sh"
-source "$SCRIPT_DIR/lib_qc.sh"
 
 : "${OUT:?ERROR: OUT is not set}"
 : "${READS:?ERROR: READS is not set}"

@@ -22,8 +22,8 @@ class PrepChimeraCLITests(unittest.TestCase):
                      'scripts/__init__.py', 'scripts/core_magverify_cli.py'):
             shutil.copy2(ROOT / name, self.root / name)
         (self.root / 'bin/MAGverify').chmod(0o755)
-        helper = self.root / 'modules/00_prep_chimera.sh'
-        helper.write_text('#!/usr/bin/env bash\nset -euo pipefail\n[[ $# == 4 ]]\nmkdir -p "$1"\nprintf \'%s\\n\' "$1" "$2" "$3" "$4" > "$1/invocation.txt"\n')
+        helper = self.root / 'modules/00_prep.sh'
+        helper.write_text('#!/usr/bin/env bash\nset -euo pipefail\n[[ $# == 5 ]]\n[[ "$1" == chimera ]]\nshift\nmkdir -p "$1"\nprintf \'%s\\n\' "$1" "$2" "$3" "$4" > "$1/invocation.txt"\n')
         self.gtdb = Path(self.temp.name) / 'downloaded GTDB'
         self.gtdb.mkdir()
         for name in FILES:
@@ -79,7 +79,8 @@ class PrepChimeraCLITests(unittest.TestCase):
         result = self.run_cli('prep-chimera', '-d', self.gtdb,
                               '-o', self.output, '-t', '1', '--dry-run')
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn('00_prep_chimera.sh', result.stdout)
+        self.assertIn('00_prep.sh', result.stdout)
+        self.assertIn('chimera', result.stdout)
         self.assertIn(str(self.gtdb), result.stdout)
         self.assertFalse(self.output.exists())
 

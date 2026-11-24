@@ -346,7 +346,7 @@ def build_rows(
                 "Circularity_evaluable": evaluable,
                 "Circularity_eligibility": eligibility,
                 "Read_supported_circular_topology": topology,
-                "High_confidence_circular": high_confidence,
+                "High_confidence_circularity": high_confidence,
                 "Additional_circular_candidate": additional_candidate,
                 "Circular": circular,
             }
@@ -359,9 +359,9 @@ def build_rows(
 
 
 def validate_expected_structure(rows: Sequence[Mapping[str, str]]) -> None:
-    high_conf = Counter(row["High_confidence_circular"] for row in rows)
+    high_conf = Counter(row["High_confidence_circularity"] for row in rows)
     candidates = Counter(row["Additional_circular_candidate"] for row in rows)
-    both = [row["ID"] for row in rows if row["High_confidence_circular"] == "Y" and row["Additional_circular_candidate"] == "Y"]
+    both = [row["ID"] for row in rows if row["High_confidence_circularity"] == "Y" and row["Additional_circular_candidate"] == "Y"]
     if both:
         fail(f"MAG cannot be both high-confidence circular and additional candidate: {both[:10]}")
     if high_conf.get("Y", 0) + candidates.get("Y", 0) > sum(row["Read_supported_circular_topology"] == "Y" for row in rows):
@@ -399,7 +399,7 @@ def _refresh_main() -> None:
     final_fields = [
         "ID", "Assembler_reported_circularity", "Circularity_evaluable",
         "Circularity_eligibility", "Read_supported_circular_topology",
-        "High_confidence_circular", "Additional_circular_candidate", "Circular",
+        "High_confidence_circularity", "Additional_circular_candidate", "Circular",
     ]
     atomic_write(args.final, final_fields, final_rows)
     if args.audit:
@@ -413,7 +413,7 @@ def _refresh_main() -> None:
         "topology_N": sum(row["Read_supported_circular_topology"] == "N" for row in final_rows),
         "topology_NA": sum(row["Read_supported_circular_topology"] == "NA" for row in final_rows),
         "assembler_Y": sum(row["Assembler_reported_circularity"] == "Y" for row in final_rows),
-        "high_confidence": sum(row["High_confidence_circular"] == "Y" for row in final_rows),
+        "high_confidence": sum(row["High_confidence_circularity"] == "Y" for row in final_rows),
         "additional_candidates": sum(row["Additional_circular_candidate"] == "Y" for row in final_rows),
     }
     print("Circularity compatibility output refreshed:")

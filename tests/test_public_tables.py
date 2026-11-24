@@ -83,21 +83,29 @@ class PublicTableTests(unittest.TestCase):
         self.assertFalse((self.root / '10_summary').exists())
         pt.publish(self.root)
         c = read(self.root / 'summary.contig.tsv')[0]
-        self.assertEqual((c['Clipping'], c['Chimera'], c['Phantom'], c['n_checks_not_run']),
-                         ('Y', 'NA', 'Y', '1'))
+        self.assertEqual((c['High_confidence_clipping'], c['Chimera'], c['Phantom_sequence']),
+                         ('NA', 'NA', 'Y'))
+        detail_c = read(self.root / 'detail.contig.tsv')[0]
+        self.assertEqual((detail_c['Clipping_candidate'], detail_c['Checks_not_run']),
+                         ('Y', 'taxonomic_chimera'))
         for removed in ('QC_call', 'MAG_integrated_QC_call', 'integrated_interpretation', 'excessive_repeat_call',
                         'false_duplication_clipping_summary', 'Circularity_eligibility'):
             self.assertNotIn(removed, c)
         m = read(self.root / 'summary.MAG.tsv')[0]
         self.assertEqual(list(m), pt.SUMMARY_MAG_FIELDS)
         self.assertEqual(list(c), pt.SUMMARY_CONTIG_FIELDS)
-        self.assertEqual(m['n_flagged_checks'], '2')
+        for removed in ('n_contigs', 'n_flagged_checks', 'n_checks_not_run', 'Clipping', 'Phantom'):
+            self.assertNotIn(removed, m)
+        detail_m = read(self.root / 'detail.MAG.tsv')[0]
+        for removed in ('n_flagged_checks', 'n_checks_not_run'):
+            self.assertNotIn(removed, detail_m)
+        self.assertEqual(detail_m['Clipping_candidate'], 'Y')
         for removed in ('QC_call', 'MAG_integrated_QC_call', 'Circularity_eligibility', 'excessive_repeat_call',
                         'false_duplication_clipping_summary'):
             self.assertNotIn(removed, m)
         self.assertEqual((m['Chimera'], m['Read_supported_circularity'], m['Premature_circularization']), ('NA', 'NA', 'NA'))
-        self.assertEqual(m['n_checks_not_run'], '3')
-        self.assertIn('circularity', read(self.root / 'summary_detail.MAG.tsv')[0]['Checks_not_run'])
+        self.assertEqual(list(detail_m)[:len(pt.DETAIL_MAG_LEAD)], pt.DETAIL_MAG_LEAD)
+        self.assertIn('circularity', read(self.root / 'detail.MAG.tsv')[0]['Checks_not_run'])
 
     def test_summary_has_yes_no_and_full_versions(self):
         self.test_summary_tables_go_to_the_top()
@@ -111,15 +119,16 @@ class PublicTableTests(unittest.TestCase):
         m = read(self.root / 'summary.MAG.tsv')[0]
         for detail in ('n_clipping_sites', 'Repeat_fraction', 'False_closure_partner_contigs'):
             self.assertNotIn(detail, m)
-        self.assertTrue(all(m[k] in ('Y', 'N', 'NA') for k in ('Clipping', 'Phantom', 'Read_supported_circularity')))
-        full = read(self.root / 'summary_detail.MAG.tsv')[0]
-        self.assertEqual(list(full)[:len(m)], list(m))
-        self.assertEqual(list(full)[:len(pt.SUMMARY_MAG_FIELDS) + len(pt.SUMMARY_MAG_DETAILS)],
-                         pt.SUMMARY_MAG_FIELDS + pt.SUMMARY_MAG_DETAILS)
+        self.assertTrue(all(m[k] in ('Y', 'N', 'NA')
+                            for k in ('High_confidence_clipping', 'Phantom_sequence',
+                                      'Read_supported_circularity')))
+        full = read(self.root / 'detail.MAG.tsv')[0]
+        self.assertEqual(list(full)[:len(pt.DETAIL_MAG_LEAD) + len(pt.SUMMARY_MAG_DETAILS)],
+                         pt.DETAIL_MAG_LEAD + pt.SUMMARY_MAG_DETAILS)
         self.assertEqual((full['n_clipping_sites'], full['clipping.Clipping'], full['clipping.n_clipping_sites']),
                          ('NA', 'Y', '2'))
         self.assertNotIn('clipping.MAG_ID', full)
-        contigs = read(self.root / 'summary_detail.contig.tsv')
+        contigs = read(self.root / 'detail.contig.tsv')
         self.assertEqual([row['Contig'] for row in contigs], ['c1'])
         self.assertEqual((contigs[0]['clipping.Clipping'], contigs[0]['phantom.Phantom'], contigs[0]['n_clipping_sites']),
                          ('Y', 'Y', '2'))
@@ -127,18 +136,20 @@ class PublicTableTests(unittest.TestCase):
 
     def test_module_order_and_summary_counts(self):
         self.assertEqual(pt.SUMMARY_MAG_FIELDS, [
-            'MAG_ID', 'n_contigs', 'Assembler_reported_circularity',
-            'Read_supported_circularity', 'High_confidence_circular',
-            'Clipping', 'Premature_circularization', 'Phantom', 'Excessive_repeat',
-            'False_duplication', 'Assembly_variant', 'Chimera',
-            'n_flagged_checks', 'n_checks_not_run'])
+            'MAG_ID', 'Assembler_reported_circularity',
+            'Read_supported_circularity', 'High_confidence_circularity',
+            'High_confidence_clipping', 'Premature_circularization',
+            'Phantom_sequence', 'Excessive_repeat', 'False_duplication',
+            'Chimera', 'Assembly_variant'])
         self.assertEqual(pt.SUMMARY_CONTIG_FIELDS, [
-            'Contig', 'MAG_ID', 'Length_bp', 'Clipping', 'Phantom',
-            'Excessive_repeat', 'False_duplication', 'Assembly_variant',
-            'Chimera', 'n_flagged_checks', 'n_checks_not_run'])
+            'Contig', 'MAG_ID', 'Length_bp', 'High_confidence_clipping',
+            'Phantom_sequence', 'Excessive_repeat', 'False_duplication',
+            'Chimera', 'Assembly_variant'])
         self.assertEqual([name for name, _ in pt.FULL_MODULES], [
             'circularity', 'clipping', 'false_closure', 'phantom', 'repeats',
-            'false_duplication', 'variants', 'chimera'])
+            'false_duplication', 'chimera', 'variants'])
+        self.assertEqual(pt.DETAIL_MODULE_FLAGS,
+                         {'chimera': ('Chimera',), 'variants': ('Assembly_variant',)})
         # Changing the column order does not change which flags enter the count.
         self.assertEqual(len(pt.MAG_CHECKS), 7)
 
@@ -155,42 +166,42 @@ class PublicTableTests(unittest.TestCase):
         # All cached tables are unchanged. Publishing must still update the headers.
         pt.publish(self.root)
         self.assertTrue(pt.summary_headers_current(self.root))
-        self.assertEqual(read(old_path)[0]['n_flagged_checks'], '2')
+        self.assertEqual(list(read(old_path)[0]), pt.SUMMARY_MAG_FIELDS)
 
     def test_three_circularity_evidence_columns_preserve_na_and_independent_support(self):
         self.test_summary_tables_go_to_the_top()
         path = self.root / '02_circularity/.cache/circularity.MAG.tsv'
         write(path, ['ID', 'Assembler_reported_circularity',
-                     'Read_supported_circular_topology', 'High_confidence_circular'],
+                     'Read_supported_circular_topology', 'High_confidence_circularity'],
               [['B1', 'N', 'Y', 'N']])
         pt.publish(self.root)
         row = read(self.root / 'summary.MAG.tsv')[0]
         self.assertEqual((row['Assembler_reported_circularity'],
                           row['Read_supported_circularity'],
-                          row['High_confidence_circular']), ('N', 'Y', 'N'))
+                          row['High_confidence_circularity']), ('N', 'Y', 'N'))
         # The old final Circular could be Y when assembler evidence was unavailable.
         # The new both-supported column must remain NA, not copy that old alias.
         write(path, ['ID', 'Assembler_reported_circularity',
-                     'Read_supported_circular_topology', 'High_confidence_circular'],
+                     'Read_supported_circular_topology', 'High_confidence_circularity'],
               [['B1', 'NA', 'Y', 'NA']])
         pt.publish(self.root, force=True)
         row = read(self.root / 'summary.MAG.tsv')[0]
         self.assertEqual((row['Assembler_reported_circularity'],
                           row['Read_supported_circularity'],
-                          row['High_confidence_circular']), ('NA', 'Y', 'NA'))
+                          row['High_confidence_circularity']), ('NA', 'Y', 'NA'))
         write(path, ['ID', 'Assembler_reported_circularity',
-                     'Read_supported_circular_topology', 'High_confidence_circular'],
+                     'Read_supported_circular_topology', 'High_confidence_circularity'],
               [['B1', 'Y', 'Y', 'Y']])
         pt.publish(self.root, force=True)
         row = read(self.root / 'summary.MAG.tsv')[0]
         self.assertEqual((row['Assembler_reported_circularity'],
                           row['Read_supported_circularity'],
-                          row['High_confidence_circular']), ('Y', 'Y', 'Y'))
+                          row['High_confidence_circularity']), ('Y', 'Y', 'Y'))
 
     def test_basic_summary_does_not_conflate_distinct_diagnostic_calls(self):
         self.test_summary_tables_go_to_the_top()
         public = read(self.root / 'summary.MAG.tsv')[0]
-        detailed = read(self.root / 'summary_detail.MAG.tsv')[0]
+        detailed = read(self.root / 'detail.MAG.tsv')[0]
         self.assertNotIn('False_closure', public)
         self.assertNotIn('Premature_circularization_screen', public)
         self.assertNotIn('False_duplication_with_clipping', public)
@@ -201,12 +212,19 @@ class PublicTableTests(unittest.TestCase):
 
     def test_previous_full_summary_names_migrate_to_detail(self):
         for level in ('contig', 'MAG'):
-            old = self.root / f'summary_full.{level}.tsv'
-            old.write_text('old\n')
+            (self.root / f'summary_full.{level}.tsv').write_text('old\n')
         pt.migrate(self.root)
         for level in ('contig', 'MAG'):
             self.assertFalse((self.root / f'summary_full.{level}.tsv').exists())
-            self.assertEqual((self.root / f'summary_detail.{level}.tsv').read_text(), 'old\n')
+            self.assertEqual((self.root / f'detail.{level}.tsv').read_text(), 'old\n')
+
+    def test_summary_detail_names_migrate_to_detail(self):
+        for level in ('contig', 'MAG'):
+            (self.root / f'summary_detail.{level}.tsv').write_text('older\n')
+        pt.migrate(self.root)
+        for level in ('contig', 'MAG'):
+            self.assertFalse((self.root / f'summary_detail.{level}.tsv').exists())
+            self.assertEqual((self.root / f'detail.{level}.tsv').read_text(), 'older\n')
 
     def test_earlier_tables_move_to_cache(self):
         write(self.root / '06_repeats/repeats.dataset.tsv', ['scope_id'], [['ALL']])

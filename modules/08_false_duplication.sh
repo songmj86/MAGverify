@@ -7,7 +7,6 @@ CLIPPING_ANNOTATION_VERSION="false_duplication_clipping_annotation_v1"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib_config.sh"
-source "$SCRIPT_DIR/lib_qc.sh"
 
 FALSE_DUP_MINIMAP_PRESET="${FALSE_DUP_MINIMAP_PRESET:-asm5}"
 FALSE_DUP_MINIMAP_INDEX_CHUNK="${FALSE_DUP_MINIMAP_INDEX_CHUNK:-${MINIMAP2_INDEX_CHUNK_SINGLE:-900G}}"

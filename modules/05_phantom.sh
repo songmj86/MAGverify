@@ -4,7 +4,6 @@ set -Eeuo pipefail
 INTEGRATED_SCRIPT_ID="05_phantom"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib_config.sh"
-source "$SCRIPT_DIR/lib_qc.sh"
 
 run_hifi_phantom_phase() (
 SCRIPT_ID="05_phantom"

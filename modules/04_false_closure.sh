@@ -4,7 +4,6 @@ set -Eeuo pipefail
 SCRIPT_ID="04_false_closure"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib_config.sh"
-source "$SCRIPT_DIR/lib_qc.sh"
 
 FALSE_CLOSURE_SCRIPT="$SCRIPT_DIR/../scripts/false_closure.py"
 CLIP_ALL_FINAL="${CLIP_ALL_FINAL:-${CLIPPING_DIR}/.cache/clipping.site.tsv}"

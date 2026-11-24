@@ -4,7 +4,6 @@ set -Eeuo pipefail
 SCRIPT_ID="10_summary"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib_config.sh"
-source "$SCRIPT_DIR/lib_qc.sh"
 
 GTDB_CHIMERA_REPORT_CONTIG="${GTDB_CHIMERA_REPORT_CONTIG:-$CHIMERA_ROOT_DIR/.cache/chimera.contig.tsv}"
 

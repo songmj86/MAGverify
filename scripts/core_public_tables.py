@@ -270,17 +270,20 @@ def not_run_modules(row, columns):
 
 def summary_contig(internal, public):
     _fields, rows = read(internal)
+    high_confidence_clipping = clipping_high_confidence_calls(Path(public).parent, 'contig')
     out = []
     for row in rows:
         clip = row['validated_clipping_breakpoints']
         new = {
             'Contig': row['contig'], 'MAG_ID': row['MAG_ID'], 'Length_bp': row['length'],
-            'n_flagged_checks': row['n_flagged_modules'],
             'Clipping': 'NA' if clip == 'NA' else ('Y' if int(clip) > 0 else 'N'),
             'n_clipping_sites': clip,
         }
+        new['Clipping_candidate'] = new['Clipping']
+        new['High_confidence_clipping'] = high_confidence_clipping.get(row['contig'], 'NA')
         for name, column, yes, no in CONTIG_CALLS:
             new[name] = to_yn(row[column], yes, no)
+        new['Phantom_sequence'] = new['Phantom']
         new['Chimera_ranks'] = row['GTDB_taxonomic_chimera_ranks']
         new['Repeat_fraction'] = row['repeat_fraction']
         new['n_duplicated_pairs'] = row['n_false_duplication_candidate_pairs']
@@ -294,14 +297,13 @@ def summary_contig(internal, public):
         if clip == 'NA':
             missing.append('clipping')
         new['Checks_not_run'] = ','.join(sorted(set(missing))) or 'NA'
-        new['n_checks_not_run'] = str(len(set(missing)))
         out.append(new)
     write(public, SUMMARY_CONTIG_FIELDS, out)
     return {row['contig']: row for row in rows}, out
 
 
 # The public check count includes only the diagnostic flags in summary.MAG.tsv.
-# False_closure remains available in summary_detail.MAG.tsv and in the
+# False_closure remains available in detail.MAG.tsv and in the
 # false-closure module, because it is not synonymous with premature circularization.
 MAG_CHECKS = (
     ('Clipping', 'Clipping_Y_N', None),
@@ -314,6 +316,26 @@ MAG_CHECKS = (
 )
 
 
+def clipping_high_confidence_calls(root, level):
+    """High-confidence clipping (Stringent_clipping) from the clipping module table."""
+    root = Path(root)
+    key_names = ('MAG_ID',) if level == 'MAG' else ('Contig',)
+    for path in (root / f'03_clipping/clipping.{level}.tsv',
+                 root / f'03_clipping/.cache/clipping.{level}.tsv'):
+        if not path.is_file():
+            continue
+        fields, rows = read(path)
+        key = next((name for name in key_names if name in fields), None)
+        if not key or 'Stringent_clipping' not in fields:
+            continue
+        calls = {}
+        for row in rows:
+            value = row['Stringent_clipping']
+            calls[row[key]] = value if value in ('Y', 'N', 'NA') else 'NA'
+        return calls
+    return {}
+
+
 def circularity_summary_calls(root):
     """Use existing circularity evidence; never infer read support from a final flag."""
     root = Path(root)
@@ -324,8 +346,12 @@ def circularity_summary_calls(root):
         fields, rows = read(path)
         key = 'MAG_ID' if 'MAG_ID' in fields else 'ID' if 'ID' in fields else None
         if not key or not {'Assembler_reported_circularity',
-                           'Read_supported_circular_topology',
-                           'High_confidence_circular'} <= set(fields):
+                           'Read_supported_circular_topology'} <= set(fields):
+            continue
+        high_confidence_field = next(
+            (name for name in ('High_confidence_circularity', 'High_confidence_circular')
+             if name in fields), None)
+        if high_confidence_field is None:
             continue
         calls = {}
         for row in rows:
@@ -334,7 +360,7 @@ def circularity_summary_calls(root):
                 raise ValueError(f'Duplicate circularity MAG ID: {mag}')
             assembler = row['Assembler_reported_circularity']
             read_support = row['Read_supported_circular_topology']
-            both = row['High_confidence_circular']
+            both = row[high_confidence_field]
             if any(v not in ('Y', 'N', 'NA') for v in (assembler, read_support, both)):
                 raise ValueError(f'Invalid circularity flag for MAG {mag}')
             calls[mag] = (assembler, read_support, both)
@@ -348,6 +374,7 @@ def summary_mag(internal, public, contigs):
     for contig in contigs.values():
         by_mag.setdefault(contig['MAG_ID'], []).append(contig)
     circularity = circularity_summary_calls(Path(public).parent)
+    high_confidence_clipping = clipping_high_confidence_calls(Path(public).parent, 'MAG')
     out = []
     for row in rows:
         members = by_mag.get(row['MAG_ID'], [])
@@ -366,12 +393,14 @@ def summary_mag(internal, public, contigs):
             if not ran:
                 not_run.append(name.lower())
             new[name] = value if ran else 'NA'
-        new['n_flagged_checks'] = str(sum(new[name] == 'Y' for name, _c, _r in MAG_CHECKS))
+        new['Clipping_candidate'] = new['Clipping']
+        new['High_confidence_clipping'] = high_confidence_clipping.get(row['MAG_ID'], 'NA')
+        new['Phantom_sequence'] = new['Phantom']
         assembly, read_support, both = circularity.get(row['MAG_ID'], ('NA', 'NA', 'NA'))
         new.update({
             'Assembler_reported_circularity': assembly,
             'Read_supported_circularity': read_support,
-            'High_confidence_circular': both,
+            'High_confidence_circularity': both,
         })
         if row['Circular'] in NOT_RUN:
             not_run.append('circularity')
@@ -393,18 +422,17 @@ def summary_mag(internal, public, contigs):
             'n_unresolved_duplicated_pairs': row['n_false_duplication_insufficient_pairs'],
             'False_duplication_with_clipping': row['false_duplication_with_validated_clipping_Y_N_NA'],
             'Checks_not_run': ','.join(sorted(set(not_run))) or 'NA',
-            'n_checks_not_run': str(len(set(not_run))),
         })
         out.append(new)
     write(public, SUMMARY_MAG_FIELDS, out)
     return out
 
 
-# Public flags follow end-to-end module order. Counters are the last two columns.
+# Public flags follow end-to-end module order; Assembly_variant is last.
 SUMMARY_CONTIG_FIELDS = [
-    'Contig', 'MAG_ID', 'Length_bp', 'Clipping', 'Phantom', 'Excessive_repeat',
-    'False_duplication', 'Assembly_variant', 'Chimera',
-    'n_flagged_checks', 'n_checks_not_run',
+    'Contig', 'MAG_ID', 'Length_bp', 'High_confidence_clipping',
+    'Phantom_sequence', 'Excessive_repeat', 'False_duplication', 'Chimera',
+    'Assembly_variant',
 ]
 SUMMARY_CONTIG_DETAILS = [
     'Assembler', 'n_clipping_sites', 'Repeat_fraction', 'n_duplicated_pairs',
@@ -412,12 +440,27 @@ SUMMARY_CONTIG_DETAILS = [
     'False_duplication_with_clipping', 'Checks_not_run',
 ]
 SUMMARY_MAG_FIELDS = [
+    'MAG_ID',
+    'Assembler_reported_circularity', 'Read_supported_circularity',
+    'High_confidence_circularity', 'High_confidence_clipping',
+    'Premature_circularization', 'Phantom_sequence', 'Excessive_repeat',
+    'False_duplication', 'Chimera', 'Assembly_variant',
+]
+# detail.*.tsv: summary flags, diagnostic annotations, then every module column.
+# Chimera and Assembly_variant sit next to their own module blocks.
+DETAIL_CONTIG_LEAD = [
+    'Contig', 'MAG_ID', 'Length_bp', 'Assembler', 'Clipping_candidate',
+    'High_confidence_clipping', 'Phantom_sequence', 'Excessive_repeat',
+    'False_duplication',
+]
+DETAIL_MAG_LEAD = [
     'MAG_ID', 'n_contigs',
     'Assembler_reported_circularity', 'Read_supported_circularity',
-    'High_confidence_circular', 'Clipping', 'Premature_circularization',
-    'Phantom', 'Excessive_repeat', 'False_duplication',
-    'Assembly_variant', 'Chimera', 'n_flagged_checks', 'n_checks_not_run',
+    'High_confidence_circularity', 'Clipping_candidate',
+    'High_confidence_clipping', 'Premature_circularization', 'Phantom_sequence',
+    'Excessive_repeat', 'False_duplication',
 ]
+DETAIL_MODULE_FLAGS = {'chimera': ('Chimera',), 'variants': ('Assembly_variant',)}
 SUMMARY_MAG_DETAILS = [
     'False_closure', 'Small_genome_proxy', 'Premature_circularization_screen',
     'False_duplication_with_clipping', 'Checks_not_run',
@@ -433,8 +476,8 @@ FULL_MODULES = (
     ('phantom', '05_phantom/phantom'),
     ('repeats', '06_repeats/repeats'),
     ('false_duplication', '08_false_duplication/false_duplication'),
-    ('variants', '09_assembly_variants/variants'),
     ('chimera', '07_chimera/chimera'),
+    ('variants', '09_assembly_variants/variants'),
 )
 FULL_SKIP = {'MAG': {'MAG_ID', 'n_contigs', 'MAG_length_bp', 'Assembler'},
              'contig': {'Contig', 'MAG_ID', 'Assembler', 'Length_bp', 'n_contigs'}}
@@ -447,6 +490,7 @@ def full_table(root, level, rows, key, lead):
     fields = list(lead)
     merged = {name: {} for name in wanted}
     for module, stem in FULL_MODULES:
+        fields += [name for name in DETAIL_MODULE_FLAGS.get(module, ()) if name not in fields]
         path = root / f'{stem}.{level}.tsv'
         if not path.is_file():
             continue
@@ -480,12 +524,11 @@ def write_full_tables(root, contig_rows, mag_rows):
     root = Path(root)
     mag_contigs = [row for row in contig_rows if row.get('MAG_ID') not in ('', 'NA', None)]
     fields, rows = full_table(root, 'contig', mag_contigs, 'Contig',
-                              SUMMARY_CONTIG_FIELDS[:3] + ['Assembler'] + SUMMARY_CONTIG_FIELDS[3:]
-                              + SUMMARY_CONTIG_DETAILS[1:])
-    write(root / 'summary_detail.contig.tsv', fields, rows)
-    fields, rows = full_table(root, 'MAG', mag_rows, 'MAG_ID', SUMMARY_MAG_FIELDS + SUMMARY_MAG_DETAILS)
-    write(root / 'summary_detail.MAG.tsv', fields, rows)
-    return [str(root / 'summary_detail.contig.tsv'), str(root / 'summary_detail.MAG.tsv')]
+                              DETAIL_CONTIG_LEAD + SUMMARY_CONTIG_DETAILS[1:])
+    write(root / 'detail.contig.tsv', fields, rows)
+    fields, rows = full_table(root, 'MAG', mag_rows, 'MAG_ID', DETAIL_MAG_LEAD + SUMMARY_MAG_DETAILS)
+    write(root / 'detail.MAG.tsv', fields, rows)
+    return [str(root / 'detail.contig.tsv'), str(root / 'detail.MAG.tsv')]
 
 
 def header_matches(path, expected):
@@ -506,13 +549,12 @@ def summary_headers_current(root):
 
 def full_tables_current(root):
     root = Path(root)
-    targets = [root / 'summary_detail.contig.tsv', root / 'summary_detail.MAG.tsv']
+    targets = [root / 'detail.contig.tsv', root / 'detail.MAG.tsv']
     if not all(path.is_file() for path in targets):
         return False
-    detailed_contig_prefix = (SUMMARY_CONTIG_FIELDS[:3] + ['Assembler']
-                              + SUMMARY_CONTIG_FIELDS[3:] + SUMMARY_CONTIG_DETAILS[1:])
+    detailed_contig_prefix = DETAIL_CONTIG_LEAD + SUMMARY_CONTIG_DETAILS[1:]
     if not (header_matches(targets[0], detailed_contig_prefix)
-            and header_matches(targets[1], SUMMARY_MAG_FIELDS + SUMMARY_MAG_DETAILS)):
+            and header_matches(targets[1], DETAIL_MAG_LEAD + SUMMARY_MAG_DETAILS)):
         return False
     oldest = min(path.stat().st_mtime_ns for path in targets)
     sources = [root / '.cache/summary/summary.contig.tsv', root / '.cache/summary/summary.MAG.tsv']
@@ -524,13 +566,13 @@ def migrate(root):
     root = Path(root)
     # Migrate older public names without leaving duplicate summary tables.
     for level in ('contig', 'MAG'):
-        old = root / f'summary_full.{level}.tsv'
-        new = root / f'summary_detail.{level}.tsv'
-        if old.is_file():
-            if not new.exists():
-                os.replace(old, new)
-            else:
-                old.unlink()
+        new = root / f'detail.{level}.tsv'
+        for old in (root / f'summary_full.{level}.tsv', root / f'summary_detail.{level}.tsv'):
+            if old.is_file():
+                if not new.exists():
+                    os.replace(old, new)
+                else:
+                    old.unlink()
     for old, internal in MOVED:
         if (root / old).is_file() and not (root / internal).exists():
             (root / internal).parent.mkdir(parents=True, exist_ok=True)

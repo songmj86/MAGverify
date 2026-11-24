@@ -137,7 +137,7 @@ FINAL_TABLES = {
                           '08_false_duplication/false_duplication.MAG.tsv'),
     'variants': ('09_assembly_variants/variants.site.tsv', '09_assembly_variants/variants.contig.tsv',
                  '09_assembly_variants/variants.MAG.tsv'),
-    'summary': ('summary.MAG.tsv', 'summary.contig.tsv', 'summary_detail.MAG.tsv', 'summary_detail.contig.tsv'),
+    'summary': ('summary.MAG.tsv', 'summary.contig.tsv', 'detail.MAG.tsv', 'detail.contig.tsv'),
 }
 GENERATED_RESULTS_NAMES = {
     'mapping_manifest.tsv', 'clipping_sites.tsv', 'clipping_mag.tsv', 'clipping_contig.tsv', 'gene_taxonomy.tsv',
@@ -831,7 +831,7 @@ def need_result(name, args, root, env, stage, optional=False):
 def prep_chimera_run(args):
     """Build an MMseqs2 taxonomy DB from user-downloaded GTDB R232 inputs."""
     root, env = defaults_for('prep-chimera', args)
-    script = ROOT / '00_prep_chimera.sh'
+    script = ROOT / '00_prep.sh'
     if not script.is_file():
         raise UsageError(f'Missing installed GTDB preparation module: {script}')
     gtdb_dir = dir_input(args.gtdb_dir, '-d')
@@ -848,7 +848,7 @@ def prep_chimera_run(args):
     print('GTDB R232 input directory: ' + str(gtdb_dir), flush=True)
     print('GTDB R232 database prefix: ' + str(db), flush=True)
     print('Temporary MMseqs2 directory: ' + str(work), flush=True)
-    run(['bash', str(script), str(work), env['THREADS'], str(gtdb_dir), str(db)],
+    run(['bash', str(script), 'chimera', str(work), env['THREADS'], str(gtdb_dir), str(db)],
         env, args.dry_run)
 
 
@@ -857,7 +857,8 @@ def prep_circularity_run(args):
     root, env = defaults_for('prep-circularity', args)
     mags = dir_input(args.mag_dir, '-g')
     files = [str(file_input(path, '-c')) for path in args.sources]
-    run(['bash', str(ROOT / '00_prep_circularity.sh'), str(mags), str(root), *files], env, args.dry_run)
+    run(['bash', str(ROOT / '00_prep.sh'), 'circularity', str(mags), str(root), *files],
+        env, args.dry_run)
 
 
 def prep_taxonomy_run(args):
@@ -867,7 +868,8 @@ def prep_taxonomy_run(args):
     mags = dir_input(args.mag_dir, '-g')
     output = root / RESULTS['mag_taxonomy']
     print('MAG taxonomy: ' + str(output), flush=True)
-    run(['bash', str(ROOT / '00_prep_taxonomy.sh'), str(gtdbtk), str(mags), str(output)], env, args.dry_run)
+    run(['bash', str(ROOT / '00_prep.sh'), 'taxonomy', str(gtdbtk), str(mags), str(output)],
+        env, args.dry_run)
 
 
 def prep_scg_run(args):
@@ -884,7 +886,7 @@ def prep_scg_run(args):
     env['SCG_TSV'] = str(root / RESULTS['scg_table'])
     env['GENE_CALLS_DIR'] = str(root / '00_prep')
     print('SCG table: ' + env['SCG_TSV'], flush=True)
-    run(['bash', str(ROOT / '00_prep_scg.sh'), str(assembly), str(out), env['THREADS']],
+    run(['bash', str(ROOT / '00_prep.sh'), 'scg', str(assembly), str(out), env['THREADS']],
         env, args.dry_run)
 
 
