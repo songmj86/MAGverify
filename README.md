@@ -22,25 +22,33 @@ MAGverify list displays the available commands and analysis modules with brief d
 
 Use the test dataset to check that MAGverify runs correctly before applying it to your own data. [input_dataset.tar.gz](https://huggingface.co/datasets/ATCC19718/MAGverify-resources/resolve/main/input_dataset.tar.gz) (1.1 GB) is available on [Hugging Face](https://huggingface.co/datasets/ATCC19718/MAGverify-resources) and holds one complete set of MAGverify inputs:
 
-| Input | Contents |
-|---|---|
-| Assemblies (`-a`) | Three assemblies of the same sample: hifiasm-meta, metaMDBG and metaFlye |
-| MAGs (`-g`) | 30 MAGs binned from those assemblies |
-| HiFi reads (`-r`) | The PacBio HiFi reads the three assemblies were built from |
-| Assembler circularity (`prep-circularity -c`) | The assembler output files that record circularity |
-| GTDB-Tk results (`prep-taxonomy -d`) | `classify_wf` output for the 30 MAGs |
+```
+input_dataset
+├── contigs                       # -a: three assemblies of the same sample
+│   ╰── ...                       #     hifiasm-meta, metaMDBG, metaFlye
+├── MAGs                          # -g: 30 MAGs binned from those assemblies
+│   ╰── ...
+├── reads
+│   ╰── read.fastq.gz             # -r: the HiFi reads the assemblies were built from
+├── assembler_circularity         # prep-circularity -c
+│   ├── Read.p_ctg.noseq.gfa      #     hifiasm-meta
+│   ├── contigs.fasta.gz          #     metaMDBG
+│   ╰── assembly_info.txt         #     metaFlye
+╰── gtdbtk                        # prep-taxonomy -d: classify_wf output for the 30 MAGs
+    ╰── ...
+```
 
 Download and extract it:
 
 ```bash
-Data="/path/to/test_dataset"
-mkdir -p "$Data"
+Dir=/path/to/test_dataset
+mkdir -p "$Dir"
 
 aria2c -c -x 8 -s 8 -k 8M \
-  -d "$Data" -o input_dataset.tar.gz \
+  -d "$Dir" -o input_dataset.tar.gz \
   "https://huggingface.co/datasets/ATCC19718/MAGverify-resources/resolve/main/input_dataset.tar.gz"
 
-tar -xzf "$Data/input_dataset.tar.gz" -C "$Data"
+tar -xzf "$Dir/input_dataset.tar.gz" -C "$Dir"    # creates $Dir/input_dataset
 ```
 
 ## 3. Preparation
@@ -54,15 +62,16 @@ Run the preparation commands before analysis using the same `-o` to save their o
 | [`prep-circularity`](docs/USAGE.md#3-assembler-circularity) | `assembler_circularity.MAG.tsv`, `assembler_circularity.contig.tsv` | `circularity`, `false-closure` |
 | [`prep-taxonomy`](docs/USAGE.md#4-mag-taxonomy) | `gtdbtk_taxonomy.MAG.tsv` | `chimera` |
 
-See [Usage](docs/USAGE.md#preparation) for commands, download links and input formats.
-
-With the [test dataset](#2-test-dataset), the three preparation commands are:
+With the [test dataset](#2-test-dataset), the four preparation commands are:
 
 ```bash
-Data=/path/to/input_subset          # extracted test dataset
+Data=/path/to/input_dataset             # extracted test dataset
 Base=/path/to/MAGverify_output
+GTDB_DIR=/path/to/GTDB_R232_downloads
 
-MAGverify prep-scg -a "$Data/contigs" -o "$Base" -t 16
+MAGverify prep-chimera -d "$GTDB_DIR" -o "$Base" -t 100
+
+MAGverify prep-scg -a "$Data/contigs" -o "$Base" -t 100
 
 MAGverify prep-circularity \
   -c "$Data/assembler_circularity/Read.p_ctg.noseq.gfa" \
@@ -74,7 +83,7 @@ MAGverify prep-circularity \
 MAGverify prep-taxonomy -d "$Data/gtdbtk" -g "$Data/MAGs" -o "$Base"
 ```
 
-`prep-chimera` is the fourth command. Building its database takes a 123 GB download; for a test run, extract the prebuilt database into `"$Base/00_prep"` instead, or leave `chimera` out with `--skip chimera`. See [Usage](docs/USAGE.md#1-gtdb-r232-database).
+See [Usage](docs/USAGE.md#preparation) for the input formats, the download links and the prebuilt GTDB database that replaces `prep-chimera`.
 
 ## 4. Quick start
 
@@ -92,7 +101,7 @@ After preparation, run all analysis modules using end-to-end with the following 
 With the [test dataset](#2-test-dataset):
 
 ```bash
-Data=/path/to/input_subset          # extracted test dataset
+Data=/path/to/input_dataset          # extracted test dataset
 Base=/path/to/MAGverify_output
 
 MAGverify end-to-end \

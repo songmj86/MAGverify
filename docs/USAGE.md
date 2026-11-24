@@ -35,9 +35,14 @@ Downstream modules automatically reuse mapping BAMs, clipping sites and preparat
 
 ## Preparation
 
-Run the applicable preparation commands **before** `end-to-end`, which does not include preparation. Keep the same `-o` for preparation and analysis.
+Run the preparation commands before analysis using the same `-o` to save their outputs in `/path/to/MAGverify_output/00_prep/`. They are not included in `end-to-end`.
 
-**Every preparation output is written to `/path/to/MAGverify_output/00_prep/`.**
+| Command | Output in `00_prep/` | Used by |
+| --- | --- | --- |
+| [`prep-chimera`](#1-gtdb-r232-database) | `GTDB_R232*` | `chimera` |
+| [`prep-scg`](#2-single-copy-gene-annotation) | `scg.contig.tsv`, `genes.*` | `false-closure`, `chimera` |
+| [`prep-circularity`](#3-assembler-circularity) | `assembler_circularity.MAG.tsv`, `assembler_circularity.contig.tsv` | `circularity`, `false-closure` |
+| [`prep-taxonomy`](#4-mag-taxonomy) | `gtdbtk_taxonomy.MAG.tsv` | `chimera` |
 
 ### 1. GTDB R232 database
 
