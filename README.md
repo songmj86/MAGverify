@@ -18,7 +18,48 @@ MAGverify list
 MAGverify doctor checks the installation path and availability of required programs.
 MAGverify list displays the available commands and analysis modules with brief descriptions.
 
-## 2. Preparation
+## 2. Test dataset
+
+Use the test dataset to check that MAGverify runs correctly before applying it to your own data. It is available on [Hugging Face](https://huggingface.co/datasets/ATCC19718/MAGverify-resources) together with a prebuilt GTDB R232 MMseqs2 database, so `chimera` can be run without building one.
+
+| File | Size | Description |
+|---|---|---|
+| [input_dataset.tar.gz](https://huggingface.co/datasets/ATCC19718/MAGverify-resources/resolve/main/input_dataset.tar.gz) | 1.1 GB | Test dataset containing 30 MAGs, three assemblies, PacBio HiFi reads, GTDB-Tk results and assembler circularity inputs |
+| [GTDB_R232.tar.gz](https://huggingface.co/datasets/ATCC19718/MAGverify-resources/resolve/main/GTDB_R232.tar.gz) | 131 GB | Prebuilt MMseqs2 taxonomy database for the `chimera` module |
+
+Download both files with `aria2c`:
+
+```bash
+Out="/path/to/download"
+mkdir -p "$Out"
+
+# Test dataset
+aria2c -c -x 8 -s 8 -k 8M \
+  -d "$Out" -o input_dataset.tar.gz \
+  "https://huggingface.co/datasets/ATCC19718/MAGverify-resources/resolve/main/input_dataset.tar.gz"
+
+# GTDB R232 database
+aria2c -c -x 8 -s 8 -k 8M \
+  -d "$Out" -o GTDB_R232.tar.gz \
+  "https://huggingface.co/datasets/ATCC19718/MAGverify-resources/resolve/main/GTDB_R232.tar.gz"
+```
+
+Extract the test dataset:
+
+```bash
+tar -xzf "$Out/input_dataset.tar.gz" -C "$Out"
+```
+
+Extract the database into `00_prep/` under the MAGverify output directory, then use the same `-o "$Base"` for every MAGverify command so that `chimera` finds it without running `prep-chimera`:
+
+```bash
+Base="/path/to/MAGverify_output"
+mkdir -p "$Base/00_prep"
+
+tar -xzf "$Out/GTDB_R232.tar.gz" -C "$Base/00_prep"
+```
+
+## 3. Preparation
 
 Run the preparation commands before analysis using the same `-o` to save their outputs in `00_prep/`. They are not included in `end-to-end`.
 
@@ -31,7 +72,7 @@ Run the preparation commands before analysis using the same `-o` to save their o
 
 See [Usage](docs/USAGE.md#preparation) for commands, download links and input formats.
 
-## 3. Quick start
+## 4. Quick start
 
 After preparation, run all analysis modules using end-to-end with the following options:
 
@@ -58,7 +99,7 @@ MAGverify end-to-end \
 Each module can also be run separately. See [Usage](docs/USAGE.md#analysis-modules) for detailed descriptions and options.
 
 
-## 4. Results
+## 5. Results
 
 MAGverify generates two summary formats: `summary.MAG.tsv` and `summary.contig.tsv` provide `Y`/`N`/`NA` flags for each analysis, whereas `detail.MAG.tsv` and `detail.contig.tsv` additionally include detailed results from each module.
 

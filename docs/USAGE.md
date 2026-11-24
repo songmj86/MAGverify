@@ -66,6 +66,8 @@ MAGverify prep-chimera -d "$GTDB_DIR" -o /path/to/MAGverify_output -t 100
 
 **Output:** `GTDB_R232*`.
 
+**Alternative:** To skip the 123 GB download and the build, take the prebuilt `GTDB_R232.tar.gz` from the [test dataset](../README.md#2-test-dataset) and extract it into `00_prep/` under the same `-o`. `chimera` then finds the database without `prep-chimera`.
+
 ---
 
 ### 2. Single-copy gene annotation
