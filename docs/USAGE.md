@@ -143,11 +143,13 @@ MAGverify map -a /path/to/assemblies -r /path/to/hifi_reads -o /path/to/MAGverif
 
 ### 2. Circularity
 
-Tests single-contig MAGs for read-supported circular topology. The contig is rotated to position its END|START junction in the middle. Circularity is read-supported when at least two HiFi reads span the junction with at least 2,000 bp aligned on each side. The `prep-circularity` assembler call is also needed.
+Tests single-contig MAGs for read-supported circular topology. The contig is rotated to position its END|START junction in the middle. Circularity is read-supported when at least two HiFi reads span the junction with at least 2,000 bp aligned on each side.
 
 **High-confidence circularity** needs two independent lines of evidence to agree: `High_confidence_circularity` is `Y` only when the assembler reports the contig circular **and** the reads span the junction. An assembler claim with no junction-spanning reads stays `Read_supported_circularity` `N`, and the call is `NA` without the assembler circularity table from `prep-circularity`.
 
 The module tables report `Assembler_reported_circularity` and `Read_supported_circular_topology` separately, and read-supported contigs the assembler did not report circular appear as `Additional_circular_candidate`. `summary.MAG.tsv` and `summary.contig.tsv` carry all three calls.
+
+**Prerequisites:** `map`, `prep-circularity`. Their outputs are read automatically from the same `-o`.
 
 **Command**
 
@@ -175,6 +177,8 @@ Finds candidate positions using `anvi-script-find-misassemblies` (default clippi
 
 Validated sites are reused by `false-closure`, `false-duplication`, `chimera` and `summary`.
 
+**Prerequisites:** `map`. Its output is read automatically from the same `-o`.
+
 **Command**
 
 ```bash
@@ -189,7 +193,7 @@ MAGverify clipping -g /path/to/MAGs -o /path/to/MAGverify_output -t 100
 
 Examines contigs reported circular by their assembler. A validated clipping site with at least two split reads on **each** side connecting the contig to another contig indicates a false-closure breakpoint. The module also reports a small-genome proxy for circular contigs < 500,000 bp with ≥ 3 ribosomal protein families (`prep-scg`). This screening field is distinct from the final `Premature_circularization` call.
 
-Requires `prep-scg` and `prep-circularity` under the same output directory. To provide an existing assembler circularity table, use `--assembler-circularity TSV`.
+**Prerequisites:** `clipping`, `prep-scg`, `prep-circularity`. Their outputs are read automatically from the same `-o`.
 
 **Command**
 
@@ -205,6 +209,8 @@ MAGverify false-closure -g /path/to/MAGs -o /path/to/MAGverify_output -t 100
 
 Finds sequence stretches of at least 501 bp with zero HiFi read depth, no BLASTN hit to the raw reads and no ambiguous bases. At the MAG level, Meryl also measures the fraction of distinct 21-mers in phantom regions that are absent from the reads.
 
+**Prerequisites:** `map`. Its output is read automatically from the same `-o`.
+
 **Command**
 
 ```bash
@@ -217,7 +223,9 @@ MAGverify phantom -g /path/to/MAGs -o /path/to/MAGverify_output -t 100
 
 ### 6. Repeats
 
-Finds BLASTN repeats (≥ 200 bp, ≥ 80% identity) within contigs (`INTRA`) and between contigs of the same MAG (`INTER`). Flags a contig when its INTRA repeat fraction is ≥ 0.70 or a MAG when its total repeat fraction is ≥ 0.70. Repeat detection and the false-duplication check are separate assessments.
+Finds BLASTN repeats (≥ 200 bp, ≥ 80% identity). Every contig is scanned against itself for `INTRA` repeats; contigs of a multi-contig MAG are additionally compared with each other for `INTER` repeats, so a single-contig MAG has `INTRA` repeats only. A contig is flagged when its `INTRA` repeat fraction is ≥ 0.70, and a MAG when its total repeat fraction — the union of `INTRA` and `INTER`, counting overlaps once — is ≥ 0.70. Repeat detection and the false-duplication check are separate assessments.
+
+**Prerequisites:** `map`. Its output is read automatically from the same `-o`.
 
 **Command**
 
@@ -233,6 +241,8 @@ MAGverify repeats -g /path/to/MAGs -o /path/to/MAGverify_output -t 100 -m 900
 
 Identifies duplicated copies within a MAG from a minimap2 self-alignment of each assembly (`-x asm5 -DP`, ≥ 1,000 bp, ≥ 95% identity) and checks each copy boundary against HiFi alignments. A duplicated pair is flagged when one copy is spanned at both boundaries and the other at neither. For tandem copies, both outer boundaries must be spanned but the intervening junction must not be. Clipping evidence at the copy boundaries is also reported.
 
+**Prerequisites:** `clipping`. Its output is read automatically from the same `-o`.
+
 **Command**
 
 ```bash
@@ -246,6 +256,8 @@ MAGverify false-duplication -g /path/to/MAGs -o /path/to/MAGverify_output -t 100
 ### 8. Assembly variants
 
 Profiles the HiFi reads against each assembly with anvi'o and identifies assembly alleles that disagree with the reads. A **minority** variant occurs when another allele or an indel is supported by > 50% of reads. An **unsupported** variant occurs when no read supports the assembly allele. This module can need substantial RAM; use `-m N` to set a memory limit in GB.
+
+**Prerequisites:** `map`. Its output is read automatically from the same `-o`.
 
 **Command**
 
@@ -261,7 +273,9 @@ MAGverify variants -g /path/to/MAGs -o /path/to/MAGverify_output -t 100 -m 900
 
 Classifies genes against GTDB R232 with MMseqs2, then finds neighbouring gene blocks whose dominant taxa differ at domain, phylum, class or order. A transition is called a taxonomic chimera when it overlaps a validated clipping site; high-confidence calls additionally need a high-confidence clipping site. HiFi structural evidence across the boundary is reported separately.
 
-The database from `prep-chimera` is reused automatically under the same `-o`. Specify `--database PREFIX` to use one elsewhere or `--taxonomy TSV` to use an existing gene taxonomy table. SCG annotation uses `prep-scg` and MAG taxonomy uses `prep-taxonomy`.
+**Prerequisites:** `clipping`, `prep-chimera`, `prep-scg`, `prep-taxonomy`. Their outputs are read automatically from the same `-o`.
+
+To reuse a GTDB database built under another output directory, pass its prefix with `--database PREFIX`.
 
 **Command**
 
@@ -276,6 +290,8 @@ MAGverify chimera -g /path/to/MAGs -o /path/to/MAGverify_output -t 100
 ### 10. Integrated summary
 
 Combines completed module calls into MAG- and contig-level summaries and checks MAG IDs, contig membership, counts and consistency across tables. Validation failures return a nonzero exit status. For a partial run, select completed modules with `--include clipping,chimera`. The summary step does not rerun analyses.
+
+**Prerequisites:** the modules to be summarized. Their outputs are read automatically from the same `-o`.
 
 **Command**
 

@@ -35,10 +35,10 @@ See [Usage](docs/USAGE.md#preparation) for commands, download links and input fo
 
 After preparation, run all analysis modules using end-to-end with the following options:
 
-- `-a DIR`: Input directory of contig files (`.fa`, `.fasta`, or `.fna`). Contig IDs must be unique across assembly files.
+- `-a DIR`: Input directory of contig files (`.fa`, `.fasta`, or `.fna`), one per assembler. Contig IDs must be unique across assembly files.
 - `-g DIR`: Input directory of MAG files (one file per MAG). MAG contig IDs must match those in the assembly files.
 - `-r PATH`: A PacBio HiFi read file (`.fastq`, `.fq`, `.fastq.gz`, or `.fq.gz`), or a directory of them. A single file is used in place. Several files in a directory are joined once into `00_prep/hifi_reads.fastq[.gz]`, which needs disk space for a second copy of the reads; pass the file directly to avoid the copy. Either way the reads are reused by subsequent modules without `-r`.
-- `-o DIR`: Output directory. Use the same directory across all modules to reuse completed results.
+- `-o DIR`: Output directory. Use the same `-o` for all commands to reuse intermediate results.
 - `-t N`: Number of threads (default: 80% of the available CPUs).
 - `-m N`: Memory limit in GB for `map`, `circularity`, `repeats` and `variants` (default: 80% of the detected memory).
 - `--skip MODULES`: Comma-separated modules to exclude (e.g., `--skip chimera,variants`).

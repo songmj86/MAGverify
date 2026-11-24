@@ -551,7 +551,7 @@ One row per MAG. A phantom region is a stretch >= 501 bp with zero depth of all 
 
 ### `repeats.contig.tsv`
 
-One row per contig of every assembly. Repeats are BLASTN alignments >= 200 bp with >= 80% identity: within a contig (INTRA, self-alignment off the diagonal) or between contigs of the same MAG (INTER).
+One row per contig of every assembly. Repeats are BLASTN alignments >= 200 bp with >= 80% identity: within a contig (INTRA, self-alignment off the diagonal) or between contigs of the same MAG (INTER). Every contig is scanned for INTRA repeats; INTER repeats exist only for multi-contig MAGs. Contig-level repeat breadth uses INTRA only, while the MAG total is the union of INTRA and INTER with overlaps counted once.
 
 | Column | Definition |
 |---|---|
@@ -568,7 +568,7 @@ One row per contig of every assembly. Repeats are BLASTN alignments >= 200 bp wi
 
 ### `repeats.MAG.tsv`
 
-One row per MAG. Repeats are BLASTN alignments >= 200 bp with >= 80% identity: within a contig (INTRA, self-alignment off the diagonal) or between contigs of the same MAG (INTER).
+One row per MAG. Repeats are BLASTN alignments >= 200 bp with >= 80% identity: within a contig (INTRA, self-alignment off the diagonal) or between contigs of the same MAG (INTER). Every contig is scanned for INTRA repeats; INTER repeats exist only for multi-contig MAGs. Contig-level repeat breadth uses INTRA only, while the MAG total is the union of INTRA and INTER with overlaps counted once.
 
 | Column | Definition |
 |---|---|
