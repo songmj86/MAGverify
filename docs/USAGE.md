@@ -2,7 +2,22 @@
 
 MAGverify runs four preparation commands and ten analysis modules. Run the applicable preparation steps first, then `MAGverify end-to-end` for all QC modules or the commands below for individual steps.
 
-Use the same `-o` throughout. `-o` is the base output directory, and every command writes inside it: preparation files go to `BASE/00_prep/`, each module to its own numbered subdirectory (`BASE/01_mapping/`, `BASE/02_circularity/`, and so on), and the integrated tables to the top of `BASE`. Because later modules look for earlier results under that base directory, reusing the same `-o` is what lets them find the mapping BAMs, clipping sites and preparation tables instead of recomputing them, and what lets `summary` build the MAG- and contig-level tables.
+Use the same `-o` for all commands to reuse intermediate results. All outputs are organized under the specified base directory:
+
+```
+BASE/
+├── 00_prep/             # Preparation files
+├── 01_mapping/          # Read mapping
+├── 02_circularity/      # Circularity
+├── 03_clipping/         # Clipping
+├── ...                  # Other analysis modules
+├── summary.MAG.tsv      # Integrated MAG-level summary
+├── summary.contig.tsv   # Integrated contig-level summary
+├── detail.MAG.tsv       # MAG summary with every module column
+└── detail.contig.tsv    # Contig summary with every module column
+```
+
+Downstream modules automatically reuse mapping BAMs, clipping sites and preparation tables from this directory without rerunning earlier steps.
 
 | Step | Command | Needs first |
 | --- | --- | --- |
@@ -17,16 +32,6 @@ Use the same `-o` throughout. `-o` is the base output directory, and every comma
 | 8 | [`variants`](#8-assembly-variants) | `map` |
 | 9 | [`chimera`](#9-taxonomic-chimera) | `clipping`, `prep-chimera`, `prep-scg`, `prep-taxonomy` |
 | 10 | [`summary`](#10-integrated-summary) | Modules to be summarized |
-
-## Resource settings
-
-- **Threads (`-t N`):** Number of threads (default: all available CPUs, capped at 100).
-- **Memory (`-m N`):** Memory limit in GB for `map`, `circularity`, `repeats` and `variants`.
-
-**Execution modes**
-
-- **Sequential:** `map`, `circularity` and anvi'o profiling in `variants` process assemblers one at a time, using all allocated threads.
-- **Parallel:** `clipping`, `phantom` and `false-duplication` process multiple assemblers concurrently, dividing threads among jobs.
 
 ## Preparation
 

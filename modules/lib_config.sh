@@ -92,8 +92,29 @@ detect_max_threads() {
     printf '%s\n' "$value"
 }
 
+detect_max_memory_gb() {
+    local kb="" pages="" size=""
+    if [[ -r /proc/meminfo ]]; then
+        kb="$(awk '/^MemTotal:/{print $2; exit}' /proc/meminfo 2>/dev/null || true)"
+    fi
+    if [[ ! "$kb" =~ ^[1-9][0-9]*$ ]] && command -v getconf >/dev/null 2>&1; then
+        pages="$(getconf _PHYS_PAGES 2>/dev/null || true)"
+        size="$(getconf PAGE_SIZE 2>/dev/null || true)"
+        if [[ "$pages" =~ ^[1-9][0-9]*$ && "$size" =~ ^[1-9][0-9]*$ ]]; then
+            kb=$(( pages * size / 1024 ))
+        fi
+    fi
+    [[ "$kb" =~ ^[1-9][0-9]*$ ]] || kb=0
+    printf '%s\n' "$(( kb / 1024 / 1024 ))"
+}
+
+# Without -t or -m, MAGverify leaves a fifth of the machine free.
+RESOURCE_DEFAULT_PERCENT="${RESOURCE_DEFAULT_PERCENT:-80}"
+
 MAX_THREADS="$(detect_max_threads)"
-THREADS="${THREADS:-$MAX_THREADS}"
+DEFAULT_THREADS=$(( MAX_THREADS * RESOURCE_DEFAULT_PERCENT / 100 ))
+(( DEFAULT_THREADS >= 1 )) || DEFAULT_THREADS=1
+THREADS="${THREADS:-$DEFAULT_THREADS}"
 [[ "$THREADS" =~ ^[1-9][0-9]*$ ]] || {
     echo "ERROR: THREADS must be a positive integer: $THREADS" >&2
     return 1 2>/dev/null || exit 1
@@ -102,6 +123,24 @@ if (( THREADS > MAX_THREADS )); then
     echo "ERROR: THREADS=$THREADS exceeds the detected allocation of $MAX_THREADS" >&2
     return 1 2>/dev/null || exit 1
 fi
+MAX_MEMORY_GB="$(detect_max_memory_gb)"
+DEFAULT_MEMORY_GB=$(( MAX_MEMORY_GB * RESOURCE_DEFAULT_PERCENT / 100 ))
+if (( DEFAULT_MEMORY_GB >= 1 )); then
+    MEMORY_GB="${MEMORY_GB:-$DEFAULT_MEMORY_GB}"
+else
+    MEMORY_GB="${MEMORY_GB:-}"
+fi
+if [[ -n "$MEMORY_GB" ]]; then
+    [[ "$MEMORY_GB" =~ ^[1-9][0-9]*$ ]] || {
+        echo "ERROR: MEMORY_GB must be a positive integer: $MEMORY_GB" >&2
+        return 1 2>/dev/null || exit 1
+    }
+    if (( MAX_MEMORY_GB > 0 && MEMORY_GB > MAX_MEMORY_GB )); then
+        echo "ERROR: MEMORY_GB=$MEMORY_GB exceeds the detected memory of ${MAX_MEMORY_GB} GB" >&2
+        return 1 2>/dev/null || exit 1
+    fi
+fi
+
 PRESET="map-hifi"
 
 RUN_CLIPPING="${RUN_CLIPPING:-Y}"
@@ -348,7 +387,7 @@ FALSE_CLOSURE_MIN_LINKED_READS_PER_SIDE=2
 ASSEMBLY_VARIANT_SAMPLE_ID="${ASSEMBLY_VARIANT_SAMPLE_ID:-HiFi_reads}"
 FORCE_RERUN_ASSEMBLY_VARIANTS="${FORCE_RERUN_ASSEMBLY_VARIANTS:-N}"
 
-ASSEMBLY_VARIANT_MEMORY_BUDGET_GB="${ASSEMBLY_VARIANT_MEMORY_BUDGET_GB:-900}"
+ASSEMBLY_VARIANT_MEMORY_BUDGET_GB="${ASSEMBLY_VARIANT_MEMORY_BUDGET_GB:-${MEMORY_GB:-900}}"
 ASSEMBLY_VARIANT_MEMORY_RESERVE_GB="${ASSEMBLY_VARIANT_MEMORY_RESERVE_GB:-64}"
 ALLELE_ANVIO_MEMORY_PER_THREAD_GB="${ALLELE_ANVIO_MEMORY_PER_THREAD_GB:-16}"
 ALLELE_ANVIO_MEMORY_POLL_SECONDS="${ALLELE_ANVIO_MEMORY_POLL_SECONDS:-5}"

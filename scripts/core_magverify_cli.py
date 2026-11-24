@@ -641,7 +641,8 @@ OUTPUT_FILE_SUFFIXES = ('.tsv', '.txt', '.csv', '.fa', '.fasta', '.fna', '.gz', 
 def defaults_for(stage, args):
     cpus = len(os.sched_getaffinity(0)) if hasattr(os, 'sched_getaffinity') else (os.cpu_count() or 1)
     threads = getattr(args, 'threads', None)
-    threads = threads if threads is not None else min(100, cpus)
+    # Without -t, leave a fifth of the CPUs free.
+    threads = threads if threads is not None else max(1, cpus * 80 // 100)
     if threads < 1:
         raise UsageError('-t must be a positive integer')
     if threads > cpus:
