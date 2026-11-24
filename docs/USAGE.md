@@ -64,8 +64,6 @@ aria2c -c -d "$GTDB_DIR" "$BASE/ar53_taxonomy_r232.tsv"
 MAGverify prep-chimera -d "$GTDB_DIR" -o /path/to/MAGverify_output -t 100
 ```
 
-**Disk space:** The build needs substantial temporary storage in `.cache/prep_chimera_work/`, which can be deleted once the build completes.
-
 **Output:** `GTDB_R232*` (MMseqs2 database files).
 
 ---
@@ -90,7 +88,7 @@ The SCG table is used by `false-closure` and for SCG annotation in `chimera`. Th
 
 ### 3. Assembler circularity
 
-`prep-circularity` collects assembler-reported circularity calls for `circularity` and `false-closure`. Provide one `-c` file per assembler: `*.p_ctg.gfa` or `*.p_ctg.noseq.gfa` for hifiasm-meta, `contigs.fasta.gz` for metaMDBG, and `assembly_info.txt` for metaFlye.
+`prep-circularity` collects assembler-reported circularity calls for `circularity` and `false-closure`. Provide one `-c` file per assembler: `*.p_ctg.gfa` or `*.p_ctg.noseq.gfa` (faster) for hifiasm-meta, `contigs.fasta.gz` for metaMDBG, and `assembly_info.txt` for metaFlye.
 
 **Command**
 
@@ -105,15 +103,13 @@ MAGverify prep-circularity \
 
 - `-g DIR`: Input directory of MAG files (one file per MAG). MAG contig IDs must match those in the assembly files.
 
-Provide complete assembler outputs so every MAG contig can be matched. Missing contigs are reported by the command. For hifiasm-meta, `*.p_ctg.noseq.gfa` is faster to read because only contig IDs are needed. For individual module execution, a compatible existing MAG circularity table can instead be supplied with `--assembler-circularity FILE`.
-
 **Output:** `assembler_circularity.MAG.tsv` and `assembler_circularity.contig.tsv`.
 
 ---
 
 ### 4. MAG taxonomy
 
-`prep-taxonomy` converts GTDB-Tk `classify_wf` results to the MAG taxonomy table that `chimera` needs for its SCG redundancy annotation.
+`prep-taxonomy` converts [GTDB-Tk](https://github.com/Ecogenomics/GTDBTk) `classify_wf` results to the MAG taxonomy table that `chimera` needs for its SCG redundancy annotation.
 
 **Command**
 
@@ -134,26 +130,9 @@ ID	GTDB_Domain	GTDB_Phylum	GTDB_Class	GTDB_Order
 ExampleMAG	d__Bacteria	p__Nitrospirota	c__Nitrospiria	o__Nitrospirales
 ```
 
-Use a bare rank prefix for an unassigned rank (for example, `o__`). If GTDB-Tk results are unavailable, generate them first with [GTDB-Tk](https://github.com/Ecogenomics/GTDBTk), which is installed separately from MAGverify.
-
 **Output:** `gtdbtk_taxonomy.MAG.tsv`.
 
 ## Analysis modules
-
-### High-confidence calls
-
-Two calls are reported as **high confidence**. Each one means that two independent lines of evidence agree, and each is `Y` / `N` / `NA` like every other flag.
-
-| Call | `Y` when | Module column | Summary column |
-| --- | --- | --- | --- |
-| High-confidence circularity | the assembler reports the contig circular **and** HiFi reads span its END\|START junction (>= 2 reads, >= 2,000 bp aligned on each side, no deletion or skip across it) | `High_confidence_circularity` in `circularity.MAG.tsv` and `circularity.contig.tsv` | `High_confidence_circularity` in `summary.MAG.tsv` |
-| High-confidence clipping | a clipping site is validated against the reads (>= 2 distinct clipped reads, no spanning read) **and** has anvi'o coverage >= 10 with a clipping ratio of 1.0 | `Stringent_clipping` in `clipping.site.tsv`, `clipping.contig.tsv` and `clipping.MAG.tsv` | `High_confidence_clipping` in `summary.MAG.tsv` and `summary.contig.tsv` |
-
-Neither call can be reached from one source of evidence alone. An assembler circularity claim with no junction-spanning reads stays `Read_supported_circularity` `N`, and a position that clears the clipping thresholds without read validation is `Stringent_candidate` `Y` but `Stringent_clipping` `N`. `NA` means the check was not assessable: no assembler circularity table for circularity, or a clipping candidate at a contig boundary that no read can span.
-
-The high-confidence clipping criterion follows [Trigodet et al., 2026](https://doi.org/10.1038/s41587-025-02971-8). `chimera` builds on it: a taxonomic transition is a high-confidence chimera only when the clipping site it overlaps is itself high confidence.
-
----
 
 ### 1. Read mapping
 
@@ -173,7 +152,9 @@ MAGverify map -a /path/to/assemblies -r /path/to/hifi_reads -o /path/to/MAGverif
 
 Tests single-contig MAGs for read-supported circular topology. The contig is rotated to position its END|START junction in the middle. Circularity is read-supported when at least two HiFi reads span the junction with at least 2,000 bp aligned on each side. The `prep-circularity` assembler call is also needed.
 
-The integrated MAG summary reports `Assembler_reported_circularity`, `Read_supported_circularity` and `High_confidence_circularity` separately. High-confidence circularity is `Y` only when both the assembler and reads support the topology. Read-supported cases not reported circular by the assembler appear as `Additional_circular_candidate` in the module table.
+**High-confidence circularity** needs two independent lines of evidence to agree: `High_confidence_circularity` is `Y` only when the assembler reports the contig circular **and** the reads span the junction. An assembler claim with no junction-spanning reads stays `Read_supported_circularity` `N`, and the call is `NA` without the assembler circularity table from `prep-circularity`.
+
+The module tables report `Assembler_reported_circularity` and `Read_supported_circular_topology` separately, and read-supported contigs the assembler did not report circular appear as `Additional_circular_candidate`. `summary.MAG.tsv` and `summary.contig.tsv` carry all three calls.
 
 **Command**
 
@@ -197,7 +178,7 @@ Finds candidate positions using `anvi-script-find-misassemblies` (default clippi
 | `Stringent_candidate` | anvi'o coverage ≥ 10 **and** anvi'o clipping ratio = 1.0 (thresholds only, without read validation) |
 | `Stringent_clipping` | **High-confidence clipping:** `Clipping` is `Y` **and** `Stringent_candidate` is `Y`, following [Trigodet et al., 2026](https://doi.org/10.1038/s41587-025-02971-8) |
 
-The thresholds alone are not sufficient for high-confidence clipping: a position with ≥ 10× coverage and a clipping ratio of 1.0 that is not validated against the reads is `Stringent_candidate` `Y` but `Stringent_clipping` `N`.
+**High-confidence clipping** is `Stringent_clipping`, and it needs both lines of evidence: the thresholds alone are not sufficient, so a position with ≥ 10× coverage and a clipping ratio of 1.0 that is not validated against the reads is `Stringent_candidate` `Y` but `Stringent_clipping` `N`. `summary.MAG.tsv` and `summary.contig.tsv` carry this call as `High_confidence_clipping`, which is `NA` when clipping was not assessable. `chimera` builds on it: a taxonomic transition is a high-confidence chimera only when the clipping site it overlaps is itself high confidence.
 
 Validated sites are reused by `false-closure`, `false-duplication`, `chimera` and `summary`.
 
@@ -285,7 +266,7 @@ MAGverify variants -g /path/to/MAGs -o /path/to/MAGverify_output -t 100 -m 900
 
 ### 9. Taxonomic chimera
 
-Classifies genes against GTDB R232 with MMseqs2, then finds neighbouring gene blocks whose dominant taxa differ at domain, phylum, class or order. A transition is called a taxonomic chimera when it overlaps a validated clipping site; high-confidence calls additionally need a stringent clipping site. HiFi structural evidence across the boundary is reported separately.
+Classifies genes against GTDB R232 with MMseqs2, then finds neighbouring gene blocks whose dominant taxa differ at domain, phylum, class or order. A transition is called a taxonomic chimera when it overlaps a validated clipping site; high-confidence calls additionally need a high-confidence clipping site. HiFi structural evidence across the boundary is reported separately.
 
 The database from `prep-chimera` is reused automatically under the same `-o`. Specify `--database PREFIX` to use one elsewhere or `--taxonomy TSV` to use an existing gene taxonomy table. SCG annotation uses `prep-scg` and MAG taxonomy uses `prep-taxonomy`.
 
