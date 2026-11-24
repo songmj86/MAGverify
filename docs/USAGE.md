@@ -164,7 +164,7 @@ Tests single-contig MAGs for read-supported circular topology. The contig is rot
 
 The module tables report `Assembler_reported_circularity` and `Read_supported_circular_topology` separately, and read-supported contigs the assembler did not report circular appear as `Additional_circular_candidate`. `summary.MAG.tsv` and `summary.contig.tsv` carry all three calls.
 
-**Prerequisites:** `map`, `prep-circularity`. Their outputs are read automatically from the same `-o`.
+**Prerequisites:** `map`, `prep-circularity`. Their outputs are read automatically from the same `-o`. This module reads the HiFi reads themselves: they come from the `map` manifest, or from `-r` when `map` has not been run under this `-o`.
 
 **Command**
 
@@ -224,7 +224,7 @@ MAGverify false-closure -g /path/to/MAGs -o /path/to/MAGverify_output -t 100
 
 Finds sequence stretches of at least 501 bp with zero HiFi read depth, no BLASTN hit to the raw reads and no ambiguous bases. At the MAG level, Meryl also measures the fraction of distinct 21-mers in phantom regions that are absent from the reads.
 
-**Prerequisites:** `map`. Its output is read automatically from the same `-o`.
+**Prerequisites:** `map`. Its output is read automatically from the same `-o`. This module reads the HiFi reads themselves: they come from the `map` manifest, or from `-r` when `map` has not been run under this `-o`.
 
 **Command**
 
@@ -272,7 +272,7 @@ MAGverify false-duplication -g /path/to/MAGs -o /path/to/MAGverify_output -t 100
 
 Profiles the HiFi reads against each assembly with anvi'o and identifies assembly alleles that disagree with the reads. A **minority** variant occurs when another allele or an indel is supported by > 50% of reads. An **unsupported** variant occurs when no read supports the assembly allele. This module can need substantial RAM; use `-m N` to set a memory limit in GB.
 
-**Prerequisites:** `map`. Its output is read automatically from the same `-o`.
+**Prerequisites:** `map`. Its output is read automatically from the same `-o`. This module reads the HiFi reads themselves: they come from the `map` manifest, or from `-r` when `map` has not been run under this `-o`.
 
 **Command**
 

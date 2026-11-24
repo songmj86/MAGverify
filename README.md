@@ -82,31 +82,25 @@ After preparation, run all analysis modules using end-to-end with the following 
 
 - `-a DIR`: Input directory of contig files (`.fa`, `.fasta`, or `.fna`), one per assembler. Contig IDs must be unique across assembly files.
 - `-g DIR`: Input directory of MAG files (one file per MAG). MAG contig IDs must match those in the assembly files.
-- `-r PATH`: The PacBio HiFi reads the assemblies were built from, as one file (`.fastq`, `.fq`, `.fastq.gz`, or `.fq.gz`) or a directory of them. Every assembly given with `-a` must come from this same read set, because these reads are mapped to all of them: withholding reads the assembly used produces clipping and phantom calls that are not real, and adding unrelated reads hides real ones. Several files in a directory are concatenated into `00_prep/hifi_reads.fastq[.gz]`, which doubles the disk space the reads occupy; passing a single file avoids that copy. Later modules reuse the recorded reads without `-r`.
+- `-r PATH`: The PacBio HiFi reads the assemblies were built from, as a single file (`.fastq`, `.fq`, `.fastq.gz`, or `.fq.gz`) or a directory of them; several files in a directory are pooled into `00_prep/hifi_reads.fastq[.gz]`. Every assembly given with `-a` must come from this same read set, because these reads are mapped to all of them: withholding reads the assembly used produces clipping and phantom calls that are not real, and adding unrelated reads hides real ones.
 - `-o DIR`: Output directory. Use the same `-o` for all commands to reuse intermediate results.
 - `-t N`: Number of threads (default: 80% of the available CPUs).
 - `-m N`: Memory limit in GB for `map`, `circularity`, `repeats` and `variants` (default: 80% of the detected memory).
 - `--skip MODULES`: Comma-separated modules to exclude (e.g., `--skip chimera,variants`).
 
 
-```bash
-MAGverify end-to-end \
-  -a /path/to/assemblies \
-  -r /path/to/hifi_reads \
-  -g /path/to/MAGs \
-  -o /path/to/MAGverify_output \
-  -t 100 -m 900
-```
-
 With the [test dataset](#2-test-dataset):
 
 ```bash
+Data=/path/to/input_subset          # extracted test dataset
+Base=/path/to/MAGverify_output
+
 MAGverify end-to-end \
   -a "$Data/contigs" \
   -r "$Data/reads/read.fastq.gz" \
   -g "$Data/MAGs" \
   -o "$Base" \
-  -t 16
+  -t 100 -m 900
 ```
 
 **Note:** `end-to-end` runs the modules in the following order: `map` → `circularity` → `clipping` → `false-closure` → `phantom` → `repeats` → `false-duplication` → `variants` → `chimera` → `summary`. Before analysis, MAGverify checks for missing preparation outputs in `00_prep/` and identifies the necessary `prep-` commands. Interrupted analyses can be resumed by rerunning the same command, automatically skipping completed modules with unchanged inputs.
