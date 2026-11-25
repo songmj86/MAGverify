@@ -16,18 +16,47 @@ MAGverify writes four integrated tables to the output directory and module-speci
 
 ## Contents
 
-| Section | Tables |
-| --- | --- |
-| [1. Summary](#1-summary) | [`summary.MAG.tsv`](#summarymagtsv), [`summary.contig.tsv`](#summarycontigtsv), [`detail.MAG.tsv`](#detail-tables), [`detail.contig.tsv`](#detail-tables) |
-| [2. Read mapping](#2-read-mapping) | [`mapping.assembler.tsv`](#mappingassemblertsv) |
-| [3. Circularity](#3-circularity) | [`circularity.MAG.tsv`](#circularitymagtsv), [`circularity.contig.tsv`](#circularitycontigtsv) |
-| [4. Clipping](#4-clipping) | [`clipping.site.tsv`](#clippingsitetsv), [`clipping.contig.tsv`](#clippingcontigtsv), [`clipping.MAG.tsv`](#clippingmagtsv), [`clipping.assembler.tsv`](#clippingassemblertsv) |
-| [5. False closure](#5-false-closure) | [`false_closure.contig.tsv`](#false_closurecontigtsv), [`false_closure.MAG.tsv`](#false_closuremagtsv) |
-| [6. Phantom sequences](#6-phantom-sequences) | [`phantom.region.tsv`](#phantomregiontsv), [`phantom.contig.tsv`](#phantomcontigtsv), [`phantom.MAG.tsv`](#phantommagtsv) |
-| [7. Repeats](#7-repeats) | [`repeats.contig.tsv`](#repeatscontigtsv), [`repeats.MAG.tsv`](#repeatsmagtsv), [`repeats.region.tsv`](#repeatsregiontsv), [`repeats.HSP.tsv`](#repeatshsptsv) |
-| [8. False duplication](#8-false-duplication) | [`false_duplication.pair.tsv`](#false_duplicationpairtsv), [`false_duplication.contig.tsv`](#false_duplicationcontigtsv), [`false_duplication.MAG.tsv`](#false_duplicationmagtsv) |
-| [9. Assembly variants](#9-assembly-variants) | [`variants.site.tsv`](#variantssitetsv), [`variants.contig.tsv`](#variantscontigtsv), [`variants.MAG.tsv`](#variantsmagtsv) |
-| [10. Taxonomic chimera](#10-taxonomic-chimera) | [`chimera.region.tsv`](#chimeraregiontsv), [`chimera.contig.tsv`](#chimeracontigtsv), [`chimera.MAG.tsv`](#chimeramagtsv) |
+<pre>
+MAGverify_output
+├── <a href="#summarymagtsv">summary.MAG.tsv</a>
+├── <a href="#summarycontigtsv">summary.contig.tsv</a>
+├── <a href="#detail-tables">detail.MAG.tsv</a>
+├── <a href="#detail-tables">detail.contig.tsv</a>
+├── 01_mapping
+│   ╰── <a href="#mappingassemblertsv">mapping.assembler.tsv</a>
+├── 02_circularity
+│   ├── <a href="#circularitymagtsv">circularity.MAG.tsv</a>
+│   ╰── <a href="#circularitycontigtsv">circularity.contig.tsv</a>
+├── 03_clipping
+│   ├── <a href="#clippingmagtsv">clipping.MAG.tsv</a>
+│   ├── <a href="#clippingcontigtsv">clipping.contig.tsv</a>
+│   ├── <a href="#clippingsitetsv">clipping.site.tsv</a>
+│   ╰── <a href="#clippingassemblertsv">clipping.assembler.tsv</a>
+├── 04_false_closure
+│   ├── <a href="#false_closuremagtsv">false_closure.MAG.tsv</a>
+│   ╰── <a href="#false_closurecontigtsv">false_closure.contig.tsv</a>
+├── 05_phantom
+│   ├── <a href="#phantommagtsv">phantom.MAG.tsv</a>
+│   ├── <a href="#phantomcontigtsv">phantom.contig.tsv</a>
+│   ╰── <a href="#phantomregiontsv">phantom.region.tsv</a>
+├── 06_repeats
+│   ├── <a href="#repeatsmagtsv">repeats.MAG.tsv</a>
+│   ├── <a href="#repeatscontigtsv">repeats.contig.tsv</a>
+│   ├── <a href="#repeatsregiontsv">repeats.region.tsv</a>
+│   ╰── <a href="#repeatshsptsv">repeats.HSP.tsv</a>
+├── 07_chimera
+│   ├── <a href="#chimeramagtsv">chimera.MAG.tsv</a>
+│   ├── <a href="#chimeracontigtsv">chimera.contig.tsv</a>
+│   ╰── <a href="#chimeraregiontsv">chimera.region.tsv</a>
+├── 08_false_duplication
+│   ├── <a href="#false_duplicationmagtsv">false_duplication.MAG.tsv</a>
+│   ├── <a href="#false_duplicationcontigtsv">false_duplication.contig.tsv</a>
+│   ╰── <a href="#false_duplicationpairtsv">false_duplication.pair.tsv</a>
+╰── 09_assembly_variants
+    ├── <a href="#variantsmagtsv">variants.MAG.tsv</a>
+    ├── <a href="#variantscontigtsv">variants.contig.tsv</a>
+    ╰── <a href="#variantssitetsv">variants.site.tsv</a>
+</pre>
 
 ## 1. Summary
 
