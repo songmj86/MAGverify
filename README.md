@@ -86,19 +86,18 @@ MAGverify generates four integrated tables at the genome and contig levels in th
 
 | File | Description |
 | --- | --- |
-| `summary.MAG.tsv` | MAG-level QC calls |
-| `summary.contig.tsv` | Contig-level QC calls |
-| `detail.MAG.tsv` | Detailed MAG results |
-| `detail.contig.tsv` | Detailed contig results |
+| `summary.MAG.tsv` | MAG-level summary results |
+| `summary.contig.tsv` | Contig-level summary results |
+| `detail.MAG.tsv` | MAG-level detailed results |
+| `detail.contig.tsv` | Contig-level detailed results |
 
-Keep intermediate files and `.cache/` directories for resumption.
 ## 6. Documentation
 
 | Document | Contents |
 | --- | --- |
 | [Usage](docs/USAGE.md) | Inputs, preparation and commands |
-| [Analysis modules](docs/MODULES.md) | Detection methods and criteria |
-| [Result tables](docs/OUTPUTS.md) | Output columns and interpretation |
+| [Modules](docs/MODULES.md) | Detection methods and criteria |
+| [Results](docs/OUTPUTS.md) | Output columns and interpretation |
 
 ## License
 
