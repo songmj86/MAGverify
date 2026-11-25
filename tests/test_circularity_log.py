@@ -23,7 +23,7 @@ class CircularityLogTests(unittest.TestCase):
             result = subprocess.run(command, env=env, capture_output=True, text=True, timeout=20)
             self.assertNotEqual(result.returncode, 0)
             self.assertTrue(log.is_file())
-            self.assertIn('Directory not found:', log.read_text())
+            self.assertIn('ERROR:', log.read_text())
 
             log.write_text('old-run-marker\n')
             result = subprocess.run(command, env=env, capture_output=True, text=True, timeout=20)

@@ -1,6 +1,6 @@
-# Analysis modules
+# Module
 
-This document describes what each module measures and how it decides a call. See [Usage](USAGE.md) for the commands and [Result tables](OUTPUTS.md) for column definitions.
+This document describes what each module measures and how it decides a call. See [Usage](USAGE.md) for the commands and [Result](OUTPUTS.md) for column definitions.
 
 ## 1. Read mapping
 

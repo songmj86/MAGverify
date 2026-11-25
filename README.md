@@ -90,7 +90,7 @@ MAGverify end-to-end \
 
 **Note:** `end-to-end` runs the modules in the following order: `map` → `circularity` → `clipping` → `false-closure` → `phantom` → `repeats` → `false-duplication` → `variants` → `chimera` → `summary`. Before analysis, MAGverify checks for missing preparation outputs in `$Base/00_prep/` and identifies the necessary `prep-` commands. Interrupted analyses can be resumed by rerunning the same command, automatically skipping completed modules with unchanged inputs.
 
-Each module can also be run separately. See [Usage](docs/USAGE.md#4-individual-modules) for the commands and [Analysis modules](docs/MODULES.md) for the detection criteria behind each call.
+Each module can also be run separately. See [Usage](docs/USAGE.md#4-individual-modules) for the commands and [Module](docs/MODULES.md) for the detection criteria behind each call.
 
 
 ## 5. Main results
@@ -109,8 +109,8 @@ Module-specific tables are saved in numbered directories. Keep intermediate file
 | Document | Contents |
 | --- | --- |
 | [Usage](docs/USAGE.md) | Inputs, preparation and commands |
-| [Analysis modules](docs/MODULES.md) | Detection methods and criteria |
-| [Result tables](docs/OUTPUTS.md) | Output columns and interpretation |
+| [Module](docs/MODULES.md) | Detection methods and criteria |
+| [Result](docs/OUTPUTS.md) | Output columns and interpretation |
 
 ## License
 

@@ -257,6 +257,9 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
         p = self.call('map', '-r', self.reads_dir, '-a', self.source_dir,
                       '-o', self.output, '-t', '2')
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        prep = self.output / '00_prep' / 'assembler_circularity.MAG.tsv'
+        prep.parent.mkdir(parents=True, exist_ok=True)
+        prep.write_text('MAG_ID\tAssembler_reported_circularity\n')
         shared = ['-a', self.source_dir, '-g', self.mag_dir,
                   '-o', self.output, '--dry-run']
         for stage in ('circularity', 'phantom', 'variants'):

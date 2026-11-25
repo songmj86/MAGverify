@@ -1,4 +1,4 @@
-# Result tables
+# Result
 
 MAGverify writes four integrated tables to the output directory and module-specific tables to numbered subdirectories. This document defines every reported column, including diagnostic calls, supporting read evidence and measurements. See the [README](../README.md#5-main-results) for the output overview and [Usage](USAGE.md#4-individual-modules) for the corresponding commands.
 

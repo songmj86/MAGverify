@@ -241,4 +241,4 @@ Directory numbers are retained independently of execution order.
 
 The output root includes `summary.MAG.tsv`, `summary.contig.tsv`, `detail.MAG.tsv` and `detail.contig.tsv`.
 
-See [Analysis modules](MODULES.md) for detection criteria and [Result tables](OUTPUTS.md) for column definitions.
+See [Module](MODULES.md) for detection criteria and [Result](OUTPUTS.md) for column definitions.
