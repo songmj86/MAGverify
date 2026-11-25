@@ -59,7 +59,7 @@ tar -xzf "$Data/input_dataset.tar.gz" -C "$Data" --strip-components=1
 
 ## 3. Preparation
 
-Run the preparation commands before analysis using the same `-o` to save their outputs in `00_prep/`. They are not included in `end-to-end`.
+Run the preparation commands before analysis using the same `-o` to save their outputs in `$Base/00_prep/`. They are not included in `end-to-end`.
 
 With the [test dataset](#2-test-dataset), the four preparation commands are:
 
@@ -90,7 +90,7 @@ After preparation, run all analysis modules using end-to-end with the following 
 
 - `-a DIR`: Input directory of contig files (`.fa`, `.fasta`, or `.fna`), one per assembler. Contig IDs must be unique across assembly files.
 - `-g DIR`: Input directory of MAG files (one file per MAG). MAG contig IDs must match those in the assembly files.
-- `-r DIR`: Input directory of PacBio HiFi reads (`.fastq`, `.fq`, `.fastq.gz`, or `.fq.gz`) the assemblies were built from; several files are pooled into `00_prep/hifi_reads.fastq[.gz]`. Every assembly given with `-a` must come from this same read set, because these reads are mapped to all of them: withholding reads the assembly used produces clipping and phantom calls that are not real, and adding unrelated reads hides real ones.
+- `-r DIR`: Input directory of PacBio HiFi reads (`.fastq`, `.fq`, `.fastq.gz`, or `.fq.gz`) the assemblies were built from; several files are pooled into `$Base/00_prep/hifi_reads.fastq[.gz]`. Every assembly given with `-a` must come from this same read set, because these reads are mapped to all of them: withholding reads the assembly used produces clipping and phantom calls that are not real, and adding unrelated reads hides real ones.
 - `-o DIR`: Output base directory. Use the same `-o` for all commands to reuse intermediate results.
 - `-t N`: Number of threads (default: 80% of the available CPUs).
 - `-m N`: Memory limit in GB for `map`, `circularity`, `repeats` and `variants` (default: 80% of the detected memory).
@@ -111,7 +111,7 @@ MAGverify end-to-end \
   -t 100 -m 900
 ```
 
-**Note:** `end-to-end` runs the modules in the following order: `map` → `circularity` → `clipping` → `false-closure` → `phantom` → `repeats` → `false-duplication` → `variants` → `chimera` → `summary`. Before analysis, MAGverify checks for missing preparation outputs in `00_prep/` and identifies the necessary `prep-` commands. Interrupted analyses can be resumed by rerunning the same command, automatically skipping completed modules with unchanged inputs.
+**Note:** `end-to-end` runs the modules in the following order: `map` → `circularity` → `clipping` → `false-closure` → `phantom` → `repeats` → `false-duplication` → `variants` → `chimera` → `summary`. Before analysis, MAGverify checks for missing preparation outputs in `$Base/00_prep/` and identifies the necessary `prep-` commands. Interrupted analyses can be resumed by rerunning the same command, automatically skipping completed modules with unchanged inputs.
 
 Each module can also be run separately. See [Usage](docs/USAGE.md#analysis-modules) for detailed descriptions and options.
 

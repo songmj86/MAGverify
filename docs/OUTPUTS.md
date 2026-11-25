@@ -53,7 +53,7 @@ One row per MAG; columns appear in the following order.
 | `Phantom_sequence` | At least one phantom region |
 | `Excessive_repeat` | MAG-level excessive repeat flag |
 | `False_duplication` | At least one false-duplication event |
-| `Chimera` | Taxonomic chimera flag from the chimera module |
+| `Chimera` | High-confidence taxonomic chimera (`High_confidence_taxonomic_chimera`) from the chimera module |
 | `Assembly_variant` | At least one assembly-allele disagreement |
 
 ### `summary.contig.tsv`
@@ -73,7 +73,7 @@ One row per contig across all assemblies. `MAG_ID` is `NA` for unbinned contigs.
 | `Phantom_sequence` | Phantom sequence flag |
 | `Excessive_repeat` | Intra-contig excessive repeat flag |
 | `False_duplication` | False-duplication flag |
-| `Chimera` | Taxonomic chimera flag |
+| `Chimera` | High-confidence taxonomic chimera (`High_confidence_taxonomic_chimera`) |
 | `Assembly_variant` | Assembly-allele disagreement flag |
 
 ### Detail tables
@@ -500,7 +500,7 @@ One row per MAG. A false closure is a contig reported circular whose sequence is
 
 ### `phantom.region.tsv`
 
-One row per phantom region. A phantom region is a stretch >= 501 bp with zero depth of all HiFi alignments (secondary included) of its own assembler, no BLASTN hit to the raw reads, and no ambiguous base.
+One row per phantom region. A phantom region is a stretch longer than 500 bp with zero depth of all HiFi alignments (secondary included) of its own assembler, no BLASTN hit to the raw reads, and no ambiguous base.
 
 | Column | Definition |
 |---|---|
@@ -512,7 +512,7 @@ One row per phantom region. A phantom region is a stretch >= 501 bp with zero de
 
 ### `phantom.contig.tsv`
 
-One row per contig of every assembly. A phantom region is a stretch >= 501 bp with zero depth of all HiFi alignments (secondary included) of its own assembler, no BLASTN hit to the raw reads, and no ambiguous base.
+One row per contig of every assembly. A phantom region is a stretch longer than 500 bp with zero depth of all HiFi alignments (secondary included) of its own assembler, no BLASTN hit to the raw reads, and no ambiguous base.
 
 | Column | Definition |
 |---|---|
@@ -529,7 +529,7 @@ One row per contig of every assembly. A phantom region is a stretch >= 501 bp wi
 
 ### `phantom.MAG.tsv`
 
-One row per MAG. A phantom region is a stretch >= 501 bp with zero depth of all HiFi alignments (secondary included) of its own assembler, no BLASTN hit to the raw reads, and no ambiguous base.
+One row per MAG. A phantom region is a stretch longer than 500 bp with zero depth of all HiFi alignments (secondary included) of its own assembler, no BLASTN hit to the raw reads, and no ambiguous base.
 
 | Column | Definition |
 |---|---|
@@ -551,7 +551,7 @@ One row per MAG. A phantom region is a stretch >= 501 bp with zero depth of all 
 
 ### `repeats.contig.tsv`
 
-One row per contig of every assembly. Repeats are BLASTN alignments >= 200 bp with >= 80% identity: within a contig (INTRA, self-alignment off the diagonal) or between contigs of the same MAG (INTER). Every contig is scanned for INTRA repeats; INTER repeats exist only for multi-contig MAGs. Contig-level repeat breadth uses INTRA only, while the MAG total is the union of INTRA and INTER with overlaps counted once.
+One row per contig of every assembly. Repeats are BLASTN alignments longer than 200 bp with >= 80% identity: within a contig (INTRA, self-alignment off the diagonal) or between contigs of the same MAG (INTER). Every contig is scanned for INTRA repeats; INTER repeats exist only for multi-contig MAGs. Contig-level repeat breadth uses INTRA only, while the MAG total is the union of INTRA and INTER with overlaps counted once.
 
 | Column | Definition |
 |---|---|
@@ -568,7 +568,7 @@ One row per contig of every assembly. Repeats are BLASTN alignments >= 200 bp wi
 
 ### `repeats.MAG.tsv`
 
-One row per MAG. Repeats are BLASTN alignments >= 200 bp with >= 80% identity: within a contig (INTRA, self-alignment off the diagonal) or between contigs of the same MAG (INTER). Every contig is scanned for INTRA repeats; INTER repeats exist only for multi-contig MAGs. Contig-level repeat breadth uses INTRA only, while the MAG total is the union of INTRA and INTER with overlaps counted once.
+One row per MAG. Repeats are BLASTN alignments longer than 200 bp with >= 80% identity: within a contig (INTRA, self-alignment off the diagonal) or between contigs of the same MAG (INTER). Every contig is scanned for INTRA repeats; INTER repeats exist only for multi-contig MAGs. Contig-level repeat breadth uses INTRA only, while the MAG total is the union of INTRA and INTER with overlaps counted once.
 
 | Column | Definition |
 |---|---|

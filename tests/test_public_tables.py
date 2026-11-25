@@ -134,6 +134,35 @@ class PublicTableTests(unittest.TestCase):
                          ('Y', 'Y', '2'))
         self.assertNotIn('Chimera_ranks', read(self.root / 'summary.contig.tsv')[0])
 
+    def test_summary_chimera_is_the_high_confidence_call(self):
+        self.test_summary_tables_go_to_the_top()
+        write(self.root / '07_chimera/.cache/chimera.MAG.tsv',
+              ['MAG_ID', 'Taxonomic_chimera', 'High_confidence_taxonomic_chimera'],
+              [['B1', 'Y', 'N']])
+        write(self.root / '07_chimera/.cache/chimera.contig.tsv',
+              ['Contig', 'MAG_ID', 'Taxonomic_chimera', 'High_confidence_taxonomic_chimera'],
+              [['c1', 'B1', 'Y', 'N']])
+        pt.publish(self.root)
+        # A transition on a validated-but-not-high-confidence clipping site is not summarized as Chimera.
+        self.assertEqual(read(self.root / 'summary.MAG.tsv')[0]['Chimera'], 'N')
+        self.assertEqual(read(self.root / 'summary.contig.tsv')[0]['Chimera'], 'N')
+        # Both tiers stay available in the detail tables.
+        detail_m = read(self.root / 'detail.MAG.tsv')[0]
+        self.assertEqual(detail_m['chimera.Taxonomic_chimera'], 'Y')
+        self.assertEqual(detail_m['chimera.High_confidence_taxonomic_chimera'], 'N')
+
+    def test_summary_chimera_follows_a_high_confidence_site(self):
+        self.test_summary_tables_go_to_the_top()
+        write(self.root / '07_chimera/.cache/chimera.MAG.tsv',
+              ['MAG_ID', 'Taxonomic_chimera', 'High_confidence_taxonomic_chimera'],
+              [['B1', 'Y', 'Y']])
+        write(self.root / '07_chimera/.cache/chimera.contig.tsv',
+              ['Contig', 'MAG_ID', 'Taxonomic_chimera', 'High_confidence_taxonomic_chimera'],
+              [['c1', 'B1', 'Y', 'Y']])
+        pt.publish(self.root)
+        self.assertEqual(read(self.root / 'summary.MAG.tsv')[0]['Chimera'], 'Y')
+        self.assertEqual(read(self.root / 'summary.contig.tsv')[0]['Chimera'], 'Y')
+
     def test_module_order_and_summary_counts(self):
         self.assertEqual(pt.SUMMARY_MAG_FIELDS, [
             'MAG_ID', 'Assembler_reported_circularity',

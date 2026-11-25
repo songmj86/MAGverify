@@ -268,6 +268,7 @@ def summary_contig(internal, public):
     _fields, rows = read(internal)
     root = Path(public).parent
     high_confidence_clipping = clipping_high_confidence_calls(root, 'contig')
+    high_confidence_chimera = chimera_high_confidence_calls(root, 'contig')
     circularity = circularity_summary_calls(root, 'contig')
     false_closure = false_closure_contig_calls(root)
     out = []
@@ -292,6 +293,7 @@ def summary_contig(internal, public):
         for name, column, yes, no in CONTIG_CALLS:
             new[name] = to_yn(row[column], yes, no)
         new['Phantom_sequence'] = new['Phantom']
+        new['Chimera'] = high_confidence_chimera.get(row['contig'], 'NA')
         new['Chimera_ranks'] = row['GTDB_taxonomic_chimera_ranks']
         new['Repeat_fraction'] = row['repeat_fraction']
         new['n_duplicated_pairs'] = row['n_false_duplication_candidate_pairs']
@@ -332,6 +334,26 @@ def clipping_high_confidence_calls(root, level):
         calls = {}
         for row in rows:
             value = row['Stringent_clipping']
+            calls[row[key]] = value if value in ('Y', 'N', 'NA') else 'NA'
+        return calls
+    return {}
+
+
+def chimera_high_confidence_calls(root, level):
+    """High-confidence taxonomic chimera from the chimera module table."""
+    root = Path(root)
+    key_names = ('MAG_ID',) if level == 'MAG' else ('Contig', 'contig')
+    for path in (root / f'07_chimera/chimera.{level}.tsv',
+                 root / f'07_chimera/.cache/chimera.{level}.tsv'):
+        if not path.is_file():
+            continue
+        fields, rows = read(path)
+        key = next((name for name in key_names if name in fields), None)
+        if not key or 'High_confidence_taxonomic_chimera' not in fields:
+            continue
+        calls = {}
+        for row in rows:
+            value = row['High_confidence_taxonomic_chimera']
             calls[row[key]] = value if value in ('Y', 'N', 'NA') else 'NA'
         return calls
     return {}
@@ -400,6 +422,7 @@ def summary_mag(internal, public, contigs):
         by_mag.setdefault(contig['MAG_ID'], []).append(contig)
     circularity = circularity_summary_calls(Path(public).parent)
     high_confidence_clipping = clipping_high_confidence_calls(Path(public).parent, 'MAG')
+    high_confidence_chimera = chimera_high_confidence_calls(Path(public).parent, 'MAG')
     out = []
     for row in rows:
         members = by_mag.get(row['MAG_ID'], [])
@@ -417,6 +440,7 @@ def summary_mag(internal, public, contigs):
             new[name] = value if ran else 'NA'
         new['Clipping_candidate'] = new['Clipping']
         new['High_confidence_clipping'] = high_confidence_clipping.get(row['MAG_ID'], 'NA')
+        new['Chimera'] = high_confidence_chimera.get(row['MAG_ID'], 'NA')
         new['Phantom_sequence'] = new['Phantom']
         assembly, read_support, both = circularity.get(row['MAG_ID'], ('NA', 'NA', 'NA'))
         new.update({
