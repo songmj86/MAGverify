@@ -1,4 +1,4 @@
-# Module
+# Modules
 
 This document describes what each module measures and how it decides a call. See [Usage](USAGE.md) for the commands and [Result](OUTPUTS.md) for column definitions.
 

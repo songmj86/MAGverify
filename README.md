@@ -33,7 +33,7 @@ aria2c -c -x 8 -s 8 -k 8M \
 tar -xzf "$Data/input_dataset.tar.gz" -C "$Data" --strip-components=1
 ```
 
-The dataset provides a set of inputs for MAGverify including 3 assemblies, 30 MAGs, 1 HiFi read file, 3 assembler circularity files and 2 GTDB-Tk results.
+The dataset provides a set of test inputs for MAGverify including 3 assemblies, 30 MAGs, 1 HiFi read file, 3 assembler circularity files and 2 GTDB-Tk results.
 
 ```
 input_dataset
@@ -59,7 +59,7 @@ input_dataset
 
 ## 3. Preparation
 
-Complete the four preparation steps in [Usage](docs/USAGE.md#2-preparation). A prebuilt GTDB R232 database (131 GB) is available on Hugging Face as an alternative to a local database build. Use the same output directory for preparation and analysis.
+Complete the four preparation steps in [Usage](docs/USAGE.md#2-preparation). Use the same output directory for preparation and analysis.
 
 ## 4. Quick start
 
@@ -67,7 +67,7 @@ After preparation, run all analysis modules using end-to-end with the following 
 
 - `-a DIR`: Input directory of contig files (`.fa`, `.fasta`, or `.fna`), one per assembler. Contig IDs must be unique across assembly files, and filenames must be unique and free of whitespace.
 - `-g DIR`: Input directory of MAG files (one file per MAG). MAG contig IDs must match those in the assembly files.
-- `-r DIR`: Input directory of PacBio HiFi reads (`.fastq`, `.fq`, `.fastq.gz`, or `.fq.gz`); several files are pooled into `$Base/00_prep/hifi_reads.fastq[.gz]`. All assemblies specified with `-a` must be generated from the same HiFi read set.
+- `-r DIR`: Input directory of PacBio HiFi reads (`.fastq`, `.fq`, `.fastq.gz`, or `.fq.gz`). Several files are pooled into `$Base/00_prep/hifi_reads.fastq[.gz]`. All assemblies specified with `-a` must be generated from the same HiFi read set.
 - `-o DIR`: Output base directory.
 - `-t N`: Number of threads (default: 80% of the available CPUs).
 - `-m N`: Memory limit in GB (default: 80% of the available memory).
@@ -88,12 +88,14 @@ MAGverify end-to-end \
   -t 100 -m 900
 ```
 
-**Note:** `end-to-end` runs the modules in the following order: `map` → `circularity` → `clipping` → `false-closure` → `phantom` → `repeats` → `false-duplication` → `variants` → `chimera` → `summary`. Before analysis, MAGverify checks for missing preparation outputs in `$Base/00_prep/` and identifies the necessary `prep-` commands. Interrupted analyses can be resumed by rerunning the same command, automatically skipping completed modules with unchanged inputs.
+**Note:** `end-to-end` executes modules in the following order: `map` → `circularity` → `clipping` → `false-closure` → `phantom` → `repeats` → `false-duplication` → `variants` → `chimera` → `summary`. Before execution, MAGverify checks for missing preparation files in `$Base/00_prep/` and reports the necessary `prep-` commands. To resume an interrupted analysis, rerun the same command. MAGverify automatically skips completed modules if their inputs remain unchanged.
 
-Each module can also be run separately. See [Usage](docs/USAGE.md#4-individual-modules) for the commands and [Module](docs/MODULES.md) for the detection criteria behind each call.
+Each module can also be run individually. See [Usage](docs/USAGE.md#4-individual-modules) for execution commands and [Modules](docs/MODULES.md) for module-specific methods and detection criteria.
 
 
 ## 5. Main results
+
+MAGverify generates four integrated tables at the genome and contig levels in the root of the output directory. The `summary` tables report a `Y`, `N`, or `NA` flag for each analysis, whereas the `detail` tables provide additional module-specific diagnostic information.
 
 | File | Description |
 | --- | --- |
@@ -102,14 +104,14 @@ Each module can also be run separately. See [Usage](docs/USAGE.md#4-individual-m
 | `detail.MAG.tsv` | Detailed MAG results |
 | `detail.contig.tsv` | Detailed contig results |
 
-Module-specific tables are saved in numbered directories. Keep intermediate files and `.cache/` directories for resumption.
+Module-specific tables are saved in numbered directories.
 
 ## 6. Documentation
 
 | Document | Contents |
 | --- | --- |
 | [Usage](docs/USAGE.md) | Inputs, preparation and commands |
-| [Module](docs/MODULES.md) | Detection methods and criteria |
+| [Modules](docs/MODULES.md) | Detection methods and criteria |
 | [Result](docs/OUTPUTS.md) | Output columns and interpretation |
 
 ## License
