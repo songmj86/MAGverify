@@ -27,7 +27,7 @@ if [[ "$QC_STAGE" == "01_mapping" ||
             esac
             printf 'Usage: bash %s INPUT OUTPUT_DIR\n\n%s\nInput: %s\nAdditional inputs/settings: %s\nMain output: %s\n\n' \
                 "$QC_STAGE.sh" "$description" "$input" "$extras" "$output"
-            printf 'Use MAGverify MODULE --help to specify paths directly.\n' 
+            printf 'Use MAGverify MODULE --help to specify paths directly.\n'
             exit 0
         fi
         if { (( $# > 2 )) && [[ "$QC_STAGE" != "02_circularity" ]]; } ||
@@ -167,7 +167,6 @@ if [[ -z "${OUT:-}" ]]; then
     exit 1
 fi
 
-# Stage input/output paths (previously stage_paths.sh).
 MAPPING_INPUT_READS="${MAPPING_INPUT_READS:-}"
 MAPPING_INPUT_ASSEMBLER_ASSEMBLY_DIR="${MAPPING_INPUT_ASSEMBLER_ASSEMBLY_DIR:-}"
 MAPPING_INPUT_ASSEMBLER_FASTAS="${MAPPING_INPUT_ASSEMBLER_FASTAS:-}"
@@ -448,9 +447,9 @@ GTDB_RELEASE="${GTDB_RELEASE:-GTDB_R232}"
 GTDB_GENE_TAX_DIR="${GTDB_GENE_TAX_DIR:-$PREP_DIR/.cache/gene_taxonomy}"
 GTDB_GENE_TAX_TSV="${GTDB_GENE_TAX_TSV:-$PREP_DIR/taxonomy.gene.tsv}"
 GTDB_CHIMERA_DIR="${GTDB_CHIMERA_DIR:-${CHIMERA_ROOT_DIR}/.cache}"
-GTDB_CHIMERA_CONTIG="${GTDB_CHIMERA_CONTIG:-$GTDB_CHIMERA_DIR/contig_structural_chimera.${GTDB_RELEASE}.final.tsv}"
-GTDB_CHIMERA_MAG_CONTIG="${GTDB_CHIMERA_MAG_CONTIG:-$GTDB_CHIMERA_DIR/MAG_contig_structural_chimera.${GTDB_RELEASE}.final.tsv}"
-GTDB_CHIMERA_MAG="${GTDB_CHIMERA_MAG:-$GTDB_CHIMERA_DIR/MAG_structural_chimera.${GTDB_RELEASE}.final.tsv}"
+GTDB_CHIMERA_CONTIG="${GTDB_CHIMERA_CONTIG:-$GTDB_CHIMERA_DIR/contig_structural_discontinuity.${GTDB_RELEASE}.final.tsv}"
+GTDB_CHIMERA_MAG_CONTIG="${GTDB_CHIMERA_MAG_CONTIG:-$GTDB_CHIMERA_DIR/MAG_contig_structural_discontinuity.${GTDB_RELEASE}.final.tsv}"
+GTDB_CHIMERA_MAG="${GTDB_CHIMERA_MAG:-$GTDB_CHIMERA_DIR/MAG_structural_discontinuity.${GTDB_RELEASE}.final.tsv}"
 MAG_GTDB_TAXONOMY_TSV="${MAG_GTDB_TAXONOMY_TSV:-$PREP_DIR/gtdbtk_taxonomy.MAG.tsv}"
 
 CIRCULARITY_RESULT_DIR="${CIRCULARITY_RESULT_DIR:-$CIRCULARITY_DIR}"
@@ -530,8 +529,6 @@ SUMMARY_MAG="${SUMMARY_MAG:-${SUMMARY_DIR}/summary.MAG.tsv}"
 
 mkdir -p "$OUT/00_log" "$PREP_DIR"
 
-
-# QC helper functions (previously lib_qc.sh).
 qc_sq_count() {
     local bam="$1"
     samtools view -H "$bam" 2>/dev/null \
@@ -988,7 +985,6 @@ def sha256(path):
         for block in iter(lambda: handle.read(1 << 20), b''):
             h.update(block)
     return h.hexdigest()
-
 
 def manifest_sha256(path):
     # The first seven manifest columns only: the flagstat counts appended by map do not change results.

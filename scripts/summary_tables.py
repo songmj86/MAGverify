@@ -178,8 +178,8 @@ def cmd_build(argv):
                 'n_validated_clipping_sites', 'taxonomic_shift_ranks',
                 'Taxonomic_shift', 'Taxonomic_chimera_with_clipping_support',
                 'Clipping_independent_taxonomic_shift', 'GTDB_assessment_status',
-                'Structural_chimera', 'High_confidence_structural_chimera',
-                'Taxonomic_chimera', 'CHIMERA_EVIDENCE',
+                'Structural_discontinuity', 'High_confidence_structural_discontinuity',
+                'Clipping_supported_transition', 'CHIMERA_EVIDENCE',
             }
             missing = required - fields
             if missing:
@@ -206,16 +206,16 @@ def cmd_build(argv):
                 row = dict(row)
                 for flag in (
                     'Taxonomic_shift', 'Taxonomic_chimera_with_clipping_support',
-                    'Clipping_independent_taxonomic_shift', 'Structural_chimera',
-                    'High_confidence_structural_chimera', 'Taxonomic_chimera',
+                    'Clipping_independent_taxonomic_shift', 'Structural_discontinuity',
+                    'High_confidence_structural_discontinuity', 'Clipping_supported_transition',
                 ):
                     value = row[flag].strip().upper()
                     if value not in {'Y', 'N', 'NA'}:
                         raise SystemExit(f'ERROR: invalid GTDB {flag}: {contig}/{value}')
                     row[flag] = value
-                if row['Taxonomic_chimera_with_clipping_support'] != row['Taxonomic_chimera']:
+                if row['Taxonomic_chimera_with_clipping_support'] != row['Clipping_supported_transition']:
                     raise SystemExit(
-                        f'ERROR: final Taxonomic_chimera must equal the validated-clipping-supported call: {contig}'
+                        f'ERROR: final Clipping_supported_transition must equal the validated-clipping-supported call: {contig}'
                     )
                 allowed_evidence = {
                     'TAXONOMIC_SHIFT_WITH_STRINGENT_VALIDATED_CLIPPING',
@@ -228,7 +228,7 @@ def cmd_build(argv):
                     raise SystemExit(
                         f'ERROR: invalid GTDB CHIMERA_EVIDENCE: {contig}/{evidence}'
                     )
-                final_call = row['Taxonomic_chimera']
+                final_call = row['Clipping_supported_transition']
                 high_call = row['High_confidence_taxonomic_chimera'].strip().upper() if 'High_confidence_taxonomic_chimera' in row else 'NA'
                 if final_call == 'Y' and evidence not in {
                     'TAXONOMIC_SHIFT_WITH_STRINGENT_VALIDATED_CLIPPING',
@@ -713,12 +713,12 @@ def cmd_build(argv):
     with open(out_contig, 'w', newline='') as out:
         out.write(
             'MAG_ID\tcontig\tlength\tvalidated_clipping_breakpoints\t'
-            'Taxonomic_chimera_GTDB\t'
+            'Clipping_supported_transition_GTDB\t'
             'GTDB_assessment_status\tGTDB_taxonomic_chimera_ranks\t'
             'GTDB_taxonomic_chimera_with_clipping_support\t'
             'GTDB_clipping_independent_taxonomic_shift\t'
             'GTDB_CHIMERA_EVIDENCE\t'
-            'Taxonomic_chimera\t'
+            'Clipping_supported_transition\t'
             'assembly_allele_support_call\tphantom_sequence_call\texcessive_repeat_call\t'
             'repeat_fraction\tfalse_duplication_call\t'
             'false_duplication_candidate_detected\tfalse_duplication_assessment_call\t'
@@ -756,7 +756,7 @@ def cmd_build(argv):
                 c_gtdb_clip_independent = 'NA'
                 c_gtdb_evidence = gtdb_chimera_default
             else:
-                c_tax_gtdb = gtdb_row['Taxonomic_chimera']
+                c_tax_gtdb = gtdb_row['Clipping_supported_transition']
                 c_gtdb_status = gtdb_row['GTDB_assessment_status']
                 c_gtdb_ranks = gtdb_row['taxonomic_shift_ranks']
                 c_gtdb_clip_support = gtdb_row['Taxonomic_chimera_with_clipping_support']
@@ -1096,9 +1096,9 @@ def cmd_build(argv):
             if row['validated_clipping_breakpoints'] != 'NA':
                 stats['clip_sites'] += int(row['validated_clipping_breakpoints'])
             stats['taxonomic_chimera_gtdb'] += (
-                row['Taxonomic_chimera_GTDB'] == 'Y'
+                row['Clipping_supported_transition_GTDB'] == 'Y'
             )
-            stats['taxonomic_chimera'] += row['Taxonomic_chimera'] == 'Y'
+            stats['taxonomic_chimera'] += row['Clipping_supported_transition'] == 'Y'
             stats['allele_disagreement'] += (
                 row['assembly_allele_support_call'] in positive_allele_disagreement
             )
@@ -1142,7 +1142,7 @@ def cmd_build(argv):
     with open(out_mag, 'w', newline='') as out:
         out.write(
             'MAG_ID\tn_contigs\t'
-            'Clipping_Y_N\tTaxonomic_chimera_Y_N\t'
+            'Clipping_Y_N\tClipping_supported_transition_Y_N\t'
             'Assembly_allele_disagreement_Y_N\tPhantom_sequence_Y_N\t'
             'Excessive_repeat_Y_N\tFalse_duplication_Y_N\t'
             'False_closure_Y_N\tPremature_circularization_Y_N\t'

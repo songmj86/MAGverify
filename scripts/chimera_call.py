@@ -179,7 +179,7 @@ CONTIG_FIELDS = [
     "taxonomy_source", "taxonomy_release", "MAG_ID", "contig", "length",
     "n_predicted_genes", "n_taxonomy_classified_genes",
     "n_gene_count_eligible_boundaries", "n_taxonomically_evaluable_boundaries",
-    "Taxonomic_chimera_assessable", "n_default_clipping_candidates",
+    "Clipping_supported_transition_assessable", "n_default_clipping_candidates",
     "n_validated_clipping_sites", "n_taxonomic_shift_events",
     "n_taxonomic_chimera_with_clipping_support_events",
     "n_clipping_independent_taxonomic_shift_events",
@@ -192,7 +192,7 @@ CONTIG_FIELDS = [
     "Clipping_independent_taxonomic_shift",
     "CHIMERA_EVIDENCE",
     "High_confidence_taxonomic_chimera",
-    "Clipping_independent_taxonomic_chimera", "GTDB_assessment_status", "Taxonomic_chimera",
+    "Clipping_independent_taxonomic_chimera", "GTDB_assessment_status", "Clipping_supported_transition",
 ]
 
 
@@ -1120,7 +1120,7 @@ def _evaluate_main() -> None:
             "n_taxonomy_classified_genes": str(classified_counts.get(contig, 0)),
             "n_gene_count_eligible_boundaries": str(eligible_boundary_counts.get(contig, 0)),
             "n_taxonomically_evaluable_boundaries": str(evaluable_boundary_counts.get(contig, 0)),
-            "Taxonomic_chimera_assessable": "Y" if assessable else "N",
+            "Clipping_supported_transition_assessable": "Y" if assessable else "N",
             "n_default_clipping_candidates": str(len(clipping.get(contig, []))),
             "n_validated_clipping_sites": str(sum(record.validated for record in clipping.get(contig, []))),
             "n_taxonomic_shift_events": str(len(call_rows)),
@@ -1140,7 +1140,7 @@ def _evaluate_main() -> None:
             "High_confidence_taxonomic_chimera": supported_call,
             "Clipping_independent_taxonomic_chimera": independent_call,
             "GTDB_assessment_status": status,
-            "Taxonomic_chimera": tax_call,
+            "Clipping_supported_transition": tax_call,
         })
 
     supported_contigs = [row for row in contig_rows if row["Taxonomic_chimera_with_clipping_support"] == "Y"]
@@ -1155,7 +1155,7 @@ def _evaluate_main() -> None:
 
     print(f"GTDB all-assembly contigs scanned: {len(contig_rows)}")
     print(f"MAG-associated contigs: {sum(row['MAG_ID'] != 'NA' for row in contig_rows)}")
-    print(f"Taxonomically assessable contigs: {sum(row['Taxonomic_chimera_assessable'] == 'Y' for row in contig_rows)}")
+    print(f"Taxonomically assessable contigs: {sum(row['Clipping_supported_transition_assessable'] == 'Y' for row in contig_rows)}")
     print(f"Whole-contig domain-to-order taxonomic-transition candidates: {sum(int(row['n_taxonomic_shift_events']) for row in contig_rows)}")
     print(f"Taxonomic-transition candidates overlapping validated clipping: {len(supported_events)}")
     print(f"Taxonomic-transition candidates without validated HiFi clipping: {len(independent_events)}")
@@ -1349,7 +1349,7 @@ def load_clipping(path: str | None) -> dict[str, list[dict[str, str]]]:
     result: dict[str, list[dict[str, str]]] = defaultdict(list)
     if not path: return result
     fields, rows = read_tsv(path)
-    required = {"contig", "pos_1based", "Clipping", "Stringent_clipping"}
+    required = {"contig", "pos_1based", "Clipping", "High_confidence_clipping"}
     missing = required - set(fields)
     if missing: fail(f"clipping table lacks columns: {sorted(missing)}")
     for row in rows:
@@ -1676,7 +1676,7 @@ def _validate_main() -> None:
         "hifi_anchor_bp", "hifi_min_support_qnames",
         "hifi_primary_supp_left_anchor_qnames", "hifi_primary_supp_right_anchor_qnames", "hifi_primary_supp_spanning_qnames", "hifi_primary_supp_breakpoint_clipped_qnames",
         "HIFI_PRIMARY_SUPP_STRUCTURAL_CALL",
-        "Stringent_clipping_support", "Structural_chimera", "High_confidence_structural_chimera",
+        "High_confidence_clipping_support", "Structural_discontinuity", "High_confidence_structural_discontinuity",
         "SCG_domain", "SCG_HMM_source", "n_SCG_hits", "n_distinct_SCG_families", "n_duplicated_SCG_families", "SCG_redundancy_fraction", "SCG_redundancy_observed", "duplicated_SCG_families",
     ]
     final_event_fields = list(event_fields)
@@ -1689,7 +1689,7 @@ def _validate_main() -> None:
         left, right, _, _ = event_bounds(row, lengths[contig])
         clips = overlap_clip.get(idx, [])
         validated_clip = bool(clips)
-        stringent = any((c.get("Stringent_clipping") or "").strip().upper() == "Y" for c in clips)
+        stringent = any((c.get("High_confidence_clipping") or "").strip().upper() == "Y" for c in clips)
         p = ps_stats[idx]
         ps_call = direct_call(p, args.min_support_qnames, validated_clip=validated_clip)
         high_conf = ps_call == "Y" and stringent
@@ -1704,7 +1704,7 @@ def _validate_main() -> None:
         row["validated_clipping_support"] = "Y" if clips else "N"
         row["n_supporting_validated_clipping_positions"] = str(len(clips))
         row["supporting_validated_clipping_positions_1based"] = ";".join(c["pos_1based"] for c in clips) or "NA"
-        row["Stringent_clipping_support"] = "Y" if stringent else "N"
+        row["High_confidence_clipping_support"] = "Y" if stringent else "N"
         row["CHIMERA_EVIDENCE"] = evidence_label(ps_call, high_conf)
         row["source_assembler"] = route["assembler"]
         row["junction_left_boundary_1based"] = str(left); row["junction_right_boundary_1based"] = str(right)
@@ -1712,19 +1712,19 @@ def _validate_main() -> None:
         row["hifi_primary_supp_left_anchor_qnames"] = str(len(p["left"])); row["hifi_primary_supp_right_anchor_qnames"] = str(len(p["right"]))
         row["hifi_primary_supp_spanning_qnames"] = str(len(p["spanning"])); row["hifi_primary_supp_breakpoint_clipped_qnames"] = str(len(p["clipped"]))
         row["HIFI_PRIMARY_SUPP_STRUCTURAL_CALL"] = ps_call
-        row["Structural_chimera"] = ps_call; row["High_confidence_structural_chimera"] = "Y" if high_conf else ("N" if ps_call in {"Y", "N"} else "NA")
+        row["Structural_discontinuity"] = ps_call; row["High_confidence_structural_discontinuity"] = "Y" if high_conf else ("N" if ps_call in {"Y", "N"} else "NA")
         row.update(scg[contig])
         final_events.append(row)
 
-    structural_events = [r for r in final_events if r["Structural_chimera"] == "Y"]
-    high_conf_events = [r for r in final_events if r["High_confidence_structural_chimera"] == "Y"]
-    unresolved_events = [r for r in final_events if r["Structural_chimera"] == "NA"]
+    structural_events = [r for r in final_events if r["Structural_discontinuity"] == "Y"]
+    high_conf_events = [r for r in final_events if r["High_confidence_structural_discontinuity"] == "Y"]
+    unresolved_events = [r for r in final_events if r["Structural_discontinuity"] == "NA"]
 
     appended_contig = [
         "source_assembler",
-        "n_structural_chimera_events", "n_high_confidence_structural_chimera_events", "n_hifi_continuity_supported_events", "n_unresolved_structural_events",
-        "structural_chimera_positions_1based", "high_confidence_structural_chimera_positions_1based", "unresolved_structural_positions_1based",
-        "Structural_chimera", "High_confidence_structural_chimera",
+        "n_structural_discontinuity_events", "n_high_confidence_structural_discontinuity_events", "n_hifi_continuity_supported_events", "n_unresolved_structural_events",
+        "structural_discontinuity_positions_1based", "high_confidence_structural_discontinuity_positions_1based", "unresolved_structural_positions_1based",
+        "Structural_discontinuity", "High_confidence_structural_discontinuity",
         "SCG_domain", "SCG_HMM_source", "n_SCG_hits", "n_distinct_SCG_families", "n_duplicated_SCG_families", "SCG_redundancy_fraction", "SCG_redundancy_observed", "duplicated_SCG_families",
     ]
     final_contig_fields = list(contig_fields)
@@ -1736,10 +1736,10 @@ def _validate_main() -> None:
     final_contigs = []
     for base in contig_rows:
         row = dict(base); contig = row["contig"]; ers = events_by_contig.get(contig, [])
-        y = [e for e in ers if e["Structural_chimera"] == "Y"]
-        n = [e for e in ers if e["Structural_chimera"] == "N"]
-        na = [e for e in ers if e["Structural_chimera"] == "NA"]
-        hc = [e for e in ers if e["High_confidence_structural_chimera"] == "Y"]
+        y = [e for e in ers if e["Structural_discontinuity"] == "Y"]
+        n = [e for e in ers if e["Structural_discontinuity"] == "N"]
+        na = [e for e in ers if e["Structural_discontinuity"] == "NA"]
+        hc = [e for e in ers if e["High_confidence_structural_discontinuity"] == "Y"]
         clip_y = [e for e in y if e["validated_clipping_support"] == "Y"]
         independent_y = [e for e in y if e["validated_clipping_support"] != "Y"]
         independent_shift = [e for e in ers if e["validated_clipping_support"] != "Y"]
@@ -1760,13 +1760,13 @@ def _validate_main() -> None:
         elif structural == "NA" and ers: status = "UNRESOLVED_TAXONOMIC_TRANSITION_STRUCTURE"
         elif tax_shift == "N": status = "NO_TAXONOMIC_SHIFT"
         else: status = "NOT_ASSESSABLE_INSUFFICIENT_TAXONOMIC_RESOLUTION"
-        row["n_structural_chimera_events"] = str(len(y)); row["n_high_confidence_structural_chimera_events"] = str(len(hc))
+        row["n_structural_discontinuity_events"] = str(len(y)); row["n_high_confidence_structural_discontinuity_events"] = str(len(hc))
         row["n_hifi_continuity_supported_events"] = str(len(n)); row["n_unresolved_structural_events"] = str(len(na))
-        row["structural_chimera_positions_1based"] = ";".join(e["analysis_pos_1based"] for e in y) or "NA"
-        row["high_confidence_structural_chimera_positions_1based"] = ";".join(e["analysis_pos_1based"] for e in hc) or "NA"
+        row["structural_discontinuity_positions_1based"] = ";".join(e["analysis_pos_1based"] for e in y) or "NA"
+        row["high_confidence_structural_discontinuity_positions_1based"] = ";".join(e["analysis_pos_1based"] for e in hc) or "NA"
         row["unresolved_structural_positions_1based"] = ";".join(e["analysis_pos_1based"] for e in na) or "NA"
         row["source_assembler"] = routes[contig]["assembler"]
-        row["Structural_chimera"] = structural; row["High_confidence_structural_chimera"] = high_call
+        row["Structural_discontinuity"] = structural; row["High_confidence_structural_discontinuity"] = high_call
         row.update(scg[contig])
         row["n_taxonomic_chimera_with_clipping_support_events"] = str(len(clip_y))
         row["n_clipping_independent_taxonomic_shift_events"] = str(len(independent_shift))
@@ -1778,12 +1778,12 @@ def _validate_main() -> None:
         row["High_confidence_taxonomic_chimera"] = high_call
         row["Clipping_independent_taxonomic_chimera"] = "Y" if independent_y else ("N" if structural in {"Y", "N"} else "NA")
         row["GTDB_assessment_status"] = status
-        row["Taxonomic_chimera"] = structural
+        row["Clipping_supported_transition"] = structural
         final_contigs.append(row)
 
-    structural_contigs = [r for r in final_contigs if r["Structural_chimera"] == "Y"]
-    high_conf_contigs = [r for r in final_contigs if r["High_confidence_structural_chimera"] == "Y"]
-    unresolved_contigs = [r for r in final_contigs if r["Structural_chimera"] == "NA" and r.get("Taxonomic_shift") == "Y"]
+    structural_contigs = [r for r in final_contigs if r["Structural_discontinuity"] == "Y"]
+    high_conf_contigs = [r for r in final_contigs if r["High_confidence_structural_discontinuity"] == "Y"]
+    unresolved_contigs = [r for r in final_contigs if r["Structural_discontinuity"] == "NA" and r.get("Taxonomic_shift") == "Y"]
     scg_audit = [r for r in final_contigs if r["SCG_redundancy_observed"] == "Y"]
 
     _validate_atomic_write(args.events_output, final_event_fields, final_events)
@@ -1798,8 +1798,8 @@ def _validate_main() -> None:
 
     print(f"Taxonomic-transition candidates: {len(final_events)}")
     print(f"HiFi-supported structural chimeras: {len(structural_events)}")
-    print(f"High-confidence structural chimeras (Stringent_clipping=Y): {len(high_conf_events)}")
-    print(f"HiFi continuity-supported transitions: {sum(r['Structural_chimera']=='N' for r in final_events)}")
+    print(f"High-confidence structural chimeras (High_confidence_clipping=Y): {len(high_conf_events)}")
+    print(f"HiFi continuity-supported transitions: {sum(r['Structural_discontinuity']=='N' for r in final_events)}")
     print(f"Unresolved transitions: {len(unresolved_events)}")
     print(f"Contigs with any SCG family redundancy (annotation only): {len(scg_audit)}")
 
@@ -1858,7 +1858,7 @@ def intv(row,key):
 
 
 def aggregate_call(rows):
-    calls=[r['Structural_chimera'].strip().upper() for r in rows]
+    calls=[r['Structural_discontinuity'].strip().upper() for r in rows]
     if 'Y' in calls:return 'Y'
     if 'NA' in calls:return 'NA'
     return 'N'
@@ -1866,7 +1866,7 @@ def aggregate_call(rows):
 
 def evidence(rows, call):
     if call=='Y':
-        return 'HIGH_CONFIDENCE_HIFI_STRUCTURAL_CHIMERA' if any(r.get('High_confidence_structural_chimera')=='Y' for r in rows) else 'HIFI_STRUCTURAL_CHIMERA'
+        return 'HIGH_CONFIDENCE_HIFI_STRUCTURAL_CHIMERA' if any(r.get('High_confidence_structural_discontinuity')=='Y' for r in rows) else 'HIFI_STRUCTURAL_CHIMERA'
     if call=='NA': return 'UNRESOLVED_HIFI_STRUCTURAL_EVIDENCE'
     if any(r.get('Taxonomic_shift')=='Y' for r in rows): return 'HIFI_CONTINUITY_SUPPORTED'
     return 'NO_TAXONOMIC_SHIFT'
@@ -1875,7 +1875,7 @@ def evidence(rows, call):
 def _mag_main():
     a=_mag_parse_args()
     fields,rows=_mag_read_tsv(a.contig_table)
-    required={'taxonomy_source','taxonomy_release','MAG_ID','contig','length','Taxonomic_shift','Taxonomic_chimera','Structural_chimera','High_confidence_structural_chimera','CHIMERA_EVIDENCE'}
+    required={'taxonomy_source','taxonomy_release','MAG_ID','contig','length','Taxonomic_shift','Clipping_supported_transition','Structural_discontinuity','High_confidence_structural_discontinuity','CHIMERA_EVIDENCE'}
     if required-set(fields): _mag_fail(f'contig table lacks columns: {sorted(required-set(fields))}')
     c2m,m2c=_mag_read_mag_map(a.mag_map)
     all_by={r['contig']:r for r in rows}
@@ -1890,11 +1890,11 @@ def _mag_main():
 
     out_fields=[
         'taxonomy_source','taxonomy_release','MAG_ID','n_contigs','total_length_bp',
-        'n_taxonomic_shift_contigs','n_structural_chimera_contigs','n_high_confidence_structural_chimera_contigs','n_unresolved_structural_contigs',
-        'n_taxonomic_shift_events','n_structural_chimera_events','n_high_confidence_structural_chimera_events','n_hifi_continuity_supported_events','n_unresolved_structural_events',
+        'n_taxonomic_shift_contigs','n_structural_discontinuity_contigs','n_high_confidence_structural_discontinuity_contigs','n_unresolved_structural_contigs',
+        'n_taxonomic_shift_events','n_structural_discontinuity_events','n_high_confidence_structural_discontinuity_events','n_hifi_continuity_supported_events','n_unresolved_structural_events',
         'n_SCG_redundancy_contigs',
-        'structural_chimera_contig_ids','high_confidence_structural_chimera_contig_ids','unresolved_structural_contig_ids','SCG_redundancy_contig_ids',
-        'Taxonomic_shift','Structural_chimera','Taxonomic_chimera','High_confidence_structural_chimera','CHIMERA_EVIDENCE','GTDB_assessment_status',
+        'structural_discontinuity_contig_ids','high_confidence_structural_discontinuity_contig_ids','unresolved_structural_contig_ids','SCG_redundancy_contig_ids',
+        'Taxonomic_shift','Structural_discontinuity','Clipping_supported_transition','High_confidence_structural_discontinuity','CHIMERA_EVIDENCE','GTDB_assessment_status',
     ]
     mag_rows=[]
     for mag in sorted(m2c):
@@ -1903,10 +1903,10 @@ def _mag_main():
         if len(release)!=1 or len(source)!=1: _mag_fail(f'mixed taxonomy metadata within {mag}')
         structural=aggregate_call(rs)
         taxshift='Y' if any(r['Taxonomic_shift']=='Y' for r in rs) else ('NA' if any(r['Taxonomic_shift']=='NA' for r in rs) else 'N')
-        high='Y' if any(r['High_confidence_structural_chimera']=='Y' for r in rs) else ('N' if structural in {'Y','N'} else 'NA')
-        y=[r['contig'] for r in rs if r['Structural_chimera']=='Y']
-        hc=[r['contig'] for r in rs if r['High_confidence_structural_chimera']=='Y']
-        unresolved=[r['contig'] for r in rs if r['Structural_chimera']=='NA' and r['Taxonomic_shift']=='Y']
+        high='Y' if any(r['High_confidence_structural_discontinuity']=='Y' for r in rs) else ('N' if structural in {'Y','N'} else 'NA')
+        y=[r['contig'] for r in rs if r['Structural_discontinuity']=='Y']
+        hc=[r['contig'] for r in rs if r['High_confidence_structural_discontinuity']=='Y']
+        unresolved=[r['contig'] for r in rs if r['Structural_discontinuity']=='NA' and r['Taxonomic_shift']=='Y']
         scg=[r['contig'] for r in rs if r.get('SCG_redundancy_observed')=='Y']
         ev=evidence(rs,structural)
         status=('STRUCTURAL_CHIMERA_DETECTED' if structural=='Y' else 'UNRESOLVED_TAXONOMIC_TRANSITION_STRUCTURE' if structural=='NA' and taxshift=='Y' else 'HIFI_CONTINUITY_SUPPORTED_FOR_TAXONOMIC_TRANSITIONS' if taxshift=='Y' else 'NO_TAXONOMIC_SHIFT')
@@ -1914,22 +1914,22 @@ def _mag_main():
             'taxonomy_source':next(iter(source)),'taxonomy_release':next(iter(release)),'MAG_ID':mag,'n_contigs':str(len(rs)),
             'total_length_bp':str(sum(int(r['length']) for r in rs)),
             'n_taxonomic_shift_contigs':str(sum(r['Taxonomic_shift']=='Y' for r in rs)),
-            'n_structural_chimera_contigs':str(len(y)),'n_high_confidence_structural_chimera_contigs':str(len(hc)),'n_unresolved_structural_contigs':str(len(unresolved)),
+            'n_structural_discontinuity_contigs':str(len(y)),'n_high_confidence_structural_discontinuity_contigs':str(len(hc)),'n_unresolved_structural_contigs':str(len(unresolved)),
             'n_taxonomic_shift_events':str(sum(intv(r,'n_taxonomic_shift_events') for r in rs)),
-            'n_structural_chimera_events':str(sum(intv(r,'n_structural_chimera_events') for r in rs)),
-            'n_high_confidence_structural_chimera_events':str(sum(intv(r,'n_high_confidence_structural_chimera_events') for r in rs)),
+            'n_structural_discontinuity_events':str(sum(intv(r,'n_structural_discontinuity_events') for r in rs)),
+            'n_high_confidence_structural_discontinuity_events':str(sum(intv(r,'n_high_confidence_structural_discontinuity_events') for r in rs)),
             'n_hifi_continuity_supported_events':str(sum(intv(r,'n_hifi_continuity_supported_events') for r in rs)),
             'n_unresolved_structural_events':str(sum(intv(r,'n_unresolved_structural_events') for r in rs)),
             'n_SCG_redundancy_contigs':str(len(scg)),
-            'structural_chimera_contig_ids':';'.join(y) or 'NA','high_confidence_structural_chimera_contig_ids':';'.join(hc) or 'NA',
+            'structural_discontinuity_contig_ids':';'.join(y) or 'NA','high_confidence_structural_discontinuity_contig_ids':';'.join(hc) or 'NA',
             'unresolved_structural_contig_ids':';'.join(unresolved) or 'NA','SCG_redundancy_contig_ids':';'.join(scg) or 'NA',
-            'Taxonomic_shift':taxshift,'Structural_chimera':structural,'Taxonomic_chimera':structural,'High_confidence_structural_chimera':high,
+            'Taxonomic_shift':taxshift,'Structural_discontinuity':structural,'Clipping_supported_transition':structural,'High_confidence_structural_discontinuity':high,
             'CHIMERA_EVIDENCE':ev,'GTDB_assessment_status':status,
         })
     _mag_atomic_write(a.mag_summary_out,out_fields,mag_rows)
     print(f'MAGs summarized: {len(mag_rows)}')
-    print(f'MAGs with structurally validated taxonomic chimera: {sum(r["Structural_chimera"]=="Y" for r in mag_rows)}')
-    print(f'MAGs unresolved at one or more taxonomic transitions: {sum(r["Structural_chimera"]=="NA" and r["Taxonomic_shift"]=="Y" for r in mag_rows)}')
+    print(f'MAGs with structurally validated taxonomic chimera: {sum(r["Structural_discontinuity"]=="Y" for r in mag_rows)}')
+    print(f'MAGs unresolved at one or more taxonomic transitions: {sum(r["Structural_discontinuity"]=="NA" and r["Taxonomic_shift"]=="Y" for r in mag_rows)}')
 
 
 def cmd_mag(argv):
@@ -1952,11 +1952,11 @@ def _reclassify_parse_args() -> argparse.Namespace:
     p.add_argument("--clipping", required=True,
                    help="Current 03_clipping.sh final clipping table; only Clipping=Y sites are used")
     p.add_argument("--contigs-in", required=True,
-                   help="Existing contig_structural_chimera.*.final.tsv")
+                   help="Existing contig_structural_discontinuity.*.final.tsv")
     p.add_argument("--mag-contigs-in", required=True,
-                   help="Existing MAG_contig_structural_chimera.*.final.tsv")
+                   help="Existing MAG_contig_structural_discontinuity.*.final.tsv")
     p.add_argument("--mags-in", required=True,
-                   help="Existing MAG_structural_chimera.*.final.tsv")
+                   help="Existing MAG_structural_discontinuity.*.final.tsv")
     p.add_argument("--out-dir", required=True)
     p.add_argument("--aux-dir", help="directory for chimera.MAG_contig.tsv and run_metadata.tsv (default: --out-dir)")
     p.add_argument("--release", default="GTDB_R232")
@@ -2013,7 +2013,7 @@ def join_contigs(values: Iterable[str]) -> str:
 
 def load_validated_clipping(path: str) -> Dict[str, List[Dict[str, str]]]:
     fields, rows = _reclassify_read_tsv(path)
-    required = {"contig", "pos_1based", "Clipping", "Stringent_clipping"}
+    required = {"contig", "pos_1based", "Clipping", "High_confidence_clipping"}
     missing = required - set(fields)
     if missing:
         _reclassify_fail(f"clipping input lacks columns: {sorted(missing)}")
@@ -2021,13 +2021,13 @@ def load_validated_clipping(path: str) -> Dict[str, List[Dict[str, str]]]:
     seen = set()
     for row in rows:
         clip = (row.get("Clipping") or "").strip().upper()
-        stringent = (row.get("Stringent_clipping") or "").strip().upper()
+        stringent = (row.get("High_confidence_clipping") or "").strip().upper()
         if clip not in {"Y", "N"}:
             _reclassify_fail(f"invalid Clipping flag at {row.get('contig','NA')}:{row.get('pos_1based','NA')}")
         if stringent not in {"Y", "N", "NA"}:
-            _reclassify_fail(f"invalid Stringent_clipping flag at {row.get('contig','NA')}:{row.get('pos_1based','NA')}")
+            _reclassify_fail(f"invalid High_confidence_clipping flag at {row.get('contig','NA')}:{row.get('pos_1based','NA')}")
         if stringent == "Y" and clip != "Y":
-            _reclassify_fail(f"Stringent_clipping=Y without Clipping=Y at {row.get('contig','NA')}:{row.get('pos_1based','NA')}")
+            _reclassify_fail(f"High_confidence_clipping=Y without Clipping=Y at {row.get('contig','NA')}:{row.get('pos_1based','NA')}")
         if clip != "Y":
             continue
         contig = (row.get("contig") or "").strip()
@@ -2062,20 +2062,20 @@ def annotate_region_with_clipping(row: Dict[str, str], clipping: Mapping[str, Se
     row["validated_clipping_support"] = "Y" if supporting else "N"
     row["n_supporting_validated_clipping_positions"] = str(len(supporting))
     row["supporting_validated_clipping_positions_1based"] = ";".join(c["pos_1based"] for c in supporting) or "NA"
-    row["Stringent_clipping_support"] = "Y" if any((c.get("Stringent_clipping") or "").strip().upper() == "Y" for c in supporting) else "N"
+    row["High_confidence_clipping_support"] = "Y" if any((c.get("High_confidence_clipping") or "").strip().upper() == "Y" for c in supporting) else "N"
 
 
 def final_region_call(row: Mapping[str, str]) -> Tuple[str, str, str, str]:
     if (row.get("taxonomic_transition") or "").strip().upper() != "Y":
         _reclassify_fail(f"non-taxonomic-shift row in region table: {row.get('event_id','NA')}")
     validated = (row.get("validated_clipping_support") or "").strip().upper()
-    stringent = (row.get("Stringent_clipping_support") or "").strip().upper()
+    stringent = (row.get("High_confidence_clipping_support") or "").strip().upper()
     if validated not in {"Y", "N"}:
         _reclassify_fail(f"invalid validated_clipping_support: {row.get('event_id','NA')}/{validated}")
     if stringent not in {"Y", "N"}:
-        _reclassify_fail(f"invalid Stringent_clipping_support: {row.get('event_id','NA')}/{stringent}")
+        _reclassify_fail(f"invalid High_confidence_clipping_support: {row.get('event_id','NA')}/{stringent}")
     if stringent == "Y" and validated != "Y":
-        _reclassify_fail(f"Stringent_clipping_support=Y without validated clipping: {row.get('event_id','NA')}")
+        _reclassify_fail(f"High_confidence_clipping_support=Y without validated clipping: {row.get('event_id','NA')}")
 
     chimera = "Y" if validated == "Y" else "N"
     high = "Y" if stringent == "Y" else "N"
@@ -2097,9 +2097,9 @@ def classify_contig(base: Dict[str, str], regions: Sequence[Mapping[str, str]]) 
     if tax_shift not in {"Y", "N", "NA"}:
         _reclassify_fail(f"invalid Taxonomic_shift on contig {row.get('contig','NA')}: {tax_shift}")
 
-    chim = [r for r in regions if r["Taxonomic_chimera"] == "Y"]
+    chim = [r for r in regions if r["Clipping_supported_transition"] == "Y"]
     high = [r for r in regions if r["High_confidence_taxonomic_chimera"] == "Y"]
-    no_clip = [r for r in regions if r["Taxonomic_chimera"] == "N"]
+    no_clip = [r for r in regions if r["Clipping_supported_transition"] == "N"]
 
     if tax_shift == "Y":
         call = "Y" if chim else "N"
@@ -2121,34 +2121,34 @@ def classify_contig(base: Dict[str, str], regions: Sequence[Mapping[str, str]]) 
         evidence = status = "NOT_ASSESSABLE"
 
     row["n_taxonomic_shift_regions"] = str(len(regions))
-    row["n_taxonomic_chimera_regions"] = str(len(chim))
+    row["n_clipping_supported_transition_regions"] = str(len(chim))
     row["n_high_confidence_taxonomic_chimera_regions"] = str(len(high))
     row["n_taxonomic_shift_only_regions"] = str(len(no_clip))
-    row["taxonomic_chimera_positions_1based"] = join_values(chim, "analysis_pos_1based")
+    row["clipping_supported_transition_positions_1based"] = join_values(chim, "analysis_pos_1based")
     row["high_confidence_taxonomic_chimera_positions_1based"] = join_values(high, "analysis_pos_1based")
     row["taxonomic_shift_only_positions_1based"] = join_values(no_clip, "analysis_pos_1based")
     row["Taxonomic_chimera_with_clipping_support"] = call
     row["Clipping_independent_taxonomic_shift"] = "Y" if no_clip else ("N" if tax_shift in {"Y", "N"} else "NA")
     row["High_confidence_taxonomic_chimera"] = high_call
-    row["Taxonomic_chimera"] = call
+    row["Clipping_supported_transition"] = call
     row["CHIMERA_EVIDENCE"] = evidence
     row["GTDB_assessment_status"] = status
     row["final_taxonomic_chimera_policy"] = "taxonomic_shift_plus_validated_Clipping_Y"
-    row["high_confidence_policy"] = "taxonomic_shift_plus_Stringent_clipping_Y"
+    row["high_confidence_policy"] = "taxonomic_shift_plus_High_confidence_clipping_Y"
     return row
 
 
 def classify_mag(base: Dict[str, str], contigs: Sequence[Mapping[str, str]], regions: Sequence[Mapping[str, str]]) -> Dict[str, str]:
     row = dict(base)
     tax_shift_contigs = [c for c in contigs if c.get("Taxonomic_shift") == "Y"]
-    chim_contigs = [c for c in contigs if c.get("Taxonomic_chimera") == "Y"]
+    chim_contigs = [c for c in contigs if c.get("Clipping_supported_transition") == "Y"]
     high_contigs = [c for c in contigs if c.get("High_confidence_taxonomic_chimera") == "Y"]
-    shift_only_contigs = [c for c in contigs if c.get("Taxonomic_shift") == "Y" and c.get("Taxonomic_chimera") != "Y"]
-    chim_regions = [r for r in regions if r["Taxonomic_chimera"] == "Y"]
+    shift_only_contigs = [c for c in contigs if c.get("Taxonomic_shift") == "Y" and c.get("Clipping_supported_transition") != "Y"]
+    chim_regions = [r for r in regions if r["Clipping_supported_transition"] == "Y"]
     high_regions = [r for r in regions if r["High_confidence_taxonomic_chimera"] == "Y"]
-    shift_only_regions = [r for r in regions if r["Taxonomic_chimera"] == "N"]
+    shift_only_regions = [r for r in regions if r["Clipping_supported_transition"] == "N"]
 
-    any_assessable = any(c.get("Taxonomic_chimera_assessable") == "Y" for c in contigs)
+    any_assessable = any(c.get("Clipping_supported_transition_assessable") == "Y" for c in contigs)
     tax_shift = "Y" if tax_shift_contigs else ("N" if any_assessable else "NA")
     chim_call = "Y" if chim_contigs else ("N" if tax_shift in {"Y", "N"} else "NA")
     high_call = "Y" if high_contigs else ("N" if chim_call in {"Y", "N"} else "NA")
@@ -2168,23 +2168,23 @@ def classify_mag(base: Dict[str, str], contigs: Sequence[Mapping[str, str]], reg
         evidence = status = "NOT_ASSESSABLE"
 
     row["n_taxonomic_shift_contigs"] = str(len(tax_shift_contigs))
-    row["n_taxonomic_chimera_contigs"] = str(len(chim_contigs))
+    row["n_clipping_supported_transition_contigs"] = str(len(chim_contigs))
     row["n_high_confidence_taxonomic_chimera_contigs"] = str(len(high_contigs))
     row["n_taxonomic_shift_only_contigs"] = str(len(shift_only_contigs))
     row["n_taxonomic_shift_regions"] = str(len(regions))
-    row["n_taxonomic_chimera_regions"] = str(len(chim_regions))
+    row["n_clipping_supported_transition_regions"] = str(len(chim_regions))
     row["n_high_confidence_taxonomic_chimera_regions"] = str(len(high_regions))
     row["n_taxonomic_shift_only_regions"] = str(len(shift_only_regions))
-    row["taxonomic_chimera_contig_ids"] = join_contigs(c.get("contig", "") for c in chim_contigs)
+    row["clipping_supported_transition_contig_ids"] = join_contigs(c.get("contig", "") for c in chim_contigs)
     row["high_confidence_taxonomic_chimera_contig_ids"] = join_contigs(c.get("contig", "") for c in high_contigs)
     row["taxonomic_shift_only_contig_ids"] = join_contigs(c.get("contig", "") for c in shift_only_contigs)
     row["Taxonomic_shift"] = tax_shift
-    row["Taxonomic_chimera"] = chim_call
+    row["Clipping_supported_transition"] = chim_call
     row["High_confidence_taxonomic_chimera"] = high_call
     row["CHIMERA_EVIDENCE"] = evidence
     row["GTDB_assessment_status"] = status
     row["final_taxonomic_chimera_policy"] = "taxonomic_shift_plus_validated_Clipping_Y"
-    row["high_confidence_policy"] = "taxonomic_shift_plus_Stringent_clipping_Y"
+    row["high_confidence_policy"] = "taxonomic_shift_plus_High_confidence_clipping_Y"
     return row
 
 
@@ -2203,7 +2203,7 @@ def _reclassify_main() -> None:
     missing = required_regions - set(region_fields)
     if missing:
         _reclassify_fail(f"region input lacks columns: {sorted(missing)}")
-    required_contigs = {"MAG_ID", "contig", "length", "Taxonomic_shift", "Taxonomic_chimera_assessable"}
+    required_contigs = {"MAG_ID", "contig", "length", "Taxonomic_shift", "Clipping_supported_transition_assessable"}
     missing = required_contigs - set(contig_fields)
     if missing:
         _reclassify_fail(f"contig input lacks columns: {sorted(missing)}")
@@ -2215,7 +2215,7 @@ def _reclassify_main() -> None:
         _reclassify_fail("MAG input lacks MAG_ID")
 
     new_region_fields = ensure_fields(region_fields, [
-        "Taxonomic_chimera", "High_confidence_taxonomic_chimera",
+        "Clipping_supported_transition", "High_confidence_taxonomic_chimera",
         "final_taxonomic_chimera_policy", "high_confidence_policy",
         "final_taxonomic_chimera_evidence", "final_taxonomic_chimera_status",
     ])
@@ -2227,10 +2227,10 @@ def _reclassify_main() -> None:
         row = dict(base)
         annotate_region_with_clipping(row, clipping)
         call, high, evidence, status = final_region_call(row)
-        row["Taxonomic_chimera"] = call
+        row["Clipping_supported_transition"] = call
         row["High_confidence_taxonomic_chimera"] = high
         row["final_taxonomic_chimera_policy"] = "taxonomic_shift_plus_validated_Clipping_Y"
-        row["high_confidence_policy"] = "taxonomic_shift_plus_Stringent_clipping_Y"
+        row["high_confidence_policy"] = "taxonomic_shift_plus_High_confidence_clipping_Y"
         row["final_taxonomic_chimera_evidence"] = evidence
         row["final_taxonomic_chimera_status"] = status
         classified_regions.append(row)
@@ -2240,9 +2240,9 @@ def _reclassify_main() -> None:
             regions_by_mag[mag].append(row)
 
     contig_add = [
-        "n_taxonomic_shift_regions", "n_taxonomic_chimera_regions",
+        "n_taxonomic_shift_regions", "n_clipping_supported_transition_regions",
         "n_high_confidence_taxonomic_chimera_regions", "n_taxonomic_shift_only_regions",
-        "taxonomic_chimera_positions_1based", "high_confidence_taxonomic_chimera_positions_1based",
+        "clipping_supported_transition_positions_1based", "high_confidence_taxonomic_chimera_positions_1based",
         "taxonomic_shift_only_positions_1based", "final_taxonomic_chimera_policy", "high_confidence_policy",
     ]
     new_contig_fields = ensure_fields(contig_fields, contig_add)
@@ -2268,10 +2268,10 @@ def _reclassify_main() -> None:
         mag_contigs_by_mag[mag].append(row)
 
     mag_add = [
-        "n_taxonomic_chimera_contigs", "n_high_confidence_taxonomic_chimera_contigs",
-        "n_taxonomic_shift_only_contigs", "n_taxonomic_shift_regions", "n_taxonomic_chimera_regions",
+        "n_clipping_supported_transition_contigs", "n_high_confidence_taxonomic_chimera_contigs",
+        "n_taxonomic_shift_only_contigs", "n_taxonomic_shift_regions", "n_clipping_supported_transition_regions",
         "n_high_confidence_taxonomic_chimera_regions", "n_taxonomic_shift_only_regions",
-        "taxonomic_chimera_contig_ids", "high_confidence_taxonomic_chimera_contig_ids",
+        "clipping_supported_transition_contig_ids", "high_confidence_taxonomic_chimera_contig_ids",
         "taxonomic_shift_only_contig_ids", "High_confidence_taxonomic_chimera",
         "final_taxonomic_chimera_policy", "high_confidence_policy",
     ]
@@ -2290,7 +2290,7 @@ def _reclassify_main() -> None:
     mag_path = out_dir / "chimera.MAG.tsv"
     meta_path = aux_dir / "run_metadata.final.tsv"
 
-    chim_regions = [r for r in classified_regions if r["Taxonomic_chimera"] == "Y"]
+    chim_regions = [r for r in classified_regions if r["Clipping_supported_transition"] == "Y"]
     high_regions = [r for r in classified_regions if r["High_confidence_taxonomic_chimera"] == "Y"]
 
     _reclassify_atomic_write(all_regions_path, new_region_fields, classified_regions)
@@ -2298,28 +2298,28 @@ def _reclassify_main() -> None:
     _reclassify_atomic_write(mag_contig_path, new_contig_fields, classified_mag_contigs)
     _reclassify_atomic_write(mag_path, new_mag_fields, classified_mags)
 
-    mag_positive = [m for m in classified_mags if m["Taxonomic_chimera"] == "Y"]
+    mag_positive = [m for m in classified_mags if m["Clipping_supported_transition"] == "Y"]
     mag_high = [m for m in classified_mags if m["High_confidence_taxonomic_chimera"] == "Y"]
     with open(meta_path, "w", encoding="utf-8") as handle:
         handle.write("key\tvalue\n")
         handle.write("reclassification_policy\ttaxonomic_shift_plus_validated_Clipping_Y\n")
         handle.write("validated_clipping_definition\tClipping_Y_from_03_clipping_exact_position_validation\n")
         handle.write(f"clipping_source\t{args.clipping}\n")
-        handle.write("high_confidence_policy\ttaxonomic_shift_plus_Stringent_clipping_Y\n")
+        handle.write("high_confidence_policy\ttaxonomic_shift_plus_High_confidence_clipping_Y\n")
         handle.write("primary_supp_structural_call_policy\taudit_only_not_final_classifier\n")
         handle.write(f"n_taxonomic_shift_regions\t{len(classified_regions)}\n")
-        handle.write(f"n_taxonomic_chimera_regions\t{len(chim_regions)}\n")
+        handle.write(f"n_clipping_supported_transition_regions\t{len(chim_regions)}\n")
         handle.write(f"n_high_confidence_taxonomic_chimera_regions\t{len(high_regions)}\n")
-        handle.write(f"n_taxonomic_chimera_contigs\t{sum(r['Taxonomic_chimera']=='Y' for r in classified_contigs)}\n")
+        handle.write(f"n_clipping_supported_transition_contigs\t{sum(r['Clipping_supported_transition']=='Y' for r in classified_contigs)}\n")
         handle.write(f"n_high_confidence_taxonomic_chimera_contigs\t{sum(r['High_confidence_taxonomic_chimera']=='Y' for r in classified_contigs)}\n")
         handle.write(f"n_taxonomic_chimera_MAGs\t{len(mag_positive)}\n")
         handle.write(f"n_high_confidence_taxonomic_chimera_MAGs\t{len(mag_high)}\n")
 
     print(f"Taxonomic-shift regions: {len(classified_regions)}")
     print(f"Taxonomic chimeras (validated Clipping=Y): {len(chim_regions)}")
-    print(f"High-confidence taxonomic chimeras (Stringent_clipping=Y): {len(high_regions)}")
-    print(f"Assembly contigs with taxonomic chimera: {sum(r['Taxonomic_chimera']=='Y' for r in classified_contigs)}")
-    print(f"MAG-associated regions with taxonomic chimera: {sum(r['Taxonomic_chimera']=='Y' and r.get('MAG_ID','') not in NA_VALUES for r in classified_regions)}")
+    print(f"High-confidence taxonomic chimeras (High_confidence_clipping=Y): {len(high_regions)}")
+    print(f"Assembly contigs with taxonomic chimera: {sum(r['Clipping_supported_transition']=='Y' for r in classified_contigs)}")
+    print(f"MAG-associated regions with taxonomic chimera: {sum(r['Clipping_supported_transition']=='Y' and r.get('MAG_ID','') not in NA_VALUES for r in classified_regions)}")
     print(f"MAGs with taxonomic chimera: {len(mag_positive)}")
     print(f"MAGs with high-confidence taxonomic chimera: {len(mag_high)}")
     print(f"Outputs written to: {out_dir}")

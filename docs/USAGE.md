@@ -47,13 +47,18 @@ Choose one option to prepare the MMseqs2 taxonomy database.
 
 Download the prebuilt database (139 GB) from [Hugging Face](https://huggingface.co/datasets/ATCC19718/MAGverify-resources) to bypass `prep-chimera`. Keep all database files together under `$Base/00_prep/` with the prefix `GTDB_R232`.
 
+The dataset is stored on Xet, so the Hugging Face CLI downloads it faster than a plain HTTP transfer and resumes an interrupted download.
+
 ```bash
-aria2c -c -x 8 -s 8 -k 8M \
-  -d "$Base" -o GTDB_R232.tar.gz \
-  "https://huggingface.co/datasets/ATCC19718/MAGverify-resources/resolve/main/GTDB_R232.tar.gz"
+pip install -U "huggingface_hub[cli]"
+
+hf download ATCC19718/MAGverify-resources GTDB_R232.tar.gz \
+  --repo-type dataset --local-dir "$Base"
 
 tar -xzf "$Base/GTDB_R232.tar.gz" -C "$Base/00_prep"
 ```
+
+On a high-bandwidth machine with fast storage, `HF_XET_HIGH_PERFORMANCE=1 hf download ...` raises the transfer concurrency. Without the CLI, `aria2c -c -x 8 -s 8 -k 8M -d "$Base" -o GTDB_R232.tar.gz "https://huggingface.co/datasets/ATCC19718/MAGverify-resources/resolve/main/GTDB_R232.tar.gz"` downloads the same file.
 
 #### Option B. Local database build
 

@@ -954,13 +954,13 @@ Structural-chimera policy:
   - Existing 03_clipping.sh results are reused. Clipping is never recomputed here.
   - Final taxonomic chimera requires a taxonomic-shift region containing a validated
     Clipping=Y site from 03_clipping.sh.
-  - High-confidence taxonomic chimera additionally requires Stringent_clipping=Y
+  - High-confidence taxonomic chimera additionally requires High_confidence_clipping=Y
     (validated Clipping=Y plus >=10x anvi'o coverage and 100% clipping).
   - Primary + supplementary HiFi structural validation is retained as an audit annotation only.
   - Secondary alignments are excluded from that structural audit.
   - HiFi continuity requires >=2 unique spanning QNAMEs with >=500 bp matched anchors on both sides.
   - The structural audit records breakpoint support and unresolved regions but does not determine
-    the final Taxonomic_chimera call.
+    the final Clipping_supported_transition call.
   - GC and HiFi depth are descriptive annotations for all assembly contigs.
   - SCG redundancy is annotated only for MAG-associated contigs using the MAG GTDB domain-matched anvi'o collection (Bacteria_71 or Archaea_76) and never creates a structural call.
 
@@ -1052,16 +1052,16 @@ fi
 rm -rf "$CHIMERA_DIR/clipping_defined" "$CHIMERA_ROOT_DIR/$GTDB_RELEASE"
 WORK_DIR="$CHIMERA_DIR/.candidate_work"
 EVENTS_OUT="$CHIMERA_DIR/taxonomic_transition_structural_validation.${GTDB_RELEASE}.events.tsv"
-STRUCTURAL_EVENTS_OUT="$CHIMERA_DIR/structural_chimera.${GTDB_RELEASE}.events.tsv"
-HIGH_CONF_EVENTS_OUT="$CHIMERA_DIR/high_confidence_structural_chimera.${GTDB_RELEASE}.events.tsv"
+STRUCTURAL_EVENTS_OUT="$CHIMERA_DIR/structural_discontinuity.${GTDB_RELEASE}.events.tsv"
+HIGH_CONF_EVENTS_OUT="$CHIMERA_DIR/high_confidence_structural_discontinuity.${GTDB_RELEASE}.events.tsv"
 UNRESOLVED_EVENTS_OUT="$CHIMERA_DIR/unresolved_taxonomic_transition.${GTDB_RELEASE}.events.tsv"
-CONTIG_OUT="${GTDB_CHIMERA_CONTIG:-$CHIMERA_DIR/contig_structural_chimera.${GTDB_RELEASE}.final.tsv}"
-STRUCTURAL_CONTIG_OUT="$CHIMERA_DIR/structural_chimera.${GTDB_RELEASE}.contig.tsv"
-HIGH_CONF_CONTIG_OUT="$CHIMERA_DIR/high_confidence_structural_chimera.${GTDB_RELEASE}.contig.tsv"
+CONTIG_OUT="${GTDB_CHIMERA_CONTIG:-$CHIMERA_DIR/contig_structural_discontinuity.${GTDB_RELEASE}.final.tsv}"
+STRUCTURAL_CONTIG_OUT="$CHIMERA_DIR/structural_discontinuity.${GTDB_RELEASE}.contig.tsv"
+HIGH_CONF_CONTIG_OUT="$CHIMERA_DIR/high_confidence_structural_discontinuity.${GTDB_RELEASE}.contig.tsv"
 UNRESOLVED_CONTIG_OUT="$CHIMERA_DIR/unresolved_taxonomic_transition.${GTDB_RELEASE}.contig.tsv"
 SCG_AUDIT_OUT="$CHIMERA_DIR/SCG_redundancy.${GTDB_RELEASE}.contig.tsv"
-MAG_CONTIG_OUT="${GTDB_CHIMERA_MAG_CONTIG:-$CHIMERA_DIR/MAG_contig_structural_chimera.${GTDB_RELEASE}.final.tsv}"
-MAG_OUT="${GTDB_CHIMERA_MAG:-$CHIMERA_DIR/MAG_structural_chimera.${GTDB_RELEASE}.final.tsv}"
+MAG_CONTIG_OUT="${GTDB_CHIMERA_MAG_CONTIG:-$CHIMERA_DIR/MAG_contig_structural_discontinuity.${GTDB_RELEASE}.final.tsv}"
+MAG_OUT="${GTDB_CHIMERA_MAG:-$CHIMERA_DIR/MAG_structural_discontinuity.${GTDB_RELEASE}.final.tsv}"
 RUN_META_OUT="$CHIMERA_DIR/run_metadata.tsv"
 
 CHIMERA_CALL="$SCRIPT_DIR/../scripts/chimera_call.py"
@@ -1243,7 +1243,7 @@ rm -rf "$WORK_DIR"
     printf 'minimum_support_qnames\t%s\n' "$CHIMERA_MIN_SUPPORT_QNAMES"
     printf 'parallel_bam_jobs\t%s\n' "$CHIMERA_BAM_JOBS"
     printf 'validated_clipping_policy\treuse_03_clipping_no_recomputation\n'
-    printf 'high_confidence_policy\ttaxonomic_shift_plus_Stringent_clipping_Y\n'
+    printf 'high_confidence_policy\ttaxonomic_shift_plus_High_confidence_clipping_Y\n'
     printf 'primary_supp_structural_validation_policy\taudit_only_not_final_classifier\n'
     printf 'scg_policy\tMAG_associated_contigs_only_domain_matched_Bacteria_71_or_Archaea_76_redundancy_annotation_no_structural_call\n'
     printf 'scg_available\t%s\n' "$SCG_AVAILABLE"

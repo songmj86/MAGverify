@@ -11,8 +11,8 @@ SCRIPT = ROOT / 'scripts' / 'clipping_summarize.py'
 
 SITE_FIELDS = [
     'contig', 'length', 'pos_1based', 'coverage', 'clipping_count', 'clipping_ratio',
-    'default_candidate', 'stringent_candidate', 'Clipping_ge1', 'Clipping_analyzable',
-    'Clipping', 'Stringent_clipping', 'region_type', 'n_unique_all_clipped_qnames',
+    'default_candidate', 'Clipping_candidate', 'Clipping_ge1', 'Clipping_analyzable',
+    'Clipping', 'High_confidence_clipping', 'region_type', 'n_unique_all_clipped_qnames',
     'n_unique_exact_spanning_qnames',
     'exact_spanning_min_flank_bp_min', 'exact_spanning_min_flank_bp_median',
     'exact_spanning_min_flank_bp_max',
@@ -30,9 +30,9 @@ def site(contig, length, pos, coverage, clipped, clipping, region='INTERNAL'):
     row = {field: 'NA' for field in SITE_FIELDS}
     row.update(contig=contig, length=length, pos_1based=pos, coverage=coverage,
                clipping_count=clipped, clipping_ratio=f'{clipped / coverage:.6f}',
-               default_candidate='Y', stringent_candidate='N',
+               default_candidate='Y', Clipping_candidate='N',
                Clipping_ge1='Y' if clipping == 'Y' else 'N',
-               Clipping_analyzable='Y', Clipping=clipping, Stringent_clipping='N',
+               Clipping_analyzable='Y', Clipping=clipping, High_confidence_clipping='N',
                region_type=region, n_unique_all_clipped_qnames=clipped)
     for field in SITE_FIELDS:
         if field.startswith('n_unique_') and field != 'n_unique_all_clipped_qnames':

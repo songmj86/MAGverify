@@ -48,7 +48,7 @@ One row per MAG; columns appear in the following order.
 | `Assembler_reported_circularity` | Y/N/NA call from `prep-circularity` |
 | `Read_supported_circularity` | HiFi read evidence supporting circular topology, from `Read_supported_circular_topology` |
 | `High_confidence_circularity` | High-confidence circularity: both assembler-reported and read-supported calls are Y; NA when the assembler call is unavailable |
-| `High_confidence_clipping` | At least one high-confidence clipping site: `Stringent_clipping` Y in the clipping module (validated clipping with anvi'o coverage >= 10 and clipping ratio = 1.0); NA when clipping was not assessable or not run |
+| `High_confidence_clipping` | At least one high-confidence clipping site: `High_confidence_clipping` Y in the clipping module (validated clipping with anvi'o coverage >= 10 and clipping ratio = 1.0); NA when clipping was not assessable or not run |
 | `Premature_circularization` | Single-contig MAG reported circular by its assembler with false-closure evidence |
 | `Phantom_sequence` | At least one phantom region |
 | `Excessive_repeat` | MAG-level excessive repeat flag |
@@ -68,7 +68,7 @@ One row per contig across all assemblies. `MAG_ID` is `NA` for unbinned contigs.
 | `Assembler_reported_circularity` | Y/N/NA call from `prep-circularity` |
 | `Read_supported_circularity` | HiFi read evidence supporting circular topology, from `Read_supported_circular_topology`; `NA` for contigs of multi-contig MAGs, which are not evaluated |
 | `High_confidence_circularity` | High-confidence circularity: both assembler-reported and read-supported calls are Y; NA when the assembler call is unavailable or the contig was not evaluated |
-| `High_confidence_clipping` | At least one high-confidence clipping site (`Stringent_clipping` Y in the clipping module); NA when clipping was not assessable or not run |
+| `High_confidence_clipping` | At least one high-confidence clipping site (`High_confidence_clipping` Y in the clipping module); NA when clipping was not assessable or not run |
 | `Premature_circularization` | Contig reported circular by its assembler with false-closure evidence, from `Premature_circularization_candidate`; NA when false closure was not run |
 | `Phantom_sequence` | Phantom sequence flag |
 | `Excessive_repeat` | Intra-contig excessive repeat flag |
@@ -83,7 +83,7 @@ The detail tables are grouped by module. `detail.MAG.tsv` opens with the identit
 | Module block | Flags and annotations before the `MODULE.COLUMN` fields |
 |---|---|
 | circularity | `Assembler_reported_circularity`, `Read_supported_circularity`, `High_confidence_circularity` |
-| clipping | `Clipping_candidate`, `High_confidence_clipping`, `n_clipping_sites` |
+| clipping | `Clipping`, `High_confidence_clipping`, `n_clipping_sites` |
 | false closure | `Premature_circularization`, `False_closure`, `Premature_circularization_screen`, `Small_genome_proxy`, `False_closure_partner_contigs` |
 | phantom | `Phantom_sequence`, `n_phantom_contigs` |
 | repeats | `Excessive_repeat`, `Repeat_fraction`, `n_excessive_repeat_contigs` |
@@ -93,7 +93,7 @@ The detail tables are grouped by module. `detail.MAG.tsv` opens with the identit
 
 `detail.contig.tsv` is built the same way from the contig-level tables and includes only contigs assigned to MAGs. Its identity columns are `Contig`, `MAG_ID`, `Length_bp` and `Assembler`, and its module blocks carry the same names in the same order as the MAG table. Three MAG-level counts have no contig equivalent and are absent (`n_phantom_contigs`, `n_excessive_repeat_contigs`, `n_variant_contigs`), `n_false_duplication_contigs` is replaced by `n_false_duplication_pairs`, and `n_chimera_contigs` by `Chimera_ranks`. For the full meanings of `MODULE.COLUMN`, consult the relevant module table section below.
 
-`Clipping_candidate` is the validated clipping call (`Clipping` Y at >= 1 site), kept alongside `High_confidence_clipping` so both clipping tiers are visible. The detail tables carry no check counters and no list of skipped checks; a check that was not run shows `NA` in its own column.
+`Clipping` is the read-validated call (`Clipping` Y at >= 1 site), kept alongside `High_confidence_clipping` so both clipping tiers are visible. The detail tables carry no check counters and no list of skipped checks; a check that was not run shows `NA` in its own column.
 
 They also retain the following summary-level fields that are omitted from the concise summaries:
 
@@ -254,9 +254,9 @@ One row per clipping candidate reported by `anvi-script-find-misassemblies` (def
 | `Reference_boundary` | Y at the first or last base of the contig; reads cannot span such a position, so `Clipping` is NA |
 | `Clipping_ge1` | Permissive call: >= 1 distinct clipped read at the exact position and no spanning read |
 | `Clipping` | Final call: Y when >= 2 distinct clipped HiFi reads at the exact position and no read spans it; N otherwise; NA at a reference boundary |
-| `Stringent_clipping` | Y when `Clipping` is Y and the position is a stringent candidate |
-| `Stringent_candidate` | anvi'o coverage >= 10 and clipping ratio = 1.0 |
-| `Clipping_confidence` | STRINGENT: `Clipping` Y and stringent; DEFAULT_ONLY: `Clipping` Y below the stringent threshold; NOT_VALIDATED otherwise |
+| `High_confidence_clipping` | Y when `Clipping` is Y and the position is a clipping candidate |
+| `Clipping_candidate` | anvi'o coverage >= 10 and clipping ratio = 1.0 |
+| `Clipping_confidence` | HIGH_CONFIDENCE: `Clipping` Y and a clipping candidate; DEFAULT_ONLY: `Clipping` Y below the candidate thresholds; NOT_VALIDATED otherwise |
 | `Anvio_position_0based` | Position as reported by anvi'o (0-based) |
 | `Relative_position` | Position divided by the contig length (anvi'o) |
 | `Coverage` | Read depth at the position (anvi'o) |
@@ -309,18 +309,18 @@ One row per contig of every assembly; counts and calls from `clipping.site.tsv`.
 | `Terminal_clipping` | Y when >= 1 TERMINAL site has `Clipping` Y |
 | `Clipping_analyzable` | N when there is no `Clipping` Y site and >= 1 candidate lies on a reference boundary; Y otherwise |
 | `Clipping` | Y when >= 1 site has `Clipping` Y; N when none and every candidate was testable; NA otherwise |
-| `Stringent_clipping` | Y when >= 1 site has `Stringent_clipping` Y; NA when `Clipping_analyzable` is N |
+| `High_confidence_clipping` | Y when >= 1 site has `High_confidence_clipping` Y; NA when `Clipping_analyzable` is N |
 | `n_internal_clipping_ge1_sites` | INTERNAL sites with `Clipping_ge1` Y |
 | `n_terminal_clipping_ge1_sites` | TERMINAL sites with `Clipping_ge1` Y |
 | `n_clipping_ge1_sites` | Sites with `Clipping_ge1` Y |
 | `n_internal_clipping_sites` | INTERNAL sites with `Clipping` Y |
 | `n_terminal_clipping_sites` | TERMINAL sites with `Clipping` Y |
 | `n_clipping_sites` | Sites with `Clipping` Y |
-| `n_stringent_clipping_sites` | Sites with `Stringent_clipping` Y |
+| `n_high_confidence_clipping_sites` | Sites with `High_confidence_clipping` Y |
 | `n_internal_candidate_sites` | INTERNAL candidates |
 | `n_terminal_candidate_sites` | TERMINAL candidates |
 | `n_candidate_sites` | All candidates |
-| `n_stringent_candidate_sites` | Stringent candidates |
+| `n_clipping_candidate_sites` | Clipping candidates |
 | `n_candidates_with_spanning` | Candidates with >= 1 spanning read |
 | `n_candidates_with_spanning_I` | Candidates with >= 1 spanning read carrying an insertion |
 | `n_candidates_with_spanning_D` | Candidates with >= 1 spanning read carrying a deletion |
@@ -331,7 +331,7 @@ One row per contig of every assembly; counts and calls from `clipping.site.tsv`.
 | `Max_unique_clipped_hifi_reads` | Highest number of distinct clipped reads at one candidate |
 | `Max_anvio_clipping_ratio` | Highest anvi'o clipping ratio among the candidates |
 | `Candidate` | Y when >= 1 candidate |
-| `Stringent_candidate` | Y when >= 1 stringent candidate |
+| `Clipping_candidate` | Y when >= 1 clipping candidate |
 
 ### `clipping.MAG.tsv`
 
@@ -349,37 +349,37 @@ One row per MAG; counts and calls over the MAG contigs.
 | `Terminal_clipping` | Y when >= 1 TERMINAL site has `Clipping` Y |
 | `Clipping_analyzable` | N when there is no `Clipping` Y site and >= 1 candidate lies on a reference boundary; Y otherwise |
 | `Clipping` | Y when >= 1 site has `Clipping` Y; N when none and every candidate was testable; NA otherwise |
-| `Stringent_clipping` | Y when >= 1 site has `Stringent_clipping` Y; NA when `Clipping_analyzable` is N |
+| `High_confidence_clipping` | Y when >= 1 site has `High_confidence_clipping` Y; NA when `Clipping_analyzable` is N |
 | `n_internal_clipping_ge1_sites` | INTERNAL sites with `Clipping_ge1` Y |
 | `n_terminal_clipping_ge1_sites` | TERMINAL sites with `Clipping_ge1` Y |
 | `n_clipping_ge1_sites` | Sites with `Clipping_ge1` Y |
 | `n_internal_clipping_sites` | INTERNAL sites with `Clipping` Y |
 | `n_terminal_clipping_sites` | TERMINAL sites with `Clipping` Y |
 | `n_clipping_sites` | Sites with `Clipping` Y |
-| `n_stringent_clipping_sites` | Sites with `Stringent_clipping` Y |
+| `n_high_confidence_clipping_sites` | Sites with `High_confidence_clipping` Y |
 | `n_internal_candidate_sites` | INTERNAL candidates |
 | `n_terminal_candidate_sites` | TERMINAL candidates |
 | `n_candidate_sites` | All candidates |
-| `n_stringent_candidate_sites` | Stringent candidates |
+| `n_clipping_candidate_sites` | Clipping candidates |
 | `n_candidates_with_spanning` | Candidates with >= 1 spanning read |
 | `n_candidates_with_spanning_I` | Candidates with >= 1 spanning read carrying an insertion |
 | `n_candidates_with_spanning_D` | Candidates with >= 1 spanning read carrying a deletion |
 | `n_candidates_with_spanning_N` | Candidates with >= 1 spanning read carrying a reference skip |
 | `n_candidates_with_spanning_any_IDN` | Candidates with >= 1 spanning read carrying I, D or N |
 | `n_contigs_with_candidate` | Contigs with >= 1 candidate |
-| `n_contigs_with_stringent_candidate` | Contigs with >= 1 stringent candidate |
+| `n_contigs_with_clipping_candidate` | Contigs with >= 1 clipping candidate |
 | `n_contigs_with_clipping` | Contigs with >= 1 `Clipping` Y site |
-| `n_contigs_with_stringent_clipping` | Contigs with >= 1 `Stringent_clipping` Y site |
+| `n_contigs_with_high_confidence_clipping` | Contigs with >= 1 `High_confidence_clipping` Y site |
 | `Candidate_contigs` | Contigs with >= 1 candidate (`;`-separated) |
-| `Stringent_candidate_contigs` | Contigs with >= 1 stringent candidate |
+| `Clipping_candidate_contigs` | Contigs with >= 1 clipping candidate |
 | `Clipping_contigs` | Contigs with >= 1 `Clipping` Y site |
-| `Stringent_clipping_contigs` | Contigs with >= 1 `Stringent_clipping` Y site |
+| `High_confidence_clipping_contigs` | Contigs with >= 1 `High_confidence_clipping` Y site |
 | `Max_anvio_coverage` | Highest anvi'o coverage among the candidates |
 | `Max_anvio_clipping_count` | Highest anvi'o clipping count among the candidates |
 | `Max_unique_clipped_hifi_reads` | Highest number of distinct clipped reads at one candidate |
 | `Max_anvio_clipping_ratio` | Highest anvi'o clipping ratio among the candidates |
 | `Candidate` | Y when >= 1 candidate |
-| `Stringent_candidate` | Y when >= 1 stringent candidate |
+| `Clipping_candidate` | Y when >= 1 clipping candidate |
 
 ### `clipping.assembler.tsv`
 
@@ -395,11 +395,11 @@ One row per assembler and one `ALL` row: site densities in INTERNAL and TERMINAL
 | `Terminal_candidate_sites` | TERMINAL candidates |
 | `Terminal_candidate_sites_per_Mbp` | TERMINAL candidates per Mbp of TERMINAL bases |
 | `Terminal_to_internal_candidate_sites_density_ratio` | TERMINAL per-Mbp density / INTERNAL per-Mbp density (enrichment at contig ends) |
-| `Internal_stringent_sites` | INTERNAL stringent candidates |
-| `Internal_stringent_sites_per_Mbp` | INTERNAL stringent candidates per Mbp of INTERNAL bases |
-| `Terminal_stringent_sites` | TERMINAL stringent candidates |
-| `Terminal_stringent_sites_per_Mbp` | TERMINAL stringent candidates per Mbp of TERMINAL bases |
-| `Terminal_to_internal_stringent_sites_density_ratio` | TERMINAL per-Mbp density / INTERNAL per-Mbp density (enrichment at contig ends) |
+| `Internal_clipping_candidate_sites` | INTERNAL clipping candidates |
+| `Internal_clipping_candidate_sites_per_Mbp` | INTERNAL clipping candidates per Mbp of INTERNAL bases |
+| `Terminal_clipping_candidate_sites` | TERMINAL clipping candidates |
+| `Terminal_clipping_candidate_sites_per_Mbp` | TERMINAL clipping candidates per Mbp of TERMINAL bases |
+| `Terminal_to_internal_clipping_candidate_sites_density_ratio` | TERMINAL per-Mbp density / INTERNAL per-Mbp density (enrichment at contig ends) |
 | `Internal_clipping_ge1_sites` | INTERNAL sites with `Clipping_ge1` Y |
 | `Internal_clipping_ge1_sites_per_Mbp` | INTERNAL sites with `Clipping_ge1` Y per Mbp of INTERNAL bases |
 | `Terminal_clipping_ge1_sites` | TERMINAL sites with `Clipping_ge1` Y |
@@ -790,7 +790,7 @@ One row per MAG.
 
 ### `chimera.region.tsv`
 
-One row per taxonomic transition. Genes are classified against GTDB R232 (MMseqs2). At each gene boundary, up to 10 predicted genes are searched on each side and the nearest 5 classified genes form a block (>= 4 required). A taxonomic transition is a boundary where both blocks have >= 80% dominance at one rank (domain, phylum, class or order) and their dominant taxa differ. A transition becomes a taxonomic chimera when a validated clipping site (`Clipping` Y) lies in its interval (+/- 1 bp), and a high-confidence chimera when that site is also `Stringent_clipping` Y. The HiFi structural check (primary + supplementary, 500-bp anchors, >= 2 reads) is reported alongside.
+One row per taxonomic transition. Genes are classified against GTDB R232 (MMseqs2). At each gene boundary, up to 10 predicted genes are searched on each side and the nearest 5 classified genes form a block (>= 4 required). A taxonomic transition is a boundary where both blocks have >= 80% dominance at one rank (domain, phylum, class or order) and their dominant taxa differ. A transition becomes a taxonomic chimera when a validated clipping site (`Clipping` Y) lies in its interval (+/- 1 bp), and a high-confidence chimera when that site is also `High_confidence_clipping` Y. The HiFi structural check (primary + supplementary, 500-bp anchors, >= 2 reads) is reported alongside.
 
 | Column | Definition |
 |---|---|
@@ -854,9 +854,9 @@ One row per taxonomic transition. Genes are classified against GTDB R232 (MMseqs
 | `HiFi_right_anchor_reads` | Reads with >= 500 bp aligned right of the junction |
 | `HiFi_spanning_reads` | Reads spanning the junction with 500-bp anchors on both sides |
 | `HiFi_breakpoint_clipped_reads` | Reads clipped at the junction |
-| `Stringent_clipping_support` | Y when a supporting site is `Stringent_clipping` Y |
-| `Structural_chimera` | N when >= 2 reads span the junction; Y when >= 2 reads anchor on each side and >= 2 clipped reads (or a validated clipping site) exist; NA otherwise |
-| `High_confidence_structural_chimera` | Y when `Structural_chimera` is Y and a supporting site is `Stringent_clipping` Y |
+| `High_confidence_clipping_support` | Y when a supporting site is `High_confidence_clipping` Y |
+| `Structural_discontinuity` | N when >= 2 reads span the junction; Y when >= 2 reads anchor on each side and >= 2 clipped reads (or a validated clipping site) exist; NA otherwise |
+| `High_confidence_structural_discontinuity` | Y when `Structural_discontinuity` is Y and a supporting site is `High_confidence_clipping` Y |
 | `SCG_domain` | Domain of the MAG (GTDB-Tk, `prep-taxonomy`) |
 | `SCG_HMM_collection` | anvi'o SCG collection used (Bacteria_71 or Archaea_76) |
 | `n_SCG_hits` | SCG hits on the contig |
@@ -865,13 +865,13 @@ One row per taxonomic transition. Genes are classified against GTDB R232 (MMseqs
 | `SCG_redundancy_fraction` | `n_duplicated_SCG_families` / `n_distinct_SCG_families` |
 | `SCG_redundancy_observed` | Y when >= 1 SCG family is duplicated |
 | `Duplicated_SCG_families` | Duplicated families as `family x count` |
-| `Taxonomic_chimera` | Y when `Validated_clipping_support` is Y |
-| `High_confidence_taxonomic_chimera` | Y when `Stringent_clipping_support` is Y |
+| `Clipping_supported_transition` | Y when `Validated_clipping_support` is Y |
+| `High_confidence_taxonomic_chimera` | Y when `High_confidence_clipping_support` is Y |
 | `Taxonomic_assessment` | HIGH_CONFIDENCE_TAXONOMIC_CHIMERA, TAXONOMIC_CHIMERA or TAXONOMIC_SHIFT_ONLY (transition without validated clipping) |
 
 ### `chimera.contig.tsv`
 
-One row per contig of every assembly. Genes are classified against GTDB R232 (MMseqs2). At each gene boundary, up to 10 predicted genes are searched on each side and the nearest 5 classified genes form a block (>= 4 required). A taxonomic transition is a boundary where both blocks have >= 80% dominance at one rank (domain, phylum, class or order) and their dominant taxa differ. A transition becomes a taxonomic chimera when a validated clipping site (`Clipping` Y) lies in its interval (+/- 1 bp), and a high-confidence chimera when that site is also `Stringent_clipping` Y. The HiFi structural check (primary + supplementary, 500-bp anchors, >= 2 reads) is reported alongside.
+One row per contig of every assembly. Genes are classified against GTDB R232 (MMseqs2). At each gene boundary, up to 10 predicted genes are searched on each side and the nearest 5 classified genes form a block (>= 4 required). A taxonomic transition is a boundary where both blocks have >= 80% dominance at one rank (domain, phylum, class or order) and their dominant taxa differ. A transition becomes a taxonomic chimera when a validated clipping site (`Clipping` Y) lies in its interval (+/- 1 bp), and a high-confidence chimera when that site is also `High_confidence_clipping` Y. The HiFi structural check (primary + supplementary, 500-bp anchors, >= 2 reads) is reported alongside.
 
 | Column | Definition |
 |---|---|
@@ -883,7 +883,7 @@ One row per contig of every assembly. Genes are classified against GTDB R232 (MM
 | `n_taxonomy_classified_genes` | Genes with a GTDB classification |
 | `n_gene_count_eligible_boundaries` | Gene boundaries with >= 4 genes on each side |
 | `n_taxonomically_evaluable_boundaries` | Boundaries where both blocks could be built |
-| `Taxonomic_chimera_assessable` | Y when >= 1 boundary is evaluable |
+| `Clipping_supported_transition_assessable` | Y when >= 1 boundary is evaluable |
 | `n_default_clipping_candidates` | anvi'o clipping candidates on the contig |
 | `n_validated_clipping_sites` | `Clipping` Y sites on the contig |
 | `Taxonomic_shift_ranks` | Ranks of the transitions |
@@ -893,16 +893,16 @@ One row per contig of every assembly. Genes are classified against GTDB R232 (MM
 | `Taxonomic_shift` | Y when >= 1 transition; N when assessable without one; NA when not assessable |
 | `High_confidence_taxonomic_chimera` | Y when >= 1 region is `High_confidence_taxonomic_chimera` Y |
 | `Taxonomic_assessment` | HIGH_CONFIDENCE_TAXONOMIC_CHIMERA, TAXONOMIC_CHIMERA, TAXONOMIC_SHIFT_ONLY, NO_TAXONOMIC_SHIFT, or NA |
-| `Taxonomic_chimera` | Y when >= 1 region is `Taxonomic_chimera` Y; N when assessable without one; NA when not assessable |
-| `n_structural_chimera_events` | Regions with `Structural_chimera` Y |
-| `n_high_confidence_structural_chimera_events` | Regions with `High_confidence_structural_chimera` Y |
-| `n_hifi_continuity_supported_events` | Regions with `Structural_chimera` N (spanned by reads) |
-| `n_unresolved_structural_events` | Regions with `Structural_chimera` NA |
-| `Structural_chimera_positions_1based` | Positions of `Structural_chimera` Y regions |
-| `High_confidence_structural_chimera_positions_1based` | Positions of high-confidence structural regions |
+| `Clipping_supported_transition` | Y when >= 1 region is `Clipping_supported_transition` Y; N when assessable without one; NA when not assessable |
+| `n_structural_discontinuity_events` | Regions with `Structural_discontinuity` Y |
+| `n_high_confidence_structural_discontinuity_events` | Regions with `High_confidence_structural_discontinuity` Y |
+| `n_hifi_continuity_supported_events` | Regions with `Structural_discontinuity` N (spanned by reads) |
+| `n_unresolved_structural_events` | Regions with `Structural_discontinuity` NA |
+| `Structural_discontinuity_positions_1based` | Positions of `Structural_discontinuity` Y regions |
+| `High_confidence_structural_discontinuity_positions_1based` | Positions of high-confidence structural regions |
 | `Unresolved_structural_positions_1based` | Positions of unresolved regions |
-| `Structural_chimera` | Y when >= 1 region is Y; NA when >= 1 is NA and none Y; N otherwise |
-| `High_confidence_structural_chimera` | Y when >= 1 region is `High_confidence_structural_chimera` Y |
+| `Structural_discontinuity` | Y when >= 1 region is Y; NA when >= 1 is NA and none Y; N otherwise |
+| `High_confidence_structural_discontinuity` | Y when >= 1 region is `High_confidence_structural_discontinuity` Y |
 | `SCG_domain` | Domain of the MAG (GTDB-Tk, `prep-taxonomy`) |
 | `SCG_HMM_collection` | anvi'o SCG collection used (Bacteria_71 or Archaea_76) |
 | `n_SCG_hits` | SCG hits on the contig |
@@ -912,10 +912,10 @@ One row per contig of every assembly. Genes are classified against GTDB R232 (MM
 | `SCG_redundancy_observed` | Y when >= 1 SCG family is duplicated |
 | `Duplicated_SCG_families` | Duplicated families as `family x count` |
 | `n_taxonomic_shift_regions` | Transition regions |
-| `n_taxonomic_chimera_regions` | Regions with `Taxonomic_chimera` Y |
+| `n_clipping_supported_transition_regions` | Regions with `Clipping_supported_transition` Y |
 | `n_high_confidence_taxonomic_chimera_regions` | Regions with `High_confidence_taxonomic_chimera` Y |
 | `n_taxonomic_shift_only_regions` | Regions without validated clipping |
-| `Taxonomic_chimera_positions_1based` | Positions of `Taxonomic_chimera` Y regions |
+| `Clipping_supported_transition_positions_1based` | Positions of `Clipping_supported_transition` Y regions |
 | `High_confidence_taxonomic_chimera_positions_1based` | Positions of high-confidence regions |
 | `Taxonomic_shift_only_positions_1based` | Positions of regions without validated clipping |
 
@@ -929,31 +929,31 @@ One row per MAG; counts and calls over its contigs.
 | `n_contigs` | Number of contigs in the MAG |
 | `MAG_length_bp` | Sum of the MAG contig lengths (bp) |
 | `n_taxonomic_shift_contigs` | Contigs with `Taxonomic_shift` Y |
-| `n_structural_chimera_contigs` | Contigs with `Structural_chimera` Y |
-| `n_high_confidence_structural_chimera_contigs` | Contigs with `High_confidence_structural_chimera` Y |
-| `n_unresolved_structural_contigs` | Contigs with `Structural_chimera` NA |
-| `n_structural_chimera_events` | Regions with `Structural_chimera` Y |
-| `n_high_confidence_structural_chimera_events` | Regions with `High_confidence_structural_chimera` Y |
-| `n_hifi_continuity_supported_events` | Regions with `Structural_chimera` N (spanned by reads) |
-| `n_unresolved_structural_events` | Regions with `Structural_chimera` NA |
+| `n_structural_discontinuity_contigs` | Contigs with `Structural_discontinuity` Y |
+| `n_high_confidence_structural_discontinuity_contigs` | Contigs with `High_confidence_structural_discontinuity` Y |
+| `n_unresolved_structural_contigs` | Contigs with `Structural_discontinuity` NA |
+| `n_structural_discontinuity_events` | Regions with `Structural_discontinuity` Y |
+| `n_high_confidence_structural_discontinuity_events` | Regions with `High_confidence_structural_discontinuity` Y |
+| `n_hifi_continuity_supported_events` | Regions with `Structural_discontinuity` N (spanned by reads) |
+| `n_unresolved_structural_events` | Regions with `Structural_discontinuity` NA |
 | `n_SCG_redundancy_contigs` | Contigs with `SCG_redundancy_observed` Y |
-| `Structural_chimera_contig_ids` | Contigs with `Structural_chimera` Y |
-| `High_confidence_structural_chimera_contig_ids` | Contigs with `High_confidence_structural_chimera` Y |
-| `Unresolved_structural_contig_ids` | Contigs with `Structural_chimera` NA |
+| `Structural_discontinuity_contig_ids` | Contigs with `Structural_discontinuity` Y |
+| `High_confidence_structural_discontinuity_contig_ids` | Contigs with `High_confidence_structural_discontinuity` Y |
+| `Unresolved_structural_contig_ids` | Contigs with `Structural_discontinuity` NA |
 | `SCG_redundancy_contig_ids` | Contigs with duplicated SCG families |
 | `Taxonomic_shift` | Y when >= 1 contig has `Taxonomic_shift` Y |
-| `Structural_chimera` | Y when >= 1 contig has `Structural_chimera` Y |
-| `Taxonomic_chimera` | Y when >= 1 contig has `Taxonomic_chimera` Y |
-| `High_confidence_structural_chimera` | Y when >= 1 contig has `High_confidence_structural_chimera` Y |
+| `Structural_discontinuity` | Y when >= 1 contig has `Structural_discontinuity` Y |
+| `Clipping_supported_transition` | Y when >= 1 contig has `Clipping_supported_transition` Y |
+| `High_confidence_structural_discontinuity` | Y when >= 1 contig has `High_confidence_structural_discontinuity` Y |
 | `Taxonomic_assessment` | HIGH_CONFIDENCE_TAXONOMIC_CHIMERA, TAXONOMIC_CHIMERA, TAXONOMIC_SHIFT_ONLY, NO_TAXONOMIC_SHIFT, or NA |
-| `n_taxonomic_chimera_contigs` | Contigs with `Taxonomic_chimera` Y |
+| `n_clipping_supported_transition_contigs` | Contigs with `Clipping_supported_transition` Y |
 | `n_high_confidence_taxonomic_chimera_contigs` | Contigs with `High_confidence_taxonomic_chimera` Y |
-| `n_taxonomic_shift_only_contigs` | Contigs with a transition but `Taxonomic_chimera` not Y |
+| `n_taxonomic_shift_only_contigs` | Contigs with a transition but `Clipping_supported_transition` not Y |
 | `n_taxonomic_shift_regions` | Transition regions |
-| `n_taxonomic_chimera_regions` | Regions with `Taxonomic_chimera` Y |
+| `n_clipping_supported_transition_regions` | Regions with `Clipping_supported_transition` Y |
 | `n_high_confidence_taxonomic_chimera_regions` | Regions with `High_confidence_taxonomic_chimera` Y |
 | `n_taxonomic_shift_only_regions` | Regions without validated clipping |
-| `Taxonomic_chimera_contig_ids` | Contigs with `Taxonomic_chimera` Y |
+| `Clipping_supported_transition_contig_ids` | Contigs with `Clipping_supported_transition` Y |
 | `High_confidence_taxonomic_chimera_contig_ids` | Contigs with `High_confidence_taxonomic_chimera` Y |
 | `Taxonomic_shift_only_contig_ids` | Contigs with a transition only |
 | `High_confidence_taxonomic_chimera` | Y when >= 1 contig has `High_confidence_taxonomic_chimera` Y |

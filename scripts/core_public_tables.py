@@ -255,7 +255,7 @@ def to_yn(value, yes=(), no=()):
 
 
 CONTIG_CALLS = (
-    ('Chimera', 'Taxonomic_chimera', (), ()),
+    ('Chimera', 'Clipping_supported_transition', (), ()),
     ('Assembly_variant', 'assembly_allele_support_call',
      ('Unsupported_assembly_variant', 'Minority_assembly_variant'), ('Assembly_allele_supported',)),
     ('Phantom', 'phantom_sequence_call', ('Phantom_sequence_candidate',), ()),
@@ -279,7 +279,6 @@ def summary_contig(internal, public):
             'Clipping': 'NA' if clip == 'NA' else ('Y' if int(clip) > 0 else 'N'),
             'n_clipping_sites': clip,
         }
-        new['Clipping_candidate'] = new['Clipping']
         new['High_confidence_clipping'] = high_confidence_clipping.get(row['contig'], 'NA')
         assembly, read_support, both = circularity.get(row['contig'], ('NA', 'NA', 'NA'))
         new['Assembler_reported_circularity'] = assembly
@@ -315,12 +314,12 @@ MAG_CHECKS = (
     ('Excessive_repeat', 'Excessive_repeat_Y_N', 'excessive_repeat_call'),
     ('False_duplication', 'False_duplication_Y_N', 'false_duplication_call'),
     ('Assembly_variant', 'Assembly_allele_disagreement_Y_N', 'assembly_allele_support_call'),
-    ('Chimera', 'Taxonomic_chimera_Y_N', 'Taxonomic_chimera'),
+    ('Chimera', 'Clipping_supported_transition_Y_N', 'Clipping_supported_transition'),
 )
 
 
 def clipping_high_confidence_calls(root, level):
-    """High-confidence clipping (Stringent_clipping) from the clipping module table."""
+    """High-confidence clipping (High_confidence_clipping) from the clipping module table."""
     root = Path(root)
     key_names = ('MAG_ID',) if level == 'MAG' else ('Contig',)
     for path in (root / f'03_clipping/clipping.{level}.tsv',
@@ -329,11 +328,11 @@ def clipping_high_confidence_calls(root, level):
             continue
         fields, rows = read(path)
         key = next((name for name in key_names if name in fields), None)
-        if not key or 'Stringent_clipping' not in fields:
+        if not key or 'High_confidence_clipping' not in fields:
             continue
         calls = {}
         for row in rows:
-            value = row['Stringent_clipping']
+            value = row['High_confidence_clipping']
             calls[row[key]] = value if value in ('Y', 'N', 'NA') else 'NA'
         return calls
     return {}
@@ -438,7 +437,6 @@ def summary_mag(internal, public, contigs):
             if name == 'Premature_circularization' and row['False_closure_evidence'] in NOT_RUN:
                 ran = False
             new[name] = value if ran else 'NA'
-        new['Clipping_candidate'] = new['Clipping']
         new['High_confidence_clipping'] = high_confidence_clipping.get(row['MAG_ID'], 'NA')
         new['Chimera'] = high_confidence_chimera.get(row['MAG_ID'], 'NA')
         new['Phantom_sequence'] = new['Phantom']
@@ -497,7 +495,7 @@ DETAIL_MODULE_LEAD = {
     'MAG': {
         'circularity': ('Assembler_reported_circularity', 'Read_supported_circularity',
                         'High_confidence_circularity'),
-        'clipping': ('Clipping_candidate', 'High_confidence_clipping', 'n_clipping_sites'),
+        'clipping': ('Clipping', 'High_confidence_clipping', 'n_clipping_sites'),
         'false_closure': ('Premature_circularization', 'False_closure',
                           'Premature_circularization_screen', 'Small_genome_proxy',
                           'False_closure_partner_contigs'),
@@ -512,7 +510,7 @@ DETAIL_MODULE_LEAD = {
     'contig': {
         'circularity': ('Assembler_reported_circularity', 'Read_supported_circularity',
                         'High_confidence_circularity'),
-        'clipping': ('Clipping_candidate', 'High_confidence_clipping', 'n_clipping_sites'),
+        'clipping': ('Clipping', 'High_confidence_clipping', 'n_clipping_sites'),
         'false_closure': ('Premature_circularization', 'False_closure',
                           'Premature_circularization_screen', 'Small_genome_proxy',
                           'False_closure_partner_contigs'),

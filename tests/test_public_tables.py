@@ -68,13 +68,13 @@ class PublicTableTests(unittest.TestCase):
         mag_header = summary_header("'MAG_ID\\tn_contigs\\t'")
         contig = dict.fromkeys(contig_header, 'NA')
         contig.update(MAG_ID='B1', contig='c1', length='100', validated_clipping_breakpoints='2',
-                      Taxonomic_chimera='Not_run', phantom_sequence_call='Phantom_sequence_candidate',
+                      Clipping_supported_transition='Not_run', phantom_sequence_call='Phantom_sequence_candidate',
                       assembly_allele_support_call='No_assembly_allele_disagreement',
                       excessive_repeat_call='No_excessive_repeat_signal',
                       false_duplication_call='No_false_duplication_signal', n_flagged_modules='2',
                       integrated_interpretation='QC_signal_detected')
         mag = dict.fromkeys(mag_header, 'NA')
-        mag.update(MAG_ID='B1', n_contigs='1', Clipping_Y_N='Y', Taxonomic_chimera_Y_N='N',
+        mag.update(MAG_ID='B1', n_contigs='1', Clipping_Y_N='Y', Clipping_supported_transition_Y_N='N',
                    Phantom_sequence_Y_N='Y', Circular='Not_run', False_closure_evidence='Not_run',
                    MAG_integrated_QC_call='QC_signal_detected')
         write(self.root / '10_summary/summary.contig.tsv', contig_header, [[contig[k] for k in contig_header]])
@@ -86,7 +86,7 @@ class PublicTableTests(unittest.TestCase):
         self.assertEqual((c['High_confidence_clipping'], c['Chimera'], c['Phantom_sequence']),
                          ('NA', 'NA', 'Y'))
         detail_c = read(self.root / 'detail.contig.tsv')[0]
-        self.assertEqual(detail_c['Clipping_candidate'], 'Y')
+        self.assertEqual(detail_c['Clipping'], 'Y')
         self.assertNotIn('Checks_not_run', detail_c)
         for removed in ('QC_call', 'MAG_integrated_QC_call', 'integrated_interpretation', 'excessive_repeat_call',
                         'false_duplication_clipping_summary', 'Circularity_eligibility'):
@@ -99,7 +99,7 @@ class PublicTableTests(unittest.TestCase):
         detail_m = read(self.root / 'detail.MAG.tsv')[0]
         for removed in ('n_flagged_checks', 'n_checks_not_run'):
             self.assertNotIn(removed, detail_m)
-        self.assertEqual(detail_m['Clipping_candidate'], 'Y')
+        self.assertEqual(detail_m['Clipping'], 'Y')
         for removed in ('QC_call', 'MAG_integrated_QC_call', 'Circularity_eligibility', 'excessive_repeat_call',
                         'false_duplication_clipping_summary'):
             self.assertNotIn(removed, m)
@@ -137,10 +137,10 @@ class PublicTableTests(unittest.TestCase):
     def test_summary_chimera_is_the_high_confidence_call(self):
         self.test_summary_tables_go_to_the_top()
         write(self.root / '07_chimera/.cache/chimera.MAG.tsv',
-              ['MAG_ID', 'Taxonomic_chimera', 'High_confidence_taxonomic_chimera'],
+              ['MAG_ID', 'Clipping_supported_transition', 'High_confidence_taxonomic_chimera'],
               [['B1', 'Y', 'N']])
         write(self.root / '07_chimera/.cache/chimera.contig.tsv',
-              ['Contig', 'MAG_ID', 'Taxonomic_chimera', 'High_confidence_taxonomic_chimera'],
+              ['Contig', 'MAG_ID', 'Clipping_supported_transition', 'High_confidence_taxonomic_chimera'],
               [['c1', 'B1', 'Y', 'N']])
         pt.publish(self.root)
         # A transition on a validated-but-not-high-confidence clipping site is not summarized as Chimera.
@@ -148,16 +148,16 @@ class PublicTableTests(unittest.TestCase):
         self.assertEqual(read(self.root / 'summary.contig.tsv')[0]['Chimera'], 'N')
         # Both tiers stay available in the detail tables.
         detail_m = read(self.root / 'detail.MAG.tsv')[0]
-        self.assertEqual(detail_m['chimera.Taxonomic_chimera'], 'Y')
+        self.assertEqual(detail_m['chimera.Clipping_supported_transition'], 'Y')
         self.assertEqual(detail_m['chimera.High_confidence_taxonomic_chimera'], 'N')
 
     def test_summary_chimera_follows_a_high_confidence_site(self):
         self.test_summary_tables_go_to_the_top()
         write(self.root / '07_chimera/.cache/chimera.MAG.tsv',
-              ['MAG_ID', 'Taxonomic_chimera', 'High_confidence_taxonomic_chimera'],
+              ['MAG_ID', 'Clipping_supported_transition', 'High_confidence_taxonomic_chimera'],
               [['B1', 'Y', 'Y']])
         write(self.root / '07_chimera/.cache/chimera.contig.tsv',
-              ['Contig', 'MAG_ID', 'Taxonomic_chimera', 'High_confidence_taxonomic_chimera'],
+              ['Contig', 'MAG_ID', 'Clipping_supported_transition', 'High_confidence_taxonomic_chimera'],
               [['c1', 'B1', 'Y', 'Y']])
         pt.publish(self.root)
         self.assertEqual(read(self.root / 'summary.MAG.tsv')[0]['Chimera'], 'Y')
@@ -193,7 +193,7 @@ class PublicTableTests(unittest.TestCase):
         old_path = self.root / 'summary.MAG.tsv'
         with open(old_path, encoding='utf-8', newline='') as h:
             rows = list(csv.DictReader(h, delimiter='\t'))
-        old_fields = ['MAG_ID', 'n_contigs', 'n_flagged_checks', 'Taxonomic_chimera',
+        old_fields = ['MAG_ID', 'n_contigs', 'n_flagged_checks', 'Clipping_supported_transition',
                       'Clipping', 'False_closure', 'Premature_circularization', 'Circular',
                       'Checks_not_run']
         pt.write(old_path, old_fields, rows)

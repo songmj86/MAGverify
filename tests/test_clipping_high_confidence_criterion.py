@@ -4,7 +4,7 @@ Criterion (Supplementary Methods): a candidate site from
 anvi-script-find-misassemblies (clipping ratio > 0.8) is high-confidence only when
 it is HiFi-supported (>= 2 distinct clipped reads, no spanning read) AND has
 anvi'o coverage >= 10 with a clipping ratio of 1.0. The threshold pair alone
-(stringent_candidate=Y) is not sufficient.
+(Clipping_candidate=Y) is not sufficient.
 """
 from pathlib import Path
 import csv
@@ -18,8 +18,8 @@ import clipping_summarize as cs  # noqa: E402
 
 FIELDS = sorted({
     "contig", "length", "pos_1based", "coverage", "clipping_count",
-    "clipping_ratio", "default_candidate", "stringent_candidate", "Clipping_ge1",
-    "Clipping_analyzable", "Clipping", "Stringent_clipping", "region_type",
+    "clipping_ratio", "default_candidate", "Clipping_candidate", "Clipping_ge1",
+    "Clipping_analyzable", "Clipping", "High_confidence_clipping", "region_type",
     "n_unique_all_clipped_qnames", "n_unique_exact_spanning_qnames",
     "exact_spanning_min_flank_bp_min", "exact_spanning_min_flank_bp_median",
     "exact_spanning_min_flank_bp_max",
@@ -38,9 +38,9 @@ def site(**overrides):
     row.update(
         contig='contig_1', length=100000, pos_1based=500,
         coverage=20, clipping_count=20, clipping_ratio='1.000000',
-        default_candidate='Y', stringent_candidate='Y',
+        default_candidate='Y', Clipping_candidate='Y',
         Clipping_ge1='Y', Clipping_analyzable='Y',
-        Clipping='Y', Stringent_clipping='Y',
+        Clipping='Y', High_confidence_clipping='Y',
         region_type='INTERNAL', n_unique_all_clipped_qnames=20,
     )
     for field in FIELDS:
@@ -62,27 +62,27 @@ class HighConfidenceClippingCriterion(unittest.TestCase):
 
     def test_validated_site_meeting_thresholds_is_accepted(self):
         _fields, records = self.load([site()])
-        self.assertEqual(records[0]['Stringent_clipping'], 'Y')
+        self.assertEqual(records[0]['High_confidence_clipping'], 'Y')
         self.assertEqual(records[0]['Clipping'], 'Y')
 
     def test_thresholds_without_validated_clipping_are_rejected(self):
-        # coverage 20x, ratio 1.0 (stringent_candidate=Y) but not HiFi-supported
+        # coverage 20x, ratio 1.0 (Clipping_candidate=Y) but not HiFi-supported
         with self.assertRaises(SystemExit) as caught:
-            self.load([site(Clipping='N', Clipping_ge1='N', Stringent_clipping='Y')])
-        self.assertIn('Stringent_clipping=Y requires Clipping=Y', str(caught.exception))
+            self.load([site(Clipping='N', Clipping_ge1='N', High_confidence_clipping='Y')])
+        self.assertIn('High_confidence_clipping=Y requires Clipping=Y', str(caught.exception))
 
     def test_candidate_may_meet_thresholds_without_being_high_confidence(self):
-        # the threshold pair alone leaves Stringent_clipping=N
+        # the threshold pair alone leaves High_confidence_clipping=N
         _fields, records = self.load([
-            site(Clipping='N', Clipping_ge1='N', stringent_candidate='Y', Stringent_clipping='N')
+            site(Clipping='N', Clipping_ge1='N', Clipping_candidate='Y', High_confidence_clipping='N')
         ])
-        self.assertEqual(records[0]['stringent_candidate'], 'Y')
-        self.assertEqual(records[0]['Stringent_clipping'], 'N')
+        self.assertEqual(records[0]['Clipping_candidate'], 'Y')
+        self.assertEqual(records[0]['High_confidence_clipping'], 'N')
 
     def test_unanalyzable_site_is_na(self):
         with self.assertRaises(SystemExit) as caught:
-            self.load([site(Clipping_analyzable='N', Clipping='NA', Stringent_clipping='N')])
-        self.assertIn('requires Stringent_clipping=NA', str(caught.exception))
+            self.load([site(Clipping_analyzable='N', Clipping='NA', High_confidence_clipping='N')])
+        self.assertIn('requires High_confidence_clipping=NA', str(caught.exception))
 
 
 if __name__ == '__main__':

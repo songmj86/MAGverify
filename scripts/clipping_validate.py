@@ -113,7 +113,7 @@ OUTPUT_FIELDS = (
     "clipping_count",
     "clipping_ratio",
     "default_candidate",
-    "stringent_candidate",
+    "Clipping_candidate",
     "candidate_clipping",
 )
 
@@ -257,13 +257,13 @@ def _normalize_main() -> None:
                     "clipping_count": clipping,
                     "clipping_ratio": f"{ratio:.6f}",
                     "default_candidate": "Y",
-                    "stringent_candidate": "Y" if stringent else "N",
+                    "Clipping_candidate": "Y" if stringent else "N",
                     "candidate_clipping": "Y",
                 }
             )
 
     rows.sort(key=lambda row: (str(row["contig"]), int(row["anvio_pos_0based"])))
-    stringent_rows = [row for row in rows if row["stringent_candidate"] == "Y"]
+    stringent_rows = [row for row in rows if row["Clipping_candidate"] == "Y"]
     atomic_write(args.default_output, rows)
     atomic_write(args.stringent_output, stringent_rows)
     print(f"anvi'o default candidates: {len(rows)}")
@@ -473,7 +473,7 @@ def _validate_main() -> None:
         required = {
             "contig", "length", "anvio_pos_0based", "pos_1based", "coverage",
             "clipping_count", "clipping_ratio", "default_candidate",
-            "stringent_candidate",
+            "Clipping_candidate",
         }
         missing = required - set(base_fields)
         if missing:
@@ -660,7 +660,7 @@ def _validate_main() -> None:
         "Clipping_analysis_reason",
         "Clipping_ge1",
         "Clipping",
-        "Stringent_clipping",
+        "High_confidence_clipping",
     ]
     output_fields = list(base_fields)
     for field in appended:
@@ -696,13 +696,13 @@ def _validate_main() -> None:
         raw_depth = int(row["coverage"])
         raw_clipping = int(row["clipping_count"])
         raw_ratio = float(row["clipping_ratio"])
-        stringent = row["stringent_candidate"].strip().upper() == "Y"
+        stringent = row["Clipping_candidate"].strip().upper() == "Y"
         high_confidence = raw_depth >= args.high_confidence_min_coverage and math.isclose(
             raw_ratio, args.high_confidence_ratio, rel_tol=0, abs_tol=5.0e-7
         )
         if stringent != high_confidence:
             fail(
-                "stringent_candidate is inconsistent with the configured high-confidence "
+                "Clipping_candidate is inconsistent with the configured high-confidence "
                 f"thresholds at {row['contig']}:{row['pos_1based']}"
             )
 
@@ -725,9 +725,9 @@ def _validate_main() -> None:
             else:
                 exact_validation = "FAIL"
             if validated and high_confidence:
-                confidence = "STRINGENT"
-                evidence = "VALIDATED_STRINGENT"
-                support_class = "VALIDATED_STRINGENT"
+                confidence = "HIGH_CONFIDENCE"
+                evidence = "VALIDATED_HIGH_CONFIDENCE"
+                support_class = "VALIDATED_HIGH_CONFIDENCE"
             elif validated:
                 confidence = "DEFAULT_ONLY"
                 evidence = "VALIDATED_DEFAULT_ONLY"
@@ -798,7 +798,7 @@ def _validate_main() -> None:
                 ),
                 "Clipping_ge1": "Y" if permissive_ge1 else "N",
                 "Clipping": "NA" if reference_boundary else ("Y" if validated else "N"),
-                "Stringent_clipping": "NA" if reference_boundary else ("Y" if validated and high_confidence else "N"),
+                "High_confidence_clipping": "NA" if reference_boundary else ("Y" if validated and high_confidence else "N"),
             }
         )
         output_rows.append(row)
@@ -809,7 +809,7 @@ def _validate_main() -> None:
     print(f"Exact-position validation PASS (>=2 clipped reads): {sum(row['exact_position_validation'] == 'PASS' for row in output_rows)}")
     print(f"Default-only validated sites: {sum(row['clipping_confidence'] == 'DEFAULT_ONLY' for row in output_rows)}")
     print(f"Clipping=Y sites (>=2 clipped reads): {sum(row['Clipping'] == 'Y' for row in output_rows)}")
-    print(f"Stringent_clipping=Y sites: {sum(row['Stringent_clipping'] == 'Y' for row in output_rows)}")
+    print(f"High_confidence_clipping=Y sites: {sum(row['High_confidence_clipping'] == 'Y' for row in output_rows)}")
     print(f"Candidates with spanning counter-evidence: {sum(int(row['n_unique_exact_spanning_qnames']) > 0 for row in output_rows)}")
     print(f"Spanning candidates with candidate I audit: {sum(int(row['n_unique_spanning_with_I_qnames']) > 0 for row in output_rows)}")
     print(f"Spanning candidates with candidate D audit: {sum(int(row['n_unique_spanning_with_D_qnames']) > 0 for row in output_rows)}")

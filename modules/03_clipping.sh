@@ -400,7 +400,7 @@ print(f"Terminal candidates                 : {sum(r.get('region_type') == 'TERM
 print(f"Internal candidates                 : {sum(r.get('region_type') == 'INTERNAL' for r in rows)}")
 print(f"Clipping_ge1=Y audit                : {sum(r.get('Clipping_ge1') == 'Y' for r in rows)}")
 print(f"Clipping=Y (>=2 reads)              : {sum(r.get('Clipping') == 'Y' for r in rows)}")
-print(f"Stringent_clipping=Y                : {sum(r.get('Stringent_clipping') == 'Y' for r in rows)}")
+print(f"High_confidence_clipping=Y                : {sum(r.get('High_confidence_clipping') == 'Y' for r in rows)}")
 print(f"Terminal Clipping=Y                 : {sum(r.get('Clipping') == 'Y' and r.get('region_type') == 'TERMINAL' for r in rows)}")
 print(f"Internal Clipping=Y                 : {sum(r.get('Clipping') == 'Y' and r.get('region_type') == 'INTERNAL' for r in rows)}")
 print(f"Reference-boundary raw candidates   : {sum(r.get('reference_boundary') == 'Y' for r in rows)}")

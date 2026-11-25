@@ -197,8 +197,8 @@ def _sites_main() -> None:
         "Assembler", "contig", "length", "pos_1based",
         "region_type", "distance_to_nearest_end_bp", "reference_boundary",
         "Clipping_analyzable", "Clipping_analysis_reason",
-        "Clipping_ge1", "Clipping", "Stringent_clipping",
-        "default_candidate", "stringent_candidate",
+        "Clipping_ge1", "Clipping", "High_confidence_clipping",
+        "default_candidate", "Clipping_candidate",
         "validated_clipping", "clipping_confidence",
     ]
     all_fields = ["Assembler", *base_fields,
@@ -329,7 +329,7 @@ def _assembler_main() -> None:
             c["clipped_records"] += int(row.get("clipping_count") or 0)
         except ValueError:
             fail("invalid clipping_count in clipping site table")
-        if (row.get("stringent_candidate") or "").strip().upper() == "Y":
+        if (row.get("Clipping_candidate") or "").strip().upper() == "Y":
             c["stringent"] += 1
         for field, metric in (("Clipping_ge1", "Clipping_ge1"), ("validated_clipping", "validated"),
                               ("Clipping", "Clipping")):
@@ -382,45 +382,45 @@ SUMMARY_HEADER = (
     "Terminal_clipping",
     "Clipping_analyzable",
     "Clipping",
-    "Stringent_clipping",
+    "High_confidence_clipping",
     "n_internal_clipping_ge1_sites",
     "n_terminal_clipping_ge1_sites",
     "n_clipping_ge1_sites",
     "n_internal_clipping_sites",
     "n_terminal_clipping_sites",
     "n_clipping_sites",
-    "n_stringent_clipping_sites",
+    "n_high_confidence_clipping_sites",
     "n_internal_candidate_sites",
     "n_terminal_candidate_sites",
     "n_candidate_sites",
-    "n_stringent_candidate_sites",
+    "n_clipping_candidate_sites",
     "n_candidates_with_spanning",
     "n_candidates_with_spanning_I",
     "n_candidates_with_spanning_D",
     "n_candidates_with_spanning_N",
     "n_candidates_with_spanning_any_IDN",
     "n_contigs_with_candidate",
-    "n_contigs_with_stringent_candidate",
+    "n_contigs_with_clipping_candidate",
     "n_contigs_with_clipping",
-    "n_contigs_with_stringent_clipping",
+    "n_contigs_with_high_confidence_clipping",
     "candidate_contigs",
-    "stringent_candidate_contigs",
+    "clipping_candidate_contigs",
     "clipping_contigs",
-    "stringent_clipping_contigs",
+    "high_confidence_clipping_contigs",
     "max_anvio_coverage",
     "max_anvio_clipping_count",
     "max_unique_clipped_hifi_reads",
     "max_anvio_clipping_ratio",
     "Candidate",
-    "Stringent_candidate",
+    "Clipping_candidate",
 )
 
 CONTIG_DROPPED = {
     "MAG_ID", "n_contigs", "total_length_bp",
-    "n_contigs_with_candidate", "n_contigs_with_stringent_candidate",
-    "n_contigs_with_clipping", "n_contigs_with_stringent_clipping",
-    "candidate_contigs", "stringent_candidate_contigs",
-    "clipping_contigs", "stringent_clipping_contigs",
+    "n_contigs_with_candidate", "n_contigs_with_clipping_candidate",
+    "n_contigs_with_clipping", "n_contigs_with_high_confidence_clipping",
+    "candidate_contigs", "clipping_candidate_contigs",
+    "clipping_contigs", "high_confidence_clipping_contigs",
 }
 
 CONTIG_HEADER = ("contig", "MAG_ID", "length_bp",
@@ -517,8 +517,8 @@ def load_clipping(path: str, lengths: Mapping[str, int]) -> Tuple[List[str], Lis
         fields = [field for field in (reader.fieldnames or []) if field != "MAG_ID"]
         required = {
             "contig", "length", "pos_1based", "coverage", "clipping_count",
-            "clipping_ratio", "default_candidate", "stringent_candidate", "Clipping_ge1",
-            "Clipping_analyzable", "Clipping", "Stringent_clipping", "region_type", "n_unique_all_clipped_qnames",
+            "clipping_ratio", "default_candidate", "Clipping_candidate", "Clipping_ge1",
+            "Clipping_analyzable", "Clipping", "High_confidence_clipping", "region_type", "n_unique_all_clipped_qnames",
             "n_unique_exact_spanning_qnames",
             "exact_spanning_min_flank_bp_min", "exact_spanning_min_flank_bp_median",
             "exact_spanning_min_flank_bp_max",
@@ -556,13 +556,13 @@ def load_clipping(path: str, lengths: Mapping[str, int]) -> Tuple[List[str], Lis
                 fail(f"invalid clipping counts: {contig}:{position}")
             if not math.isclose(ratio, clipped / coverage, rel_tol=0, abs_tol=5.0e-7):
                 fail(f"inconsistent clipping ratio: {contig}:{position}")
-            for field in ("default_candidate", "stringent_candidate", "Clipping_ge1"):
+            for field in ("default_candidate", "Clipping_candidate", "Clipping_ge1"):
                 row[field] = normalize_call(row[field], line_number, field)
             analyzable = (row.get("Clipping_analyzable") or "").strip().upper()
             if analyzable not in {"Y", "N"}:
                 fail(f"invalid Clipping_analyzable at row {line_number}: {analyzable}")
             row["Clipping_analyzable"] = analyzable
-            for field in ("Clipping", "Stringent_clipping"):
+            for field in ("Clipping", "High_confidence_clipping"):
                 value = (row.get(field) or "").strip().upper()
                 if value not in {"Y", "N", "NA"}:
                     fail(f"invalid {field} at row {line_number}: {value}")
@@ -573,10 +573,10 @@ def load_clipping(path: str, lengths: Mapping[str, int]) -> Tuple[List[str], Lis
                 fail(f"Clipping_analyzable=N requires Clipping=NA at row {line_number}")
             if row["Clipping"] == "Y" and row["Clipping_ge1"] != "Y":
                 fail(f"Clipping=Y requires Clipping_ge1=Y at row {line_number}")
-            if row["Stringent_clipping"] == "Y" and row["Clipping"] != "Y":
-                fail(f"Stringent_clipping=Y requires Clipping=Y at row {line_number}")
-            if analyzable == "N" and row["Stringent_clipping"] != "NA":
-                fail(f"Clipping_analyzable=N requires Stringent_clipping=NA at row {line_number}")
+            if row["High_confidence_clipping"] == "Y" and row["Clipping"] != "Y":
+                fail(f"High_confidence_clipping=Y requires Clipping=Y at row {line_number}")
+            if analyzable == "N" and row["High_confidence_clipping"] != "NA":
+                fail(f"Clipping_analyzable=N requires High_confidence_clipping=NA at row {line_number}")
 
             hifi_span_fields = (
                 "n_unique_exact_spanning_qnames", "n_unique_spanning_with_I_qnames",
@@ -630,7 +630,7 @@ def load_clipping(path: str, lengths: Mapping[str, int]) -> Tuple[List[str], Lis
             records.append(dict(row))
     preferred = [
         "Assembler", "contig", "length", "pos_1based", "region_type",
-        "Clipping_analyzable", "Clipping", "Clipping_ge1", "Stringent_clipping",
+        "Clipping_analyzable", "Clipping", "Clipping_ge1", "High_confidence_clipping",
     ]
     preferred = [field for field in preferred if field in fields]
     fields = [*preferred, *(field for field in fields if field not in preferred)]
@@ -652,7 +652,7 @@ def summary_rows(
         members = list(mag_to_contigs[mag])
         records = list(by_mag.get(mag, []))
         candidates = [row for row in records if row["default_candidate"] == "Y"]
-        stringent = [row for row in records if row["stringent_candidate"] == "Y"]
+        stringent = [row for row in records if row["Clipping_candidate"] == "Y"]
         analyzable_candidates = [row for row in candidates if row.get("Clipping_analyzable") == "Y"]
         not_analyzable_candidates = [row for row in candidates if row.get("Clipping_analyzable") == "N"]
         permissive_positives = [row for row in records if row["Clipping_ge1"] == "Y"]
@@ -663,7 +663,7 @@ def summary_rows(
             clipping_analyzable_call, clipping_call = "N", "NA"
         else:
             clipping_analyzable_call, clipping_call = "Y", "N"
-        stringent_positives = [row for row in records if row["Stringent_clipping"] == "Y"]
+        stringent_positives = [row for row in records if row["High_confidence_clipping"] == "Y"]
         internal_candidates = [row for row in candidates if row["region_type"] == "INTERNAL"]
         terminal_candidates = [row for row in candidates if row["region_type"] == "TERMINAL"]
         internal_permissive = [row for row in permissive_positives if row["region_type"] == "INTERNAL"]
@@ -779,7 +779,7 @@ def _mag_main() -> None:
     print(f"MAGs with Internal_clipping=Y: {sum(row[SUMMARY_HEADER.index('Internal_clipping')] == 'Y' for row in summaries)}")
     print(f"MAGs with Terminal_clipping=Y: {sum(row[SUMMARY_HEADER.index('Terminal_clipping')] == 'Y' for row in summaries)}")
     print(f"MAGs with Clipping=Y: {sum(row[clipping_index] == 'Y' for row in summaries)}")
-    print(f"MAGs with Stringent_clipping=Y: {sum(row[SUMMARY_HEADER.index('Stringent_clipping')] == 'Y' for row in summaries)}")
+    print(f"MAGs with High_confidence_clipping=Y: {sum(row[SUMMARY_HEADER.index('High_confidence_clipping')] == 'Y' for row in summaries)}")
 
 
 def cmd_mag(argv):
