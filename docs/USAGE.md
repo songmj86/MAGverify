@@ -1,81 +1,55 @@
 # Usage
 
-MAGverify runs four preparation commands and ten analysis modules. Run the applicable preparation steps first, then `MAGverify end-to-end` for all QC modules or the commands below for individual steps.
+Run the applicable preparation steps, followed by `end-to-end` or individual QC modules. Use the same output directory (`-o`) throughout.
 
-Use the same `-o` for all commands to reuse intermediate results. All outputs are organized under the specified base directory:
+## 1. Input configuration
 
-```
-BASE/
-├── 00_prep/             # Preparation files
-├── 01_mapping/          # Read mapping
-├── 02_circularity/      # Circularity
-├── 03_clipping/         # Clipping
-├── ...                  # Other analysis modules
-├── summary.MAG.tsv      # Integrated MAG-level summary
-├── summary.contig.tsv   # Integrated contig-level summary
-├── detail.MAG.tsv       # MAG summary with every module column
-└── detail.contig.tsv    # Contig summary with every module column
-```
-
-| Step | Command | Preparation | Upstream modules |
-| --- | --- | --- | --- |
-| 1 | [`map`](#1-read-mapping-map) | — | — |
-| 2 | [`circularity`](#2-circularity-circularity) | `prep-circularity` | `map` |
-| 3 | [`clipping`](#3-clipping-clipping) | — | `map` |
-| 4 | [`false-closure`](#4-false-closure-false-closure) | `prep-scg`, `prep-circularity` | `clipping` |
-| 5 | [`phantom`](#5-phantom-sequences-phantom) | — | `map` |
-| 6 | [`repeats`](#6-repeats-repeats) | — | `map` |
-| 7 | [`false-duplication`](#7-false-duplication-false-duplication) | — | `clipping` |
-| 8 | [`variants`](#8-assembly-variants-variants) | — | `map` |
-| 9 | [`chimera`](#9-taxonomic-chimera-chimera) | `prep-chimera`, `prep-scg`, `prep-taxonomy` | `clipping` |
-| 10 | [`summary`](#10-integrated-summary-summary) | — | the modules to summarize |
-
-## Preparation
-
-Preparation is not part of `end-to-end`. Its outputs are written to `/path/to/MAGverify_output/00_prep/`.
-
-| Command | Output in `00_prep/` | Used by |
-| --- | --- | --- |
-| [`prep-chimera`](#1-gtdb-r232-database-prep-chimera) | `GTDB_R232*` | `chimera` |
-| [`prep-scg`](#2-single-copy-gene-annotation-prep-scg) | `scg.contig.tsv`, `genes.*` | `false-closure`, `chimera`, `variants` |
-| [`prep-circularity`](#3-assembler-circularity-prep-circularity) | `assembler_circularity.MAG.tsv`, `assembler_circularity.contig.tsv` | `circularity`, `false-closure` |
-| [`prep-taxonomy`](#4-mag-taxonomy-prep-taxonomy) | `gtdbtk_taxonomy.MAG.tsv` | `chimera` |
-
-### 1. GTDB R232 database (`prep-chimera`)
-
-`prep-chimera` builds an MMseqs2 taxonomy database from three [GTDB R232](https://data.gtdb.ecogenomic.org/releases/release232/232.0/) files. The download is 123 GB and the build takes hours, so a [prebuilt database](#alternative-prebuilt-database) is offered at the end of this section.
-
-**Download input files** into the same directory with `aria2c`:
+The examples use the directory structure of the [test dataset](../README.md#2-test-dataset).
 
 ```bash
-GTDB_DIR=/path/to/GTDB_R232_downloads
-BASE=https://data.gtdb.ecogenomic.org/releases/release232/232.0
-mkdir -p "$GTDB_DIR"
-
-# Protein sequences (~123 GB compressed)
-aria2c -c -x 8 -s 8 -d "$GTDB_DIR" "$BASE/genomic_files_reps/gtdb_proteins_aa_reps_r232.tar.gz"
-# Bacterial taxonomy
-aria2c -c -d "$GTDB_DIR" "$BASE/bac120_taxonomy_r232.tsv"
-# Archaeal taxonomy
-aria2c -c -d "$GTDB_DIR" "$BASE/ar53_taxonomy_r232.tsv"
-```
-
-**Prerequisites:** the three GTDB R232 files downloaded above, given with `-d`
-
-```bash
-MAGverify prep-chimera -d "$GTDB_DIR" -o /path/to/MAGverify_output -t 100
-```
-
-**Output:** `GTDB_R232*`
-
-#### Alternative: prebuilt database
-
-A prebuilt database is available on [Hugging Face](https://huggingface.co/datasets/ATCC19718/MAGverify-resources), which skips both the 123 GB download and the build. Extract `GTDB_R232.tar.gz` (131 GB) into `$Base/00_prep/`, where `chimera` then finds it under the same `-o` without running `prep-chimera`:
-
-```bash
+Data=/path/to/input_dataset
 Base=/path/to/MAGverify_output
-mkdir -p "$Base/00_prep"
+Threads=100
+Memory=900
 
+mkdir -p "$Base/00_prep"
+```
+
+Adjust the example resource values to your system.
+
+| Option | Description |
+| --- | --- |
+| `-a DIR` | Assembly FASTA directory, one file per assembler |
+| `-g DIR` | MAG FASTA directory, one file per MAG |
+| `-r DIR` | HiFi FASTQ directory |
+| `-o DIR` | Shared output directory |
+| `-t N` | Threads (default: 80% of available CPUs) |
+| `-m N` | Memory budget in GB for `map`, `circularity`, `repeats` and `variants` (default: 80% of available memory) |
+
+Assemblies and MAGs accept `.fa`, `.fasta` and `.fna`. Use unique contig IDs across assemblies and retain the original IDs in MAGs. FASTA filenames must be unique and must not include whitespace. Reads accept `.fastq`, `.fq`, `.fastq.gz` and `.fq.gz`. Supply the complete HiFi read set used to generate all input assemblies. Missing or unrelated reads can distort QC calls.
+
+`PARALLEL_JOBS` controls concurrent assembler jobs. Mapping, circularity and anvi'o profiling in `variants` process assemblers sequentially. Clipping, phantom and false duplication can distribute threads across assemblers.
+
+## 2. Preparation
+
+Preparation is not part of `end-to-end`. Outputs are stored in `00_prep/`.
+
+| Command | Main output | Used by |
+| --- | --- | --- |
+| `prep-chimera` | `GTDB_R232*` | `chimera` |
+| `prep-scg` | `scg.contig.tsv`, `genes.*` | `false-closure`, `chimera`, `variants` |
+| `prep-circularity` | `assembler_circularity.*.tsv` | `circularity`, `false-closure` |
+| `prep-taxonomy` | `gtdbtk_taxonomy.MAG.tsv` | `chimera` |
+
+### 2.1. GTDB R232 database
+
+Choose one option to prepare the MMseqs2 taxonomy database.
+
+#### Option A. Prebuilt database (recommended)
+
+Download the prebuilt database (131 GB) from [Hugging Face](https://huggingface.co/datasets/ATCC19718/MAGverify-resources) to avoid downloading the original GTDB protein archive and building the database locally.
+
+```bash
 aria2c -c -x 8 -s 8 -k 8M \
   -d "$Base" -o GTDB_R232.tar.gz \
   "https://huggingface.co/datasets/ATCC19718/MAGverify-resources/resolve/main/GTDB_R232.tar.gz"
@@ -83,190 +57,190 @@ aria2c -c -x 8 -s 8 -k 8M \
 tar -xzf "$Base/GTDB_R232.tar.gz" -C "$Base/00_prep"
 ```
 
-### 2. Single-copy gene annotation (`prep-scg`)
+The database prefix should be `$Base/00_prep/GTDB_R232`. Keep all database companion files together. No `prep-chimera` run is needed.
 
-`prep-scg` predicts genes with Pyrodigal and identifies single-copy genes (SCGs) using anvi'o's `Bacteria_71` and `Archaea_76` collections. The gene predictions are also reused by `variants`.
-
-**Prerequisites:** none. The assemblies are given with `-a`
+#### Option B. Local database build
 
 ```bash
-MAGverify prep-scg -a /path/to/input_dataset/contigs -o /path/to/MAGverify_output -t 100
+GTDB_DIR=/path/to/GTDB_R232_downloads
+GTDB_URL=https://data.gtdb.ecogenomic.org/releases/release232/232.0
+mkdir -p "$GTDB_DIR"
+
+aria2c -c -x 8 -s 8 -d "$GTDB_DIR" "$GTDB_URL/genomic_files_reps/gtdb_proteins_aa_reps_r232.tar.gz"
+aria2c -c -d "$GTDB_DIR" "$GTDB_URL/bac120_taxonomy_r232.tsv"
+aria2c -c -d "$GTDB_DIR" "$GTDB_URL/ar53_taxonomy_r232.tsv"
+
+MAGverify prep-chimera -d "$GTDB_DIR" -o "$Base" -t "$Threads"
 ```
 
-- `-a DIR`: Input directory of contig files (`.fa`, `.fasta`, or `.fna`), one per assembler. Contig IDs must be unique across assembly files.
+Allow space for the compressed archive (~123 GB), database and temporary build files in `00_prep/.cache/prep_chimera_work/`.
 
-**Output:** `scg.contig.tsv`, `genes.faa`, `genes.gff`, `genes.coordinates.tsv`
+### 2.2. Single-copy gene annotation
 
-### 3. Assembler circularity (`prep-circularity`)
+```bash
+MAGverify prep-scg -a "$Data/contigs" -o "$Base" -t "$Threads"
+```
 
-`prep-circularity` collects assembler-reported circularity calls for `circularity` and `false-closure`. Provide one `-c` file per assembler: `*.p_ctg.gfa` or `*.p_ctg.noseq.gfa` (faster) for hifiasm-meta, `contigs.fasta.gz` for metaMDBG, and `assembly_info.txt` for metaFlye.
-
-**Prerequisites:** none. The assembler output files are given with `-c` and the MAGs with `-g`
+### 2.3. Assembler circularity
 
 ```bash
 MAGverify prep-circularity \
-  -c /path/to/input_dataset/assembler_circularity/Read.p_ctg.noseq.gfa \
-  -c /path/to/input_dataset/assembler_circularity/contigs.fasta.gz \
-  -c /path/to/input_dataset/assembler_circularity/assembly_info.txt \
-  -g /path/to/input_dataset/MAGs \
-  -o /path/to/MAGverify_output
+  -c "$Data/assembler_circularity/Read.p_ctg.noseq.gfa" \
+  -c "$Data/assembler_circularity/contigs.fasta.gz" \
+  -c "$Data/assembler_circularity/assembly_info.txt" \
+  -g "$Data/MAGs" -o "$Base"
 ```
 
-- `-g DIR`: Input directory of MAG files (one file per MAG). MAG contig IDs must match those in the assembly files.
+Supply one `-c` per assembler used, with complete contig information.
 
-**Output:** `assembler_circularity.MAG.tsv` and `assembler_circularity.contig.tsv`
+| Assembler | Input | Circularity field |
+| --- | --- | --- |
+| hifiasm-meta | `*.p_ctg.gfa` or `*.p_ctg.noseq.gfa` | Contig suffix `c` or `l` |
+| metaMDBG | `contigs.fasta.gz` | `circular=yes` or `circular=no` |
+| metaFlye | `assembly_info.txt` | `circ.` column |
 
-### 4. MAG taxonomy (`prep-taxonomy`)
-
-`prep-taxonomy` converts [GTDB-Tk](https://github.com/Ecogenomics/GTDBTk) `classify_wf` results to the MAG taxonomy table that `chimera` needs for its SCG redundancy annotation.
-
-**Prerequisites:** none. The GTDB-Tk results are given with `-d` and the MAGs with `-g`
+### 2.4. MAG taxonomy
 
 ```bash
-MAGverify prep-taxonomy \
-  -d /path/to/input_dataset/gtdbtk \
-  -g /path/to/input_dataset/MAGs \
-  -o /path/to/MAGverify_output
+MAGverify prep-taxonomy -d "$Data/gtdbtk" -g "$Data/MAGs" -o "$Base"
 ```
 
-- `-d DIR`: GTDB-Tk output directory with `gtdbtk.bac120.summary.tsv` and/or `gtdbtk.ar53.summary.tsv`.
+Supply GTDB-Tk `classify_wf` results (`gtdbtk.bac120.summary.tsv` and/or `gtdbtk.ar53.summary.tsv`). MAG IDs must match FASTA basenames without extensions. GTDB-Tk is installed separately.
 
-**Output:** `gtdbtk_taxonomy.MAG.tsv`
+## 3. End-to-end analysis
 
-## Analysis modules
-
-Each module reads its prerequisites' outputs automatically from the same `-o`.
-
-### 1. Read mapping (`map`)
-
-Maps HiFi reads separately to each assembler's complete assembly with minimap2, including unbinned contigs. Saves BAMs of all mapped alignments, primary alignments, and primary plus supplementary alignments for later modules. A mapping manifest (`01_mapping/.cache/mapping_manifest.tsv`) records the reads, assemblies and BAM paths so later modules do not need `-a` or `-r`.
-
-**Prerequisites:** none. The assemblies are given with `-a` and the HiFi reads with `-r`
+### Run all modules
 
 ```bash
-MAGverify map -a /path/to/input_dataset/contigs -r /path/to/input_dataset/reads -o /path/to/MAGverify_output -t 100 -m 900
+MAGverify end-to-end \
+  -a "$Data/contigs" -r "$Data/reads" -g "$Data/MAGs" \
+  -o "$Base" -t "$Threads" -m "$Memory"
 ```
 
-**Output:** `01_mapping/mapping.assembler.tsv` (alignment counts per assembler)
-
-### 2. Circularity (`circularity`)
-
-Tests single-contig MAGs for read-supported circular topology. The contig is rotated to position its END|START junction in the middle. Circularity is read-supported when at least two HiFi reads span the junction with at least 2,000 bp aligned on each side.
-
-**Prerequisites:** `map`, `prep-circularity`
+### Skip selected modules
 
 ```bash
-MAGverify circularity -g /path/to/input_dataset/MAGs -o /path/to/MAGverify_output -t 100 -m 900
+MAGverify end-to-end \
+  -a "$Data/contigs" -r "$Data/reads" -g "$Data/MAGs" \
+  -o "$Base" -t "$Threads" -m "$Memory" \
+  --skip chimera,variants
 ```
 
-**Output:** `02_circularity/circularity.MAG.tsv`, `circularity.contig.tsv`
+Mapping cannot be skipped. Retain dependencies for all selected modules (e.g. clipping for false closure, false duplication and chimera).
 
-**High-confidence circularity** needs two independent lines of evidence to agree: `High_confidence_circularity` is `Y` only when the assembler reports the contig circular **and** the reads span the junction. An assembler claim with no junction-spanning reads stays `Read_supported_circularity` `N`, and the call is `NA` without the assembler circularity table from `prep-circularity`.
+### Reuse a database
 
-The module tables report `Assembler_reported_circularity` and `Read_supported_circular_topology` separately, and read-supported contigs the assembler did not report circular appear as `Additional_circular_candidate`. `summary.MAG.tsv` and `summary.contig.tsv` carry all three calls.
+Add `--database /path/to/GTDB_R232` to `end-to-end` or `chimera` to use an existing database. Specify the MMseqs2 prefix, not its directory or `.dbtype` file.
 
-### 3. Clipping (`clipping`)
+### Resume analysis
 
-Finds candidate positions using `anvi-script-find-misassemblies` (default clipping ratio > 0.8, `--min-dist-to-end 0`) and validates them against HiFi alignments. Positions within 100 bp of a contig end are `TERMINAL`; all others are `INTERNAL`.
+Rerun the original command with unchanged inputs. Preserve `.cache/` directories and intermediate files to reuse completed work.
 
-**Prerequisites:** `map`
+## 4. Individual modules
+
+Run commands in dependency order. Module outputs are retrieved from the shared output directory.
+
+| Module | Preparation | Upstream modules |
+| --- | --- | --- |
+| `map` | — | — |
+| `circularity` | `prep-circularity` | `map` |
+| `clipping` | — | `map` |
+| `false-closure` | `prep-scg`, `prep-circularity` | `clipping` |
+| `phantom` | — | `map` |
+| `repeats` | — | `map` |
+| `false-duplication` | — | `clipping` |
+| `variants` | — | `map` |
+| `chimera` | GTDB database, `prep-scg`, `prep-taxonomy` | `clipping` |
+| `summary` | — | Selected QC modules |
+
+### 4.1. Read mapping
 
 ```bash
-MAGverify clipping -g /path/to/input_dataset/MAGs -o /path/to/MAGverify_output -t 100
+MAGverify map -a "$Data/contigs" -r "$Data/reads" -o "$Base" -t "$Threads" -m "$Memory"
 ```
 
-**Output:** `03_clipping/clipping.site.tsv`, `clipping.contig.tsv`, `clipping.MAG.tsv`, `clipping.assembler.tsv`
-
-The module reports three calls. `Clipping` is the read-validated call: `Y` when at least two distinct HiFi reads are clipped at the exact position and no read spans that position with aligned bases on both sides, and `NA` at the first or last base of a contig. `Stringent_candidate` applies the anvi'o thresholds alone, without read validation: `Y` when coverage is ≥ 10 and the clipping ratio is 1.0.
-
-**High-confidence clipping** is `Stringent_clipping`, which needs both lines of evidence: it is `Y` only when `Clipping` and `Stringent_candidate` are both `Y`, following [Trigodet et al., 2026](https://doi.org/10.1038/s41587-025-02971-8). The thresholds alone are not sufficient, so a position with ≥ 10× coverage and a clipping ratio of 1.0 that is not validated against the reads is `Stringent_candidate` `Y` but `Stringent_clipping` `N`. `summary.MAG.tsv` and `summary.contig.tsv` carry this call as `High_confidence_clipping`, which is `NA` when clipping was not assessable.
-
-### 4. False closure (`false-closure`)
-
-Examines contigs reported circular by their assembler. A validated clipping site with at least two split reads on **each** side connecting the contig to another contig indicates a false-closure breakpoint. The module also reports a small-genome proxy for circular contigs < 500,000 bp with ≥ 3 ribosomal protein families (`prep-scg`). This screening field is distinct from the final `Premature_circularization` call.
-
-**Prerequisites:** `clipping`, `prep-scg`, `prep-circularity`
+### 4.2. Circularity
 
 ```bash
-MAGverify false-closure -g /path/to/input_dataset/MAGs -o /path/to/MAGverify_output -t 100
+MAGverify circularity -g "$Data/MAGs" -o "$Base" -t "$Threads" -m "$Memory"
 ```
 
-**Output:** `04_false_closure/false_closure.contig.tsv`, `false_closure.MAG.tsv`
-
-### 5. Phantom sequences (`phantom`)
-
-Finds sequence stretches longer than 500 bp with zero HiFi read depth, no BLASTN hit to the raw reads and no ambiguous bases. At the MAG level, Meryl also measures the fraction of distinct 21-mers in phantom regions that are absent from the reads.
-
-**Prerequisites:** `map`
+### 4.3. Clipping
 
 ```bash
-MAGverify phantom -g /path/to/input_dataset/MAGs -o /path/to/MAGverify_output -t 100
+MAGverify clipping -g "$Data/MAGs" -o "$Base" -t "$Threads"
 ```
 
-**Output:** `05_phantom/phantom.region.tsv`, `phantom.contig.tsv`, `phantom.MAG.tsv`
-
-### 6. Repeats (`repeats`)
-
-Finds BLASTN repeats (longer than 200 bp, ≥ 80% identity). For single-contig MAGs, the contig is scanned against itself, and the MAG call follows that contig. For multi-contig MAGs, each contig is scanned against itself and the contigs are additionally compared with each other.
-
-A contig is flagged when repeats within it cover ≥ 0.70 of its bases. A MAG is flagged when repeats within and between its contigs together — overlapping bases counted once — cover ≥ 0.70 of its bases.
-
-**Prerequisites:** `map`
+### 4.4. False closure
 
 ```bash
-MAGverify repeats -g /path/to/input_dataset/MAGs -o /path/to/MAGverify_output -t 100 -m 900
+MAGverify false-closure -g "$Data/MAGs" -o "$Base" -t "$Threads"
 ```
 
-**Output:** `06_repeats/repeats.contig.tsv`, `repeats.MAG.tsv`, `repeats.region.tsv`, `repeats.HSP.tsv`
-
-### 7. False duplication (`false-duplication`)
-
-Identifies duplicated copies within a MAG from a minimap2 self-alignment of each assembly (`-x asm5 -DP`, ≥ 1,000 bp, ≥ 95% identity) and checks each copy boundary against HiFi alignments. A duplicated pair is flagged when one copy is spanned at both boundaries and the other at neither. For tandem copies, both outer boundaries must be spanned but the intervening junction must not be. Clipping evidence at the copy boundaries is also reported.
-
-**Prerequisites:** `clipping`
+### 4.5. Phantom sequences
 
 ```bash
-MAGverify false-duplication -g /path/to/input_dataset/MAGs -o /path/to/MAGverify_output -t 100
+MAGverify phantom -g "$Data/MAGs" -o "$Base" -t "$Threads"
 ```
 
-**Output:** `08_false_duplication/false_duplication.pair.tsv`, `false_duplication.contig.tsv`, `false_duplication.MAG.tsv`
-
-### 8. Assembly variants (`variants`)
-
-Profiles the HiFi reads against each assembly with anvi'o and identifies assembly alleles that disagree with the reads. A **minority** variant occurs when another allele or an indel is supported by > 50% of reads. An **unsupported** variant occurs when no read supports the assembly allele.
-
-**Prerequisites:** `map`
+### 4.6. Repeats
 
 ```bash
-MAGverify variants -g /path/to/input_dataset/MAGs -o /path/to/MAGverify_output -t 100 -m 900
+MAGverify repeats -g "$Data/MAGs" -o "$Base" -t "$Threads" -m "$Memory"
 ```
 
-**Output:** `09_assembly_variants/variants.site.tsv`, `variants.contig.tsv`, `variants.MAG.tsv`
-
-### 9. Taxonomic chimera (`chimera`)
-
-Classifies genes against GTDB R232 with MMseqs2, then finds neighbouring gene blocks whose dominant taxa differ at domain, phylum, class or order.
-
-**Prerequisites:** `clipping`, `prep-chimera`, `prep-scg`, `prep-taxonomy`
-
-To reuse a GTDB database built under another output directory, pass its prefix with `--database PREFIX` — the MMseqs2 prefix itself, not its directory or its `.dbtype` file. With an existing gene taxonomy table, `--taxonomy TSV` runs this module without any database.
+### 4.7. False duplication
 
 ```bash
-MAGverify chimera -g /path/to/input_dataset/MAGs -o /path/to/MAGverify_output -t 100
+MAGverify false-duplication -g "$Data/MAGs" -o "$Base" -t "$Threads"
 ```
 
-**Output:** `07_chimera/chimera.region.tsv`, `chimera.contig.tsv`, `chimera.MAG.tsv`
-
-A transition is called `Taxonomic_chimera` when a clipping site with `Clipping` `Y` lies inside it, and `High_confidence_taxonomic_chimera` when that same site is also `Stringent_clipping` `Y`, the high-confidence clipping call. `summary.MAG.tsv` and `summary.contig.tsv` carry the high-confidence call as `Chimera`. The HiFi structural check across the boundary is reported separately as `Structural_chimera`.
-
-### 10. Integrated summary (`summary`)
-
-Combines completed module calls into MAG- and contig-level summaries and checks MAG IDs, contig membership, counts and consistency across tables. Validation failures return a nonzero exit status. For a partial run, select completed modules with `--include clipping,chimera`. The summary step does not rerun analyses.
-
-**Prerequisites:** the modules to be summarized
+### 4.8. Assembly variants
 
 ```bash
-MAGverify summary -g /path/to/input_dataset/MAGs -o /path/to/MAGverify_output
+MAGverify variants -g "$Data/MAGs" -o "$Base" -t "$Threads" -m "$Memory"
 ```
 
-**Output:** `summary.MAG.tsv` and `summary.contig.tsv` (concise `Y` / `N` / `NA` flags); `detail.MAG.tsv` and `detail.contig.tsv` (full diagnostic tables)
+### 4.9. Taxonomic chimera
+
+```bash
+MAGverify chimera -g "$Data/MAGs" -o "$Base" -t "$Threads"
+```
+
+An existing gene taxonomy table can be supplied with `--taxonomy TSV` instead of building or downloading the database for individual chimera analysis.
+
+### 4.10. Integrated QC summary
+
+```bash
+MAGverify summary -g "$Data/MAGs" -o "$Base"
+```
+
+For a partial analysis:
+
+```bash
+MAGverify summary -g "$Data/MAGs" -o "$Base" --include clipping,chimera
+```
+
+The summary reads completed results without rerunning QC. Use `MAGverify list` and `MAGverify <command> -h` for command-specific options.
+
+## 5. Output files
+
+| Module | Directory |
+| --- | --- |
+| Preparation | `00_prep/` |
+| Mapping | `01_mapping/` |
+| Circularity | `02_circularity/` |
+| Clipping | `03_clipping/` |
+| False closure | `04_false_closure/` |
+| Phantom | `05_phantom/` |
+| Repeats | `06_repeats/` |
+| False duplication | `08_false_duplication/` |
+| Variants | `09_assembly_variants/` |
+| Chimera | `07_chimera/` |
+| Summary | Output root |
+
+Directory numbers are retained independently of execution order.
+
+The output root includes `summary.MAG.tsv`, `summary.contig.tsv`, `detail.MAG.tsv` and `detail.contig.tsv`.
+
+See [Analysis modules](MODULES.md) for detection criteria and [Result tables](OUTPUTS.md) for column definitions.

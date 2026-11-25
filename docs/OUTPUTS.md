@@ -1,6 +1,6 @@
 # Result tables
 
-MAGverify writes four integrated tables to the output directory and module-specific tables to numbered subdirectories. This document defines every reported column, including diagnostic calls, supporting read evidence and measurements. See the [README](../README.md#5-results) for the output overview and [Usage](USAGE.md#analysis-modules) for the corresponding commands.
+MAGverify writes four integrated tables to the output directory and module-specific tables to numbered subdirectories. This document defines every reported column, including diagnostic calls, supporting read evidence and measurements. See the [README](../README.md#5-main-results) for the output overview and [Usage](USAGE.md#4-individual-modules) for the corresponding commands.
 
 **Table naming:** `MODULE.LEVEL.tsv`, where `LEVEL` identifies one row (for example, `MAG`, `contig`, `site`, `region`, `pair` or `assembler`). The four integrated `summary*.tsv` files are saved at the top of the output directory.
 

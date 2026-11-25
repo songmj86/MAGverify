@@ -33,7 +33,7 @@ aria2c -c -x 8 -s 8 -k 8M \
 tar -xzf "$Data/input_dataset.tar.gz" -C "$Data" --strip-components=1
 ```
 
-The dataset provides a complete set of inputs for MAGverify:
+The dataset provides a set of inputs for MAGverify including 3 assemblies, 30 MAGs, 1 HiFi read file, 3 assembler circularity files and 2 GTDB-Tk results.
 
 ```
 input_dataset
@@ -59,30 +59,7 @@ input_dataset
 
 ## 3. Preparation
 
-Run the preparation commands before analysis using the same `-o` to save their outputs in `$Base/00_prep/`. They are not included in `end-to-end`.
-
-With the [test dataset](#2-test-dataset), the four preparation commands are:
-
-```bash
-Data=/path/to/input_dataset            # extracted test dataset
-Base=/path/to/MAGverify_output
-GTDB_DIR=/path/to/GTDB_R232_downloads
-
-MAGverify prep-chimera -d "$GTDB_DIR" -o "$Base" -t 100
-
-MAGverify prep-scg -a "$Data/contigs" -o "$Base" -t 100
-
-MAGverify prep-circularity \
-  -c "$Data/assembler_circularity/Read.p_ctg.noseq.gfa" \
-  -c "$Data/assembler_circularity/contigs.fasta.gz" \
-  -c "$Data/assembler_circularity/assembly_info.txt" \
-  -g "$Data/MAGs" \
-  -o "$Base"
-
-MAGverify prep-taxonomy -d "$Data/gtdbtk" -g "$Data/MAGs" -o "$Base"
-```
-
-See [Usage](docs/USAGE.md#preparation) for the input formats, the download links and the prebuilt GTDB database that replaces `prep-chimera`.
+Complete the four preparation steps in [Usage](docs/USAGE.md#2-preparation). A prebuilt GTDB R232 database (131 GB) is available on Hugging Face as an alternative to a local database build. Use the same output directory for preparation and analysis.
 
 ## 4. Quick start
 
@@ -94,7 +71,7 @@ After preparation, run all analysis modules using end-to-end with the following 
 - `-o DIR`: Output base directory.
 - `-t N`: Number of threads (default: 80% of the available CPUs).
 - `-m N`: Memory limit in GB for `map`, `circularity`, `repeats` and `variants` (default: 80% of the available memory).
-- `--skip MODULES`: Comma-separated modules to exclude (e.g., `--skip chimera,variants`). `map` cannot be skipped, because every analysis module reads its result.
+- `--skip MODULES`: Comma-separated modules to exclude (e.g., `--skip chimera,variants`).
 
 
 With the [test dataset](#2-test-dataset):
@@ -113,31 +90,27 @@ MAGverify end-to-end \
 
 **Note:** `end-to-end` runs the modules in the following order: `map` → `circularity` → `clipping` → `false-closure` → `phantom` → `repeats` → `false-duplication` → `variants` → `chimera` → `summary`. Before analysis, MAGverify checks for missing preparation outputs in `$Base/00_prep/` and identifies the necessary `prep-` commands. Interrupted analyses can be resumed by rerunning the same command, automatically skipping completed modules with unchanged inputs.
 
-Each module can also be run separately. See [Usage](docs/USAGE.md#analysis-modules) for detailed descriptions and options.
+Each module can also be run separately. See [Usage](docs/USAGE.md#4-individual-modules) for the commands and [Analysis modules](docs/MODULES.md) for the detection criteria behind each call.
 
 
-## 5. Results
+## 5. Main results
 
-MAGverify generates two summary formats: `summary.MAG.tsv` and `summary.contig.tsv` provide `Y`/`N`/`NA` flags for each analysis, whereas `detail.MAG.tsv` and `detail.contig.tsv` additionally include detailed results from each module.
+| File | Description |
+| --- | --- |
+| `summary.MAG.tsv` | MAG-level QC calls |
+| `summary.contig.tsv` | Contig-level QC calls |
+| `detail.MAG.tsv` | Detailed MAG results |
+| `detail.contig.tsv` | Detailed contig results |
 
-Each module saves its results in a separate directory, as listed below; the directory numbers are fixed per module and are not the `end-to-end` run order. Intermediate files are stored in hidden `.cache/` directories for reuse in subsequent runs. Keep these directories to enable analysis resumption.
+Module-specific tables are saved in numbered directories. Keep intermediate files and `.cache/` directories for resumption.
 
-| Module | Directory | Tables |
-| --- | --- | --- |
-| Preparation | `00_prep/` | `all_assemblies.fa`, `MAG_contig_map.tsv`, genes, `scg.contig.tsv`, `assembler_circularity.*.tsv`, `gtdbtk_taxonomy.MAG.tsv`, `taxonomy.gene.tsv` |
-| Read mapping | `01_mapping/` | `mapping.assembler.tsv` (BAMs are in the same directory) |
-| Circularity | `02_circularity/` | `circularity.MAG.tsv`, `circularity.contig.tsv` |
-| Clipping | `03_clipping/` | `clipping.site.tsv`, `clipping.contig.tsv`, `clipping.MAG.tsv`, `clipping.assembler.tsv` |
-| False closure | `04_false_closure/` | `false_closure.contig.tsv`, `false_closure.MAG.tsv` |
-| Phantom sequences | `05_phantom/` | `phantom.region.tsv`, `phantom.contig.tsv`, `phantom.MAG.tsv` |
-| Repeats | `06_repeats/` | `repeats.contig.tsv`, `repeats.MAG.tsv`, `repeats.region.tsv`, `repeats.HSP.tsv` |
-| Taxonomic chimera | `07_chimera/` | `chimera.region.tsv`, `chimera.contig.tsv`, `chimera.MAG.tsv` |
-| False duplication | `08_false_duplication/` | `false_duplication.pair.tsv`, `false_duplication.contig.tsv`, `false_duplication.MAG.tsv` |
-| Assembly variants | `09_assembly_variants/` | `variants.site.tsv`, `variants.contig.tsv`, `variants.MAG.tsv` |
-| Integrated summary | top of the output directory | `summary.MAG.tsv`, `summary.contig.tsv` (Y/N); `detail.MAG.tsv`, `detail.contig.tsv` (detailed) |
+## 6. Documentation
 
-See [Result tables](docs/OUTPUTS.md) for detailed descriptions of all output columns.
-
+| Document | Contents |
+| --- | --- |
+| [Usage](docs/USAGE.md) | Inputs, preparation and commands |
+| [Analysis modules](docs/MODULES.md) | Detection methods and criteria |
+| [Result tables](docs/OUTPUTS.md) | Output columns and interpretation |
 
 ## License
 
