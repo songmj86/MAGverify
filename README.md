@@ -70,7 +70,7 @@ After preparation, run all analysis modules using end-to-end with the following 
 - `-r DIR`: Input directory of PacBio HiFi reads (`.fastq`, `.fq`, `.fastq.gz`, or `.fq.gz`); several files are pooled into `$Base/00_prep/hifi_reads.fastq[.gz]`. All assemblies specified with `-a` must be generated from the same HiFi read set.
 - `-o DIR`: Output base directory.
 - `-t N`: Number of threads (default: 80% of the available CPUs).
-- `-m N`: Memory limit in GB for `map`, `circularity`, `repeats` and `variants` (default: 80% of the available memory).
+- `-m N`: Memory limit in GB (default: 80% of the available memory).
 - `--skip MODULES`: Comma-separated modules to exclude (e.g., `--skip chimera,variants`).
 
 
