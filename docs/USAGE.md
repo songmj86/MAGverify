@@ -71,7 +71,7 @@ MAGverify prep-chimera -d "$GTDB_DIR" -o /path/to/MAGverify_output -t 100
 
 **Output:** `GTDB_R232*`.
 
-**Alternative:** A prebuilt database is available on [Hugging Face](https://huggingface.co/datasets/ATCC19718/MAGverify-resources), which skips both the 123 GB download and the build. Extract `GTDB_R232.tar.gz` (131 GB) into `$Base/00_prep/`:
+**Alternative:** A prebuilt database is available on [Hugging Face](https://huggingface.co/datasets/ATCC19718/MAGverify-resources), which skips both the 123 GB download and the build. Extract `GTDB_R232.tar.gz` (131 GB) into `$Base/00_prep/`, where `chimera` then finds it under the same `-o` without running `prep-chimera`:
 
 ```bash
 Base=/path/to/MAGverify_output
@@ -84,13 +84,11 @@ aria2c -c -x 8 -s 8 -k 8M \
 tar -xzf "$Base/GTDB_R232.tar.gz" -C "$Base/00_prep"
 ```
 
-`chimera` then finds the database under the same `-o` without running `prep-chimera`.
-
 ---
 
 ### 2. Single-copy gene annotation
 
-`prep-scg` predicts genes with Pyrodigal and identifies single-copy genes (SCGs) using anvi'o's `Bacteria_71` and `Archaea_76` collections.
+`prep-scg` predicts genes with Pyrodigal and identifies single-copy genes (SCGs) using anvi'o's `Bacteria_71` and `Archaea_76` collections. The gene predictions are also reused by `variants`.
 
 **Prerequisites:** none. The assemblies are given with `-a`.
 
@@ -101,8 +99,6 @@ MAGverify prep-scg -a /path/to/input_dataset/contigs -o /path/to/MAGverify_outpu
 ```
 
 - `-a DIR`: Input directory of contig files (`.fa`, `.fasta`, or `.fna`), one per assembler. Contig IDs must be unique across assembly files.
-
-The gene predictions are also reused by `variants`.
 
 **Output:** `scg.contig.tsv`, `genes.faa`, `genes.gff`, `genes.coordinates.tsv`.
 

@@ -139,6 +139,10 @@ Each module saves its results in a separate directory, as listed below. Intermed
 See [Result tables](docs/OUTPUTS.md) for detailed descriptions of all output columns.
 
 
+## License
+
+MIT. See [LICENSE](LICENSE).
+
 ## Citation
 
 If you use MAGverify, please cite:
