@@ -26,7 +26,7 @@ Adjust the example resource values to your system.
 | `-t N` | Threads (default: 80% of available CPUs) |
 | `-m N` | Memory budget in GB for `map`, `circularity`, `repeats` and `variants` (default: 80% of available memory) |
 
-Assemblies and MAGs accept `.fa`, `.fasta` and `.fna`. Use unique contig IDs across assemblies and retain the original IDs in MAGs. FASTA filenames must be unique and must not include whitespace. Reads accept `.fastq`, `.fq`, `.fastq.gz` and `.fq.gz`. Supply the complete HiFi read set used to generate all input assemblies. Missing or unrelated reads can distort the calls.
+Assemblies and MAGs accept `.fa`, `.fasta` and `.fna`. Use unique contig IDs across assemblies and retain the original IDs in MAGs. FASTA filenames must be unique and must not include whitespace. Reads accept `.fastq`, `.fq`, `.fastq.gz` and `.fq.gz`. All assemblies specified with `-a` must be generated from the same HiFi read set.
 
 ## 2. Preparation
 
