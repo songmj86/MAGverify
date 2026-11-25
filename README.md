@@ -99,12 +99,12 @@ MAGverify generates four integrated tables at the genome and contig levels in th
 
 | File | Description |
 | --- | --- |
-| `summary.MAG.tsv` | MAG-level QC calls |
-| `summary.contig.tsv` | Contig-level QC calls |
-| `detail.MAG.tsv` | Detailed MAG results |
-| `detail.contig.tsv` | Detailed contig results |
+| `summary.MAG.tsv` | MAG-level flags |
+| `summary.contig.tsv` | Contig-level flags |
+| `detail.MAG.tsv` | MAG-level diagnostic results |
+| `detail.contig.tsv` | Contig-level diagnostic results |
 
-Module-specific tables are saved in numbered directories.
+Module-specific tables are saved in numbered directories, listed in [Usage](docs/USAGE.md#5-output-files).
 
 ## 6. Documentation
 

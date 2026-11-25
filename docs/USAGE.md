@@ -1,6 +1,6 @@
 # Usage
 
-Run the applicable preparation steps, followed by `end-to-end` or individual QC modules. Use the same output directory (`-o`) throughout.
+Run the applicable preparation steps, followed by `end-to-end` or individual analysis modules. Use the same output directory (`-o`) throughout.
 
 ## 1. Input configuration
 
@@ -26,7 +26,7 @@ Adjust the example resource values to your system.
 | `-t N` | Threads (default: 80% of available CPUs) |
 | `-m N` | Memory budget in GB for `map`, `circularity`, `repeats` and `variants` (default: 80% of available memory) |
 
-Assemblies and MAGs accept `.fa`, `.fasta` and `.fna`. Use unique contig IDs across assemblies and retain the original IDs in MAGs. FASTA filenames must be unique and must not include whitespace. Reads accept `.fastq`, `.fq`, `.fastq.gz` and `.fq.gz`. Supply the complete HiFi read set used to generate all input assemblies. Missing or unrelated reads can distort QC calls.
+Assemblies and MAGs accept `.fa`, `.fasta` and `.fna`. Use unique contig IDs across assemblies and retain the original IDs in MAGs. FASTA filenames must be unique and must not include whitespace. Reads accept `.fastq`, `.fq`, `.fastq.gz` and `.fq.gz`. Supply the complete HiFi read set used to generate all input assemblies. Missing or unrelated reads can distort the calls.
 
 ## 2. Preparation
 
@@ -149,7 +149,7 @@ Run commands in dependency order. Module outputs are retrieved from the shared o
 | `false-duplication` | — | `clipping` |
 | `variants` | — | `map` |
 | `chimera` | GTDB database, `prep-scg`, `prep-taxonomy` | `clipping` |
-| `summary` | — | Selected QC modules |
+| `summary` | — | Selected analysis modules |
 
 ### 4.1. Read mapping
 
@@ -207,7 +207,7 @@ MAGverify chimera -g "$Data/MAGs" -o "$Base" -t "$Threads"
 
 An existing gene taxonomy table can be supplied with `--taxonomy TSV` instead of building or downloading the database for individual chimera analysis.
 
-### 4.10. Integrated QC summary
+### 4.10. Integrated summary
 
 ```bash
 MAGverify summary -g "$Data/MAGs" -o "$Base"
@@ -219,7 +219,7 @@ For a partial analysis:
 MAGverify summary -g "$Data/MAGs" -o "$Base" --include clipping,chimera
 ```
 
-The summary reads completed results without rerunning QC. Use `MAGverify list` and `MAGverify <command> -h` for command-specific options.
+The summary reads completed results without rerunning any module. Use `MAGverify list` and `MAGverify <command> -h` for command-specific options.
 
 ## 5. Output files
 

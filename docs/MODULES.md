@@ -50,7 +50,7 @@ Classifies genes against GTDB R232 with MMseqs2, then finds neighbouring gene bl
 
 A transition is called `Taxonomic_chimera` when a clipping site with `Clipping` `Y` lies inside it, and `High_confidence_taxonomic_chimera` when that same site is also `Stringent_clipping` `Y`, the high-confidence clipping call. `summary.MAG.tsv` and `summary.contig.tsv` carry the high-confidence call as `Chimera`. The HiFi structural check across the boundary is reported separately as `Structural_chimera`.
 
-## 10. Integrated QC summary
+## 10. Integrated summary
 
 Combines completed module calls into MAG- and contig-level summaries and checks MAG IDs, contig membership, counts and consistency across tables. Validation failures return a nonzero exit status. The summary step does not rerun analyses.
 
