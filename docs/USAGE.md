@@ -7,7 +7,7 @@ Run the applicable preparation steps, followed by `end-to-end` or individual ana
 The examples use the directory structure of the [test dataset](../README.md#2-test-dataset).
 
 ```bash
-Data=/path/to/input_dataset
+Data=/path/to/test_inputs
 Base=/path/to/MAGverify_output
 Threads=100
 Memory=900
@@ -45,7 +45,7 @@ Choose one option to prepare the MMseqs2 taxonomy database.
 
 #### Option A. Prebuilt database (recommended)
 
-Download the prebuilt database (131 GB) from [Hugging Face](https://huggingface.co/datasets/ATCC19718/MAGverify-resources) to avoid downloading the original GTDB protein archive and building the database locally.
+Download the prebuilt database (140 GB) from [Hugging Face](https://huggingface.co/datasets/ATCC19718/MAGverify-resources) to avoid downloading the original GTDB protein archive and building the database locally.
 
 ```bash
 aria2c -c -x 8 -s 8 -k 8M \

@@ -20,23 +20,23 @@ MAGverify list displays the available commands and analysis modules with brief d
 
 ## 2. Test dataset
 
-Use the test dataset to check that MAGverify runs correctly before applying it to your own data. [input_dataset.tar.gz](https://huggingface.co/datasets/ATCC19718/MAGverify-resources/resolve/main/input_dataset.tar.gz) (1.1 GB) is available on [Hugging Face](https://huggingface.co/datasets/ATCC19718/MAGverify-resources). Download and extract it:
+Use the test dataset to check that MAGverify runs correctly before applying it to your own data. [test_inputs.tar.gz](https://huggingface.co/datasets/ATCC19718/MAGverify-resources/resolve/main/test_inputs.tar.gz) (1.1 GB) is available on [Hugging Face](https://huggingface.co/datasets/ATCC19718/MAGverify-resources). Download and extract it:
 
 ```bash
-Data=/path/to/input_dataset
+Data=/path/to/test_inputs
 mkdir -p "$Data"
 
 aria2c -c -x 8 -s 8 -k 8M \
-  -d "$Data" -o input_dataset.tar.gz \
-  "https://huggingface.co/datasets/ATCC19718/MAGverify-resources/resolve/main/input_dataset.tar.gz"
+  -d "$Data" -o test_inputs.tar.gz \
+  "https://huggingface.co/datasets/ATCC19718/MAGverify-resources/resolve/main/test_inputs.tar.gz"
 
-tar -xzf "$Data/input_dataset.tar.gz" -C "$Data" --strip-components=1
+tar -xzf "$Data/test_inputs.tar.gz" -C "$Data"
 ```
 
 The dataset provides a set of test inputs for MAGverify including 3 assemblies, 30 MAGs, 1 HiFi read file, 3 assembler circularity files and 2 GTDB-Tk results.
 
 ```
-input_dataset
+test_inputs
 ├── contigs
 │   ├── metaMDBG.fa
 │   ├── metaFlye.fa
@@ -77,7 +77,7 @@ After preparation, run all analysis modules using end-to-end with the following 
 With the [test dataset](#2-test-dataset):
 
 ```bash
-Data=/path/to/input_dataset          # extracted test dataset
+Data=/path/to/test_inputs          # extracted test dataset
 Base=/path/to/MAGverify_output
 
 MAGverify end-to-end \
