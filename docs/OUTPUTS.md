@@ -74,9 +74,7 @@ One row per MAG; columns appear in the following order.
 | Column | Definition |
 |---|---|
 | `MAG_ID` | MAG identifier |
-| `Assembler_reported_circularity` | Y/N/NA call from `prep-circularity` |
-| `Read_supported_circularity` | HiFi read evidence supporting circular topology, from `Read_supported_circular_topology` |
-| `High_confidence_circularity` | High-confidence circularity: both assembler-reported and read-supported calls are Y; NA when the assembler call is unavailable |
+| `High_confidence_circularity` | High-confidence circularity: both assembler-reported and read-supported calls are Y; NA when the assembler call is unavailable. The two evidence columns are in `detail.MAG.tsv` |
 | `High_confidence_clipping` | At least one high-confidence clipping site: `High_confidence_clipping` Y in the clipping module (validated clipping with anvi'o coverage >= 10 and clipping ratio = 1.0); NA when clipping was not assessable or not run |
 | `Premature_circularization` | Single-contig MAG reported circular by its assembler with false-closure evidence |
 | `Phantom_sequence` | At least one phantom region |
@@ -94,9 +92,7 @@ One row per contig across all assemblies. `MAG_ID` is `NA` for unbinned contigs.
 | `Contig` | Contig identifier |
 | `MAG_ID` | Associated MAG identifier, or `NA` |
 | `Length_bp` | Contig length in base pairs |
-| `Assembler_reported_circularity` | Y/N/NA call from `prep-circularity` |
-| `Read_supported_circularity` | HiFi read evidence supporting circular topology, from `Read_supported_circular_topology`; `NA` for contigs of multi-contig MAGs, which are not evaluated |
-| `High_confidence_circularity` | High-confidence circularity: both assembler-reported and read-supported calls are Y; NA when the assembler call is unavailable or the contig was not evaluated |
+| `High_confidence_circularity` | High-confidence circularity: both assembler-reported and read-supported calls are Y; NA when the assembler call is unavailable or the contig was not evaluated. The two evidence columns are in `detail.contig.tsv` |
 | `High_confidence_clipping` | At least one high-confidence clipping site (`High_confidence_clipping` Y in the clipping module); NA when clipping was not assessable or not run |
 | `Premature_circularization` | Contig reported circular by its assembler with false-closure evidence, from `Premature_circularization_candidate`; NA when false closure was not run |
 | `Phantom_sequence` | Phantom sequence flag |

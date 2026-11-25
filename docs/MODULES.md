@@ -1,43 +1,79 @@
 # Modules
 
-This document describes the analytical procedures and QC criteria of each MAGverify module. See [Usage](USAGE.md) for execution commands and [Outputs](OUTPUTS.md) for output files and column definitions.
+This document describes the analytical methods and detection criteria for each MAGverify module. See [Usage](USAGE.md) for execution commands and [Outputs](OUTPUTS.md) for output files and column definitions.
 
-## 1. Read mapping
+## 1. Read mapping (`map`)
 
-The `MAGverify map` command maps HiFi reads to each complete metagenome assembly, including unbinned contigs, using Minimap2. All mapped alignments, primary alignments, and primary plus supplementary alignments are stored for subsequent analyses. A mapping manifest records the input and alignment file paths.
+HiFi reads are mapped to each metagenome assembly using minimap2, including unbinned contigs. Three sets of alignments are retained for downstream analyses: all mapped alignments (clipping, phantom sequences, assembly variants), primary plus supplementary alignments (read-spanning analyses), and primary alignments (depth).
 
-## 2. Circularity
+## 2. Circularity (`circularity`)
 
-The `MAGverify circularity` command evaluates circular topology in single-contig MAGs. Each contig is rotated to place its end-to-start junction at the midpoint. Circular topology is supported when at least two HiFi reads span the junction with at least 2,000 bp aligned on each side. **High-confidence circularity** is defined by agreement between assembler-reported circularity and HiFi read-supported circular topology.
+Single-contig MAGs are tested for circular topology. The contig is rotated so that its original END|START junction lies in the middle, and HiFi alignments spanning that junction are counted.
 
-## 3. Clipping
+| Criterion | Definition |
+| --- | --- |
+| Assembler-reported circularity | Circular topology reported by the assembler |
+| Read-supported circularity | ≥ 2 HiFi reads spanning the circular junction with ≥ 2,000 bp aligned on each side |
+| High-confidence circularity | Both assembler-reported and read-supported circularity |
 
-The `MAGverify clipping` command identifies candidate clipping sites using `anvi-script-find-misassemblies` (default clipping ratio > 0.8 and `--min-dist-to-end 0`) and validates them using HiFi read alignments. **High-confidence clipping** is defined by a read depth of ≥ 10× and a clipping ratio of 1.0, as described by [Trigodet et al., 2026](https://doi.org/10.1038/s41587-025-02971-8), with two additional read-based validation criteria: at least two distinct HiFi reads clipped at the same position and no HiFi read spanning that position with aligned bases on both sides. The first and last bases of a contig are not assessable. Clipping sites within 100 bp of either end of a contig are classified as terminal clipping sites.
+Without the assembler circularity table from `prep-circularity`, assembler-reported circularity is unavailable and the high-confidence call is `NA`. Read-supported contigs that the assembler did not report circular are reported as `Additional_circular_candidate`.
 
-## 4. False closure
+## 3. Clipping (`clipping`)
 
-The `MAGverify false-closure` command evaluates premature circularization in contigs reported as circular by the assembler. A validated clipping site is identified as a false-closure breakpoint when at least two split HiFi reads on each side connect the circular contig to another contig.
+Candidate positions are identified with `anvi-script-find-misassemblies` (clipping ratio > 0.8, `--min-dist-to-end 0`) and validated against the HiFi alignments. Positions within 100 bp of a contig end are terminal; all others are internal.
 
-## 5. Phantom sequences
+| Criterion | Definition |
+| --- | --- |
+| `Clipping` | ≥ 2 distinct HiFi reads clipped at the position and no read spanning it with aligned bases on both sides; `NA` at the first or last base of a contig |
+| `Clipping_candidate` | Read depth ≥ 10× and clipping ratio = 1.0, without read validation, following [Trigodet et al., 2026](https://doi.org/10.1038/s41587-025-02971-8) |
+| `High_confidence_clipping` | Both `Clipping` and `Clipping_candidate` |
 
-The `MAGverify phantom` command identifies phantom sequences as regions longer than 500 bp with zero HiFi read depth, no BLASTN hit to the raw HiFi reads, and no ambiguous bases. Meryl-based k-mer analysis provides additional evidence by quantifying the MAG-level fraction of distinct 21-mers in phantom regions absent from the HiFi reads.
+The thresholds alone are not sufficient: a position with ≥ 10× coverage and a clipping ratio of 1.0 that the reads do not validate is `Clipping_candidate` `Y` but `High_confidence_clipping` `N`. The call is `NA` when clipping was not assessable.
 
-## 6. Repeats
+## 4. False closure (`false-closure`)
 
-The `MAGverify repeats` command identifies repeat regions using BLASTN alignments longer than 200 bp with ≥ 80% nucleotide identity. Contig-level assessment evaluates intra-contig repeats, whereas MAG-level assessment evaluates both intra- and inter-contig repeats. **Excessive repeats** are defined as intra-contig repeats covering ≥ 70% of the total contig length or intra- and inter-contig repeats covering ≥ 70% of the total MAG length. Overlapping repeat intervals are counted once.
+Examines contigs reported circular by their assembler. A validated clipping site with at least two split reads on **each** side connecting the contig to another contig indicates a false-closure breakpoint. The module also reports a small-genome proxy for circular contigs < 500,000 bp with ≥ 3 ribosomal protein families (`prep-scg`). This screening field is distinct from the final `Premature_circularization` call.
 
-## 7. False duplication
+## 5. Phantom sequences (`phantom`)
 
-The `MAGverify false-duplication` command identifies duplicated regions within MAGs using Minimap2 assembly self-alignments (`-x asm5 -DP`, alignment length ≥ 1,000 bp and nucleotide identity ≥ 95%) and evaluates HiFi read support across duplication boundaries. False duplication is identified when both boundaries of one duplicated copy are spanned by reads and neither boundary of the other copy is spanned. For tandem duplications, both outer boundaries must be spanned by reads, with no read spanning the intervening junction. Clipping evidence at duplication boundaries is also reported.
+A region is called a phantom sequence when it is longer than 500 bp and has zero HiFi read depth, no BLASTN hit to the raw reads and no ambiguous bases. Meryl-based k-mer analysis provides additional evidence for evaluating phantom sequences: at the MAG level it measures the fraction of distinct 21-mers in phantom regions that are absent from the reads.
 
-## 8. Assembly variants
+## 6. Repeats (`repeats`)
 
-The `MAGverify variants` command profiles HiFi read alignments using anvi'o to identify assembly alleles inconsistent with the reads. A **minority variant** is defined as a position where at least one read supports the assembly allele, but an alternative allele or indel is supported by > 50% of reads. An **unsupported variant** is defined as a position where no read supports the assembly allele.
+Repeats are BLASTN alignments longer than 200 bp with ≥ 80% identity.
 
-## 9. Taxonomic chimera
+| Level | Repeat assessment |
+| --- | --- |
+| Contig | Intra-contig repeats |
+| MAG | Intra- and inter-contig repeats |
 
-The `MAGverify chimera` command classifies genes using MMseqs2 against GTDB R232 and identifies transitions between adjacent gene blocks with different dominant taxonomic assignments at the domain, phylum, class, or order level. A **high-confidence taxonomic chimera** is defined by a taxonomic transition containing a high-confidence clipping site.
+A contig is flagged when repeats cover ≥ 70% of its sequence, and a MAG when they cover ≥ 70% of its sequence. Overlapping repeat intervals are counted once. A single-contig MAG has no inter-contig repeats, so its MAG call follows that contig.
 
-## 10. Integrated summary
+## 7. False duplication (`false-duplication`)
 
-The `MAGverify summary` command integrates completed module results at the MAG and contig levels and validates MAG IDs, contig membership, counts, and consistency across output tables. It does not rerun the analytical modules. Validation failures return a nonzero exit status. `NA` indicates that an assessment was not performed or that the criterion could not be evaluated, whereas `N` indicates that the criterion was not met.
+Identifies duplicated copies within a MAG from a minimap2 self-alignment of each assembly (`-x asm5 -DP`, ≥ 1,000 bp, ≥ 95% identity) and checks each copy boundary against HiFi alignments. A duplicated pair is flagged when one copy is spanned at both boundaries and the other at neither. For tandem copies, both outer boundaries must be spanned but the intervening junction must not be. Clipping evidence at the copy boundaries is also reported.
+
+## 8. Assembly variants (`variants`)
+
+The HiFi reads are profiled against each assembly with anvi'o to find positions where the assembly allele disagrees with the reads.
+
+Two mutually exclusive types are reported. A **minority variant** is a position where the assembly allele is supported by at least one read but an alternative allele or indel is supported by > 50% of reads. An **unsupported variant** is a position where no read supports the assembly allele.
+
+## 9. Taxonomic chimera (`chimera`)
+
+Genes are classified against GTDB R232 with MMseqs2. At each gene boundary, up to ten genes on either side are searched and the nearest five classified genes form a block, with at least four required. A block is assigned a dominant taxon when ≥ 80% of its genes agree at a rank, and a boundary whose two blocks have different dominant taxa at domain, phylum, class or order is a taxonomic transition.
+
+| Call | Evidence |
+| --- | --- |
+| `Clipping_supported_transition` | Taxonomic transition containing a `Clipping` `Y` site |
+| `High_confidence_taxonomic_chimera` | The same site is also `High_confidence_clipping` `Y` |
+
+`High_confidence_taxonomic_chimera` is the chimera call carried by `summary.MAG.tsv` and `summary.contig.tsv` as `Chimera`.
+
+`Structural_discontinuity` is reported independently of both and does not use taxonomy. With 500 bp anchors on each side, it is `N` when ≥ 2 reads cross the boundary, `Y` when ≥ 2 reads anchor on each side but none cross it, and `NA` otherwise.
+
+## 10. Integrated summary (`summary`)
+
+Combines completed module calls into MAG- and contig-level summaries and checks MAG IDs, contig membership, counts and consistency across tables. Validation failures return a nonzero exit status. The summary step does not rerun analyses.
+
+Circularity flags indicate evidence of circular topology rather than assembly defects. `NA` indicates that a check was not performed or was not assessable and should not be interpreted as `N`.

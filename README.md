@@ -1,6 +1,7 @@
 # MAGverify
 
 MAGverify assesses the integrity of metagenome assemblies and metagenome-assembled genomes (MAGs) using PacBio HiFi reads. Its modules cover read mapping, circularity, clipping, false closure, phantom sequences, repeats, taxonomic chimeras, false duplication, assembly variants and an integrated summary.
+
 ## 1. Installation
 
 Install MAGverify on Linux using Conda or Mamba from the repository root:
@@ -16,23 +17,26 @@ MAGverify list
 
 MAGverify doctor checks the installation path and availability of required programs.
 MAGverify list displays the available commands and analysis modules with brief descriptions.
+
 ## 2. Test dataset
 
-Use the test dataset to check that MAGverify runs correctly before applying it to your own data. [input_dataset.tar.gz](https://huggingface.co/datasets/ATCC19718/MAGverify-resources/resolve/main/input_dataset.tar.gz) (1.1 GB) is available on [Hugging Face](https://huggingface.co/datasets/ATCC19718/MAGverify-resources). Download and extract it:
+Use the test dataset to check that MAGverify runs correctly before applying it to your own data. [test_inputs.tar.gz](https://huggingface.co/datasets/ATCC19718/MAGverify-resources/resolve/main/test_inputs.tar.gz) (1.1 GB) is available on [Hugging Face](https://huggingface.co/datasets/ATCC19718/MAGverify-resources). Download and extract it:
 
 ```bash
-Data=/path/to/input_dataset
+Data=/path/to/test_inputs
 mkdir -p "$Data"
+
 aria2c -c -x 8 -s 8 -k 8M \
-  -d "$Data" -o input_dataset.tar.gz \
-  "https://huggingface.co/datasets/ATCC19718/MAGverify-resources/resolve/main/input_dataset.tar.gz"
+  -d "$Data" -o test_inputs.tar.gz \
+  "https://huggingface.co/datasets/ATCC19718/MAGverify-resources/resolve/main/test_inputs.tar.gz"
 
-tar -xzf "$Data/input_dataset.tar.gz" -C "$Data" --strip-components=1
+tar -xzf "$Data/test_inputs.tar.gz" -C "$Data"
 ```
 
-The dataset provides a set of inputs for MAGverify including 3 assemblies, 30 MAGs, 1 HiFi read file, 3 assembler circularity files and 2 GTDB-Tk results.
+The dataset provides a set of test inputs for MAGverify including 3 assemblies, 30 MAGs, 1 HiFi read file, 3 assembler circularity files and 2 GTDB-Tk results.
+
 ```
-input_dataset
+test_inputs
 ├── contigs
 │   ├── metaMDBG.fa
 │   ├── metaFlye.fa
@@ -52,16 +56,29 @@ input_dataset
     ├── gtdbtk.bac120.summary.tsv
     ╰── gtdbtk.ar53.summary.tsv
 ```
+
 ## 3. Preparation
 
-Complete the four preparation steps in [Usage](docs/USAGE.md#2-preparation). A prebuilt GTDB R232 database (131 GB) is available on Hugging Face as an alternative to a local database build. Use the same output directory for preparation and analysis.
+Complete the four preparation steps in [Usage](docs/USAGE.md#2-preparation). Use the same output directory for preparation and analysis.
+
 ## 4. Quick start
 
-After preparation, run all analysis modules using `MAGverify end-to-end`. The following example uses the [test dataset](#2-test-dataset):
+After preparation, run all analysis modules using end-to-end with the following options:
+
+- `-a DIR`: Input directory of contig files (`.fa`, `.fasta`, or `.fna`), one per assembler. Contig IDs must be unique across assembly files, and filenames must be unique and free of whitespace.
+- `-g DIR`: Input directory of MAG files (one file per MAG). MAG contig IDs must match those in the assembly files.
+- `-r DIR`: Input directory of PacBio HiFi reads (`.fastq`, `.fq`, `.fastq.gz`, or `.fq.gz`). Several files are pooled into `$Base/00_prep/hifi_reads.fastq[.gz]`. All assemblies specified with `-a` must be generated from the same HiFi read set.
+- `-o DIR`: Output base directory.
+- `-t N`: Number of threads (default: 80% of the available CPUs).
+- `-m N`: Memory limit in GB (default: 80% of the available memory).
+- `--skip MODULES`: Comma-separated modules to exclude (e.g., `--skip chimera,variants`).
+
+
+With the [test dataset](#2-test-dataset):
 
 ```bash
-Data="/path/to/input_dataset"
-Base="/path/to/MAGverify_output"
+Data=/path/to/test_inputs          # extracted test dataset
+Base=/path/to/MAGverify_output
 
 MAGverify end-to-end \
   -a "$Data/contigs" \
@@ -71,27 +88,23 @@ MAGverify end-to-end \
   -t 100 -m 900
 ```
 
-**Options**
+**Note:** `end-to-end` executes modules in the following order: `map` → `circularity` → `clipping` → `false-closure` → `phantom` → `repeats` → `false-duplication` → `variants` → `chimera` → `summary`. Before execution, MAGverify checks for missing preparation files in `$Base/00_prep/` and reports the necessary `prep-` commands. To resume an interrupted analysis, rerun the same command. MAGverify automatically skips completed modules if their inputs remain unchanged.
 
-- `-a DIR`: Input directory of contig files (`.fa`, `.fasta`, or `.fna`), one per assembler. Contig IDs must be unique across assembly files, and filenames must be unique and free of whitespace.
-- `-r DIR`: Input directory of PacBio HiFi reads (`.fastq`, `.fq`, `.fastq.gz`, or `.fq.gz`). Multiple read files are pooled into `$Base/00_prep/hifi_reads.fastq[.gz]`. All assemblies specified with `-a` must be generated from the same HiFi read set.
-- `-g DIR`: Input directory of MAG files (one file per MAG). MAG contig IDs must match those in the assembly files.
-- `-o DIR`: Output base directory.
-- `-t N`: Number of threads (default: 80% of the available CPUs).
-- `-m N`: Memory limit in GB (default: 80% of the available memory).
-- `--skip MODULES`: Comma-separated list of modules to exclude (e.g., `--skip chimera,variants`).
+Each module can also be run individually. See [Usage](docs/USAGE.md#4-individual-modules) for execution commands and [Modules](docs/MODULES.md) for module-specific methods and detection criteria.
 
-**Note:** `end-to-end` executes modules in the following order: `map` → `circularity` → `clipping` → `false-closure` → `phantom` → `repeats` → `false-duplication` → `variants` → `chimera` → `summary`. Before execution, MAGverify checks for missing preparation files in `$Base/00_prep/` and reports the necessary `prep-` commands. To resume an interrupted analysis, rerun the same command. MAGverify automatically skips completed modules if their inputs remain unchanged. Each module can also be run individually. See [Usage](docs/USAGE.md#4-individual-modules) for execution commands and [Modules](docs/MODULES.md) for module-specific methods and detection criteria.
+
 ## 5. Main results
 
-MAGverify generates four integrated tables at the genome and contig levels in the root of the output directory. The summary tables report a `Y`, `N`, or `NA` flag for each analysis, whereas the detail tables provide additional module-specific diagnostic information. Module-specific tables are saved in numbered directories, as listed in [Usage](docs/USAGE.md).
+MAGverify generates four integrated tables at the genome and contig levels in the root of the output directory. The `summary` tables report a `Y`, `N`, or `NA` flag for each analysis, whereas the `detail` tables provide additional module-specific diagnostic information.
 
 | File | Description |
 | --- | --- |
-| `summary.MAG.tsv` | MAG-level summary results |
-| `summary.contig.tsv` | Contig-level summary results |
-| `detail.MAG.tsv` | MAG-level detailed results |
-| `detail.contig.tsv` | Contig-level detailed results |
+| `summary.MAG.tsv` | MAG-level flags |
+| `summary.contig.tsv` | Contig-level flags |
+| `detail.MAG.tsv` | MAG-level diagnostic results |
+| `detail.contig.tsv` | Contig-level diagnostic results |
+
+Module-specific tables are saved in numbered directories, listed in [Usage](docs/USAGE.md#5-output-files).
 
 ## 6. Documentation
 
@@ -99,11 +112,12 @@ MAGverify generates four integrated tables at the genome and contig levels in th
 | --- | --- |
 | [Usage](docs/USAGE.md) | Inputs, preparation and commands |
 | [Modules](docs/MODULES.md) | Detection methods and criteria |
-| [Results](docs/OUTPUTS.md) | Output columns and interpretation |
+| [Result](docs/OUTPUTS.md) | Output columns and interpretation |
 
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
 ## Citation
 
 If you use MAGverify, please cite:

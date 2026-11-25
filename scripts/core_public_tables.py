@@ -472,14 +472,12 @@ def summary_mag(internal, public, contigs):
 # Public flags follow end-to-end module order; Assembly_variant is last.
 SUMMARY_CONTIG_FIELDS = [
     'Contig', 'MAG_ID', 'Length_bp',
-    'Assembler_reported_circularity', 'Read_supported_circularity',
     'High_confidence_circularity', 'High_confidence_clipping',
     'Premature_circularization', 'Phantom_sequence', 'Excessive_repeat',
     'False_duplication', 'Chimera', 'Assembly_variant',
 ]
 SUMMARY_MAG_FIELDS = [
     'MAG_ID',
-    'Assembler_reported_circularity', 'Read_supported_circularity',
     'High_confidence_circularity', 'High_confidence_clipping',
     'Premature_circularization', 'Phantom_sequence', 'Excessive_repeat',
     'False_duplication', 'Chimera', 'Assembly_variant',

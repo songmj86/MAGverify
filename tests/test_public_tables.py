@@ -103,7 +103,7 @@ class PublicTableTests(unittest.TestCase):
         for removed in ('QC_call', 'MAG_integrated_QC_call', 'Circularity_eligibility', 'excessive_repeat_call',
                         'false_duplication_clipping_summary'):
             self.assertNotIn(removed, m)
-        self.assertEqual((m['Chimera'], m['Read_supported_circularity'], m['Premature_circularization']), ('NA', 'NA', 'NA'))
+        self.assertEqual((m['Chimera'], m['High_confidence_circularity'], m['Premature_circularization']), ('NA', 'NA', 'NA'))
         self.assertEqual([n for n in detail_m if '.' not in n], pt.detail_plain_fields('MAG'))
         self.assertNotIn('Checks_not_run', read(self.root / 'detail.MAG.tsv')[0])
 
@@ -121,7 +121,7 @@ class PublicTableTests(unittest.TestCase):
             self.assertNotIn(detail, m)
         self.assertTrue(all(m[k] in ('Y', 'N', 'NA')
                             for k in ('High_confidence_clipping', 'Phantom_sequence',
-                                      'Read_supported_circularity')))
+                                      'High_confidence_circularity')))
         full = read(self.root / 'detail.MAG.tsv')[0]
         self.assertEqual([n for n in full if '.' not in n], pt.detail_plain_fields('MAG'))
         self.assertEqual(list(full)[:len(pt.DETAIL_IDENTITY['MAG'])], pt.DETAIL_IDENTITY['MAG'])
@@ -165,14 +165,12 @@ class PublicTableTests(unittest.TestCase):
 
     def test_module_order_and_summary_counts(self):
         self.assertEqual(pt.SUMMARY_MAG_FIELDS, [
-            'MAG_ID', 'Assembler_reported_circularity',
-            'Read_supported_circularity', 'High_confidence_circularity',
+            'MAG_ID', 'High_confidence_circularity',
             'High_confidence_clipping', 'Premature_circularization',
             'Phantom_sequence', 'Excessive_repeat', 'False_duplication',
             'Chimera', 'Assembly_variant'])
         self.assertEqual(pt.SUMMARY_CONTIG_FIELDS, [
-            'Contig', 'MAG_ID', 'Length_bp', 'Assembler_reported_circularity',
-            'Read_supported_circularity', 'High_confidence_circularity',
+            'Contig', 'MAG_ID', 'Length_bp', 'High_confidence_circularity',
             'High_confidence_clipping', 'Premature_circularization',
             'Phantom_sequence', 'Excessive_repeat', 'False_duplication',
             'Chimera', 'Assembly_variant'])
@@ -206,32 +204,33 @@ class PublicTableTests(unittest.TestCase):
     def test_three_circularity_evidence_columns_preserve_na_and_independent_support(self):
         self.test_summary_tables_go_to_the_top()
         path = self.root / '02_circularity/.cache/circularity.MAG.tsv'
+
+        def calls(force=False):
+            pt.publish(self.root, force=force)
+            detail = read(self.root / 'detail.MAG.tsv')[0]
+            summary = read(self.root / 'summary.MAG.tsv')[0]
+            # Only the high-confidence call reaches the summary; the two evidence
+            # columns stay in the detail table.
+            self.assertNotIn('Assembler_reported_circularity', summary)
+            self.assertNotIn('Read_supported_circularity', summary)
+            return (detail['Assembler_reported_circularity'],
+                    detail['Read_supported_circularity'],
+                    summary['High_confidence_circularity'])
+
         write(path, ['ID', 'Assembler_reported_circularity',
                      'Read_supported_circular_topology', 'High_confidence_circularity'],
               [['B1', 'N', 'Y', 'N']])
-        pt.publish(self.root)
-        row = read(self.root / 'summary.MAG.tsv')[0]
-        self.assertEqual((row['Assembler_reported_circularity'],
-                          row['Read_supported_circularity'],
-                          row['High_confidence_circularity']), ('N', 'Y', 'N'))
+        self.assertEqual(calls(), ('N', 'Y', 'N'))
         # The old final Circular could be Y when assembler evidence was unavailable.
         # The new both-supported column must remain NA, not copy that old alias.
         write(path, ['ID', 'Assembler_reported_circularity',
                      'Read_supported_circular_topology', 'High_confidence_circularity'],
               [['B1', 'NA', 'Y', 'NA']])
-        pt.publish(self.root, force=True)
-        row = read(self.root / 'summary.MAG.tsv')[0]
-        self.assertEqual((row['Assembler_reported_circularity'],
-                          row['Read_supported_circularity'],
-                          row['High_confidence_circularity']), ('NA', 'Y', 'NA'))
+        self.assertEqual(calls(force=True), ('NA', 'Y', 'NA'))
         write(path, ['ID', 'Assembler_reported_circularity',
                      'Read_supported_circular_topology', 'High_confidence_circularity'],
               [['B1', 'Y', 'Y', 'Y']])
-        pt.publish(self.root, force=True)
-        row = read(self.root / 'summary.MAG.tsv')[0]
-        self.assertEqual((row['Assembler_reported_circularity'],
-                          row['Read_supported_circularity'],
-                          row['High_confidence_circularity']), ('Y', 'Y', 'Y'))
+        self.assertEqual(calls(force=True), ('Y', 'Y', 'Y'))
 
     def test_basic_summary_does_not_conflate_distinct_diagnostic_calls(self):
         self.test_summary_tables_go_to_the_top()
