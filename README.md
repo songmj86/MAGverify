@@ -57,20 +57,11 @@ input_dataset
 Complete the four preparation steps in [Usage](docs/USAGE.md#2-preparation). A prebuilt GTDB R232 database (131 GB) is available on Hugging Face as an alternative to a local database build. Use the same output directory for preparation and analysis.
 ## 4. Quick start
 
-After preparation, run all analysis modules using end-to-end with the following options:
-- `-a DIR`: Input directory of contig files (`.fa`, `.fasta`, or `.fna`), one per assembler. Contig IDs must be unique across assembly files, and filenames must be unique and free of whitespace.
-- `-g DIR`: Input directory of MAG files (one file per MAG). MAG contig IDs must match those in the assembly files.
-- `-r DIR`: Input directory of PacBio HiFi reads (`.fastq`, `.fq`, `.fastq.gz`, or `.fq.gz`); several files are pooled into `$Base/00_prep/hifi_reads.fastq[.gz]`. All assemblies specified with `-a` must be generated from the same HiFi read set.
-- `-o DIR`: Output base directory.
-- `-t N`: Number of threads (default: 80% of the available CPUs).
-- `-m N`: Memory limit in GB (default: 80% of the available memory).
-- `--skip MODULES`: Comma-separated modules to exclude (e.g., `--skip chimera,variants`).
-
-With the [test dataset](#2-test-dataset):
+After preparation, run all analysis modules using `MAGverify end-to-end`. The following example uses the [test dataset](#2-test-dataset):
 
 ```bash
-Data=/path/to/input_dataset          # extracted test dataset
-Base=/path/to/MAGverify_output
+Data="/path/to/input_dataset"
+Base="/path/to/MAGverify_output"
 
 MAGverify end-to-end \
   -a "$Data/contigs" \
@@ -79,6 +70,17 @@ MAGverify end-to-end \
   -o "$Base" \
   -t 100 -m 900
 ```
+
+**Options**
+
+- `-a DIR`: Input directory of contig files (`.fa`, `.fasta`, or `.fna`), one per assembler. Contig IDs must be unique across assembly files, and filenames must be unique and free of whitespace.
+- `-r DIR`: Input directory of PacBio HiFi reads (`.fastq`, `.fq`, `.fastq.gz`, or `.fq.gz`). Multiple read files are pooled into `$Base/00_prep/hifi_reads.fastq[.gz]`. All assemblies specified with `-a` must be generated from the same HiFi read set.
+- `-g DIR`: Input directory of MAG files (one file per MAG). MAG contig IDs must match those in the assembly files.
+- `-o DIR`: Output base directory.
+- `-t N`: Number of threads (default: 80% of the available CPUs).
+- `-m N`: Memory limit in GB (default: 80% of the available memory).
+- `--skip MODULES`: Comma-separated list of modules to exclude (e.g., `--skip chimera,variants`).
+
 **Note:** `end-to-end` executes modules in the following order: `map` → `circularity` → `clipping` → `false-closure` → `phantom` → `repeats` → `false-duplication` → `variants` → `chimera` → `summary`. Before execution, MAGverify checks for missing preparation files in `$Base/00_prep/` and reports the necessary `prep-` commands. To resume an interrupted analysis, rerun the same command. MAGverify automatically skips completed modules if their inputs remain unchanged. Each module can also be run individually. See [Usage](docs/USAGE.md#4-individual-modules) for execution commands and [Modules](docs/MODULES.md) for module-specific methods and detection criteria.
 ## 5. Main results
 
