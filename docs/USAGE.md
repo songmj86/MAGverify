@@ -45,7 +45,7 @@ Choose one option to prepare the MMseqs2 taxonomy database.
 
 #### Option A. Prebuilt database (recommended)
 
-Download the prebuilt database (140 GB) from [Hugging Face](https://huggingface.co/datasets/ATCC19718/MAGverify-resources) to avoid downloading the original GTDB protein archive and building the database locally.
+Download the prebuilt database (140 GB) from [Hugging Face](https://huggingface.co/datasets/ATCC19718/MAGverify-resources) to avoid downloading the original GTDB protein archive and building the database locally. The database prefix should be `$Base/00_prep/GTDB_R232`. Keep all database companion files together. No `prep-chimera` run is needed.
 
 ```bash
 aria2c -c -x 8 -s 8 -k 8M \
@@ -54,8 +54,6 @@ aria2c -c -x 8 -s 8 -k 8M \
 
 tar -xzf "$Base/GTDB_R232.tar.gz" -C "$Base/00_prep"
 ```
-
-The database prefix should be `$Base/00_prep/GTDB_R232`. Keep all database companion files together. No `prep-chimera` run is needed.
 
 #### Option B. Local database build
 
@@ -81,6 +79,8 @@ MAGverify prep-scg -a "$Data/contigs" -o "$Base" -t "$Threads"
 
 ### 2.3. Assembler circularity
 
+Supply one `-c` file per assembler used, with complete contig information. For hifiasm-meta this is `*.p_ctg.gfa` or `*.p_ctg.noseq.gfa`, where the contig name ends in `c` for circular or `l` for linear; for metaMDBG it is `contigs.fasta.gz`, whose headers carry `circular=yes` or `circular=no`; and for metaFlye it is `assembly_info.txt`, which reports circularity in its `circ.` column.
+
 ```bash
 MAGverify prep-circularity \
   -c "$Data/assembler_circularity/Read.p_ctg.noseq.gfa" \
@@ -88,14 +88,6 @@ MAGverify prep-circularity \
   -c "$Data/assembler_circularity/assembly_info.txt" \
   -g "$Data/MAGs" -o "$Base"
 ```
-
-Supply one `-c` per assembler used, with complete contig information.
-
-| Assembler | Input | Circularity field |
-| --- | --- | --- |
-| hifiasm-meta | `*.p_ctg.gfa` or `*.p_ctg.noseq.gfa` | Contig suffix `c` or `l` |
-| metaMDBG | `contigs.fasta.gz` | `circular=yes` or `circular=no` |
-| metaFlye | `assembly_info.txt` | `circ.` column |
 
 ### 2.4. MAG taxonomy
 
