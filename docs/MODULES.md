@@ -4,7 +4,7 @@ This document describes the analytical procedures and QC criteria of each MAGver
 
 ## 1. Read mapping
 
-The `MAGverify map` command maps HiFi reads to each complete metagenome assembly, including unbinned contigs, using minimap2. All mapped alignments, primary alignments, and primary plus supplementary alignments are stored for subsequent analyses. A mapping manifest records the input and alignment file paths.
+The `MAGverify map` command maps HiFi reads to each complete metagenome assembly, including unbinned contigs, using Minimap2. All mapped alignments, primary alignments, and primary plus supplementary alignments are stored for subsequent analyses. A mapping manifest records the input and alignment file paths.
 
 ## 2. Circularity
 
@@ -12,7 +12,7 @@ The `MAGverify circularity` command evaluates circular topology in single-contig
 
 ## 3. Clipping
 
-The `MAGverify clipping` command identifies candidate clipping sites using `anvi-script-find-misassemblies` (default clipping ratio > 0.8 and `--min-dist-to-end 0`) and validates them using HiFi read alignments. **High-confidence clipping** is defined by a read depth of ≥ 10× and a clipping ratio of 1.0, as described by [Trigodet et al., 2026](https://doi.org/10.1038/s41587-025-02971-8), with two additional read-based validation criteria: at least two distinct HiFi reads clipped at the same position and no HiFi read spanning that position with aligned bases on both sides. The first and last bases of a contig are not assessable. Clipping sites within 100 bp of either contig end are classified as terminal, and all other sites as internal.
+The `MAGverify clipping` command identifies candidate clipping sites using `anvi-script-find-misassemblies` (default clipping ratio > 0.8 and `--min-dist-to-end 0`) and validates them using HiFi read alignments. **High-confidence clipping** is defined by a read depth of ≥ 10× and a clipping ratio of 1.0, as described by [Trigodet et al., 2026](https://doi.org/10.1038/s41587-025-02971-8), with two additional read-based validation criteria: at least two distinct HiFi reads clipped at the same position and no HiFi read spanning that position with aligned bases on both sides. The first and last bases of a contig are not assessable. Clipping sites within 100 bp of either end of a contig are classified as terminal clipping sites.
 
 ## 4. False closure
 
@@ -24,11 +24,11 @@ The `MAGverify phantom` command identifies phantom sequences as regions longer t
 
 ## 6. Repeats
 
-The `MAGverify repeats` command identifies repeat regions using BLASTN alignments longer than 200 bp with ≥ 80% nucleotide identity. Contig-level assessment evaluates intra-contig repeats, whereas MAG-level assessment evaluates both intra- and inter-contig repeats. **Excessive repeats** are defined as repeat regions covering ≥ 70% of the total contig or MAG sequence at the respective assessment level. Overlapping repeat intervals are counted once.
+The `MAGverify repeats` command identifies repeat regions using BLASTN alignments longer than 200 bp with ≥ 80% nucleotide identity. Contig-level assessment evaluates intra-contig repeats, whereas MAG-level assessment evaluates both intra- and inter-contig repeats. **Excessive repeats** are defined as intra-contig repeats covering ≥ 70% of the total contig length or intra- and inter-contig repeats covering ≥ 70% of the total MAG length. Overlapping repeat intervals are counted once.
 
 ## 7. False duplication
 
-The `MAGverify false-duplication` command identifies duplicated regions within MAGs using minimap2 assembly self-alignments (`-x asm5 -DP`, alignment length ≥ 1,000 bp and nucleotide identity ≥ 95%) and evaluates HiFi read support across duplication boundaries. False duplication is identified when both boundaries of one duplicated copy are spanned by reads and neither boundary of the other copy is spanned. For tandem duplications, both outer boundaries must be spanned by reads, with no read spanning the intervening junction. Clipping evidence at duplication boundaries is also reported.
+The `MAGverify false-duplication` command identifies duplicated regions within MAGs using Minimap2 assembly self-alignments (`-x asm5 -DP`, alignment length ≥ 1,000 bp and nucleotide identity ≥ 95%) and evaluates HiFi read support across duplication boundaries. False duplication is identified when both boundaries of one duplicated copy are spanned by reads and neither boundary of the other copy is spanned. For tandem duplications, both outer boundaries must be spanned by reads, with no read spanning the intervening junction. Clipping evidence at duplication boundaries is also reported.
 
 ## 8. Assembly variants
 
@@ -40,4 +40,4 @@ The `MAGverify chimera` command classifies genes using MMseqs2 against GTDB R232
 
 ## 10. Integrated summary
 
-The `MAGverify summary` command integrates completed module results at the MAG and contig levels and validates MAG IDs, contig membership, counts, and consistency across output tables. It does not rerun the analytical modules. Validation failures return a nonzero exit status. Circularity is reported as supporting evidence rather than an assembly defect. `NA` indicates that a check was not performed or was not assessable, rather than a negative result (`N`).
+The `MAGverify summary` command integrates completed module results at the MAG and contig levels and validates MAG IDs, contig membership, counts, and consistency across output tables. It does not rerun the analytical modules. Validation failures return a nonzero exit status. `NA` indicates that an assessment was not performed or that the criterion could not be evaluated, whereas `N` indicates that the criterion was not met.
