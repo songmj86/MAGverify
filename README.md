@@ -20,7 +20,20 @@ MAGverify list displays the available commands and analysis modules with brief d
 
 ## 2. Test dataset
 
-Use the test dataset to check that MAGverify runs correctly before applying it to your own data. [input_dataset.tar.gz](https://huggingface.co/datasets/ATCC19718/MAGverify-resources/resolve/main/input_dataset.tar.gz) (1.1 GB) is available on [Hugging Face](https://huggingface.co/datasets/ATCC19718/MAGverify-resources) and holds one complete set of MAGverify inputs:
+Use the test dataset to check that MAGverify runs correctly before applying it to your own data. [input_dataset.tar.gz](https://huggingface.co/datasets/ATCC19718/MAGverify-resources/resolve/main/input_dataset.tar.gz) (1.1 GB) is available on [Hugging Face](https://huggingface.co/datasets/ATCC19718/MAGverify-resources). Download and extract it:
+
+```bash
+Data=/path/to/input_dataset
+mkdir -p "$Data"
+
+aria2c -c -x 8 -s 8 -k 8M \
+  -d "$Data" -o input_dataset.tar.gz \
+  "https://huggingface.co/datasets/ATCC19718/MAGverify-resources/resolve/main/input_dataset.tar.gz"
+
+tar -xzf "$Data/input_dataset.tar.gz" -C "$Data" --strip-components=1
+```
+
+It holds one complete set of MAGverify inputs:
 
 ```
 input_dataset
@@ -42,19 +55,6 @@ input_dataset
 ╰── gtdbtk                         # prep-taxonomy -d
     ├── gtdbtk.bac120.summary.tsv
     ╰── gtdbtk.ar53.summary.tsv
-```
-
-Download and extract it:
-
-```bash
-Data=/path/to/input_dataset
-mkdir -p "$Data"
-
-aria2c -c -x 8 -s 8 -k 8M \
-  -d "$Data" -o input_dataset.tar.gz \
-  "https://huggingface.co/datasets/ATCC19718/MAGverify-resources/resolve/main/input_dataset.tar.gz"
-
-tar -xzf "$Data/input_dataset.tar.gz" -C "$Data" --strip-components=1
 ```
 
 ## 3. Preparation
