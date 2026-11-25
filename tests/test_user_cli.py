@@ -270,15 +270,16 @@ printf '%s\\n%s\\n%s\\n' "${READS:-}" "$MAG_DIR" "${ASSEMBLER_FASTAS:-}" > "$2/f
         p = self.call('map', '-r', self.reads_dir, '-a', self.source_dir,
                       '-o', self.output, '-t', '2')
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
-        other = self.home / 'other_reads.fq'
-        other.write_text('@r9\nGGGG\n+\nIIII\n')
+        other = self.home / 'other_reads'
+        other.mkdir()
+        (other / 'other.fq').write_text('@r9\nGGGG\n+\nIIII\n')
         shared = ['-a', self.source_dir, '-g', self.mag_dir, '-o', self.output, '--dry-run']
         for stage in ('phantom', 'variants'):
             with self.subTest(stage=stage):
                 q = self.call(stage, '-r', other, *shared)
                 self.assertNotEqual(q.returncode, 0)
                 self.assertIn('differs from the reads recorded by MAGverify map', q.stderr)
-        same = self.call('phantom', '-r', self.reads, *shared)
+        same = self.call('phantom', '-r', self.reads_dir, *shared)
         self.assertEqual(same.returncode, 0, same.stdout + same.stderr)
 
     def test_reads_required_without_map_result(self):

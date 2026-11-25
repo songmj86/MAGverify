@@ -19,7 +19,7 @@ BASE/
 
 Downstream modules automatically reuse mapping BAMs, clipping sites and preparation tables from this directory without rerunning earlier steps.
 
-| Step | Command | Needs first |
+| Step | Command | Prerequisites |
 | --- | --- | --- |
 | Preparation | [`prep-chimera`](#1-gtdb-r232-database), [`prep-scg`](#2-single-copy-gene-annotation), [`prep-circularity`](#3-assembler-circularity), [`prep-taxonomy`](#4-mag-taxonomy) | Run applicable commands separately before analysis |
 | 1 | [`map`](#1-read-mapping) | |

@@ -1,4 +1,4 @@
-"""-r accepts a HiFi FASTQ file or a directory of them."""
+"""-r takes a directory of HiFi FASTQ files."""
 from pathlib import Path
 import sys
 import tempfile
@@ -21,11 +21,6 @@ class ReadsInputTests(unittest.TestCase):
         (self.reads / 'a.fastq').write_text(READ)
         self.out = self.dir / 'out'
 
-    def test_single_file_is_used_as_is(self):
-        path = reads_input(self.reads / 'a.fastq', self.out, True)
-        self.assertEqual(path, self.reads / 'a.fastq')
-        self.assertFalse((self.out / '00_prep').exists())
-
     def test_directory_with_one_file_is_used_as_is(self):
         self.assertEqual(reads_input(self.reads, self.out, True), self.reads / 'a.fastq')
 
@@ -35,23 +30,24 @@ class ReadsInputTests(unittest.TestCase):
         self.assertEqual(joined, self.out / '00_prep/hifi_reads.fastq')
         self.assertEqual(joined.read_text(), READ * 2)
 
-    def test_file_with_other_suffix_is_rejected(self):
-        other = self.dir / 'notes.txt'
-        other.write_text('x\n')
+    def test_a_file_is_rejected_in_favour_of_its_directory(self):
         with self.assertRaises(UsageError) as caught:
-            reads_path_input(other)
-        self.assertIn('not a HiFi FASTQ', str(caught.exception))
+            reads_path_input(self.reads / 'a.fastq')
+        message = str(caught.exception)
+        self.assertIn('takes a directory', message)
+        self.assertIn(str(self.reads), message)
 
-    def test_empty_file_is_rejected(self):
-        empty = self.dir / 'empty.fastq'
-        empty.touch()
+    def test_directory_without_fastq_files_is_rejected(self):
+        empty = self.dir / 'no_reads'
+        empty.mkdir()
+        (empty / 'notes.txt').write_text('x\n')
         with self.assertRaises(UsageError) as caught:
-            reads_path_input(empty)
-        self.assertIn('empty', str(caught.exception))
+            reads_input(empty, self.out, True)
+        self.assertIn('No HiFi FASTQ files', str(caught.exception))
 
-    def test_missing_path_is_rejected(self):
+    def test_missing_directory_is_rejected(self):
         with self.assertRaises(UsageError) as caught:
-            reads_path_input(self.dir / 'nope.fastq')
+            reads_path_input(self.dir / 'nope')
         self.assertIn('not found', str(caught.exception))
 
     def test_mixed_compression_is_rejected(self):

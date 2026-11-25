@@ -219,25 +219,18 @@ READ_SUFFIXES = ('.fastq', '.fq', '.fastq.gz', '.fq.gz')
 
 
 def reads_path_input(value):
-    """A HiFi FASTQ file or a directory of HiFi FASTQ files, resolved and checked."""
+    """A directory of HiFi FASTQ files, resolved and checked."""
     path = Path(value).expanduser().resolve()
     if path.is_file():
-        if not path.name.lower().endswith(READ_SUFFIXES):
-            raise UsageError(f'-r file is not a HiFi FASTQ ({", ".join(READ_SUFFIXES)}): {path}')
-        if not path.stat().st_size:
-            raise UsageError(f'-r file is empty: {path}')
-        return path
+        raise UsageError(f'-r takes a directory of HiFi FASTQ files, not a file: give {path.parent}')
     if not path.is_dir():
-        raise UsageError(f'-r file or directory not found: {path}')
+        raise UsageError(f'-r directory not found: {path}')
     return path
 
 
 def reads_input(reads, root, dry_run):
-    """HiFi reads from a FASTQ file or a directory of them. A single file is used as is; several files (all gzipped or all plain) are joined once into OUTPUT/00_prep/hifi_reads.fastq[.gz]."""
+    """HiFi reads from a directory of FASTQ files. A single file is used as is; several files (all gzipped or all plain) are joined once into OUTPUT/00_prep/hifi_reads.fastq[.gz]."""
     parent = reads_path_input(reads)
-    if parent.is_file():
-        print('HiFi read file: ' + str(parent), flush=True)
-        return parent
     files = sorted(p for p in parent.iterdir()
                    if p.is_file() and p.name.lower().endswith(READ_SUFFIXES) and p.stat().st_size)
     if not files:
@@ -1192,8 +1185,8 @@ def add_stage_parser(subparsers, stage):
     def handles(*names):
         return bool(members.intersection(names))
     if handles('map', 'clipping', 'chimera', 'circularity', 'false-closure', 'variants', 'phantom', 'false-duplication'):
-        p.add_argument('-r', dest='reads', metavar='PATH',
-                       help='HiFi read file, or a directory of them (*.fastq.gz; *.fq.gz)')
+        p.add_argument('-r', dest='reads', metavar='DIR',
+                       help='Directory of HiFi reads (*.fastq.gz; *.fq.gz)')
     p.add_argument('-a', dest='source_assemblies', metavar='DIR',
                    help='Directory of assembled contigs (*.fa)')
     mag_stage = handles('clipping','chimera','circularity','false-closure','variants','phantom','repeats','false-duplication','summary')
@@ -1316,8 +1309,8 @@ def add_run_parser(subparsers):
     p.add_argument('-h', action='help', help=argparse.SUPPRESS)
     p.add_argument('-a', dest='source_assemblies', required=True, metavar='DIR',
                    help='Directory of assembled contigs (*.fa)')
-    p.add_argument('-r', dest='reads', required=True, metavar='PATH',
-                   help='HiFi read file, or a directory of them (*.fastq.gz; *.fq.gz)')
+    p.add_argument('-r', dest='reads', required=True, metavar='DIR',
+                   help='Directory of HiFi reads (*.fastq.gz; *.fq.gz)')
     p.add_argument('-g', dest='mag_dir', required=True, metavar='DIR', help='Directory of MAGs (*.fa)')
     p.add_argument('-o', dest='output_directory', required=True, metavar='DIR', help='Directory of base output')
     p.add_argument('-t', dest='threads', type=int, metavar='N', help='Number of threads')
