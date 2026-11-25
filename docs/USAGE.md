@@ -124,7 +124,7 @@ MAGverify end-to-end \
   --skip chimera,variants
 ```
 
-Mapping cannot be skipped. Retain dependencies for all selected modules (e.g. clipping for false closure, false duplication and chimera).
+The `map` module and any prerequisite modules for selected analyses must not be skipped.
 
 ### Reuse a database
 
@@ -132,7 +132,7 @@ Add `--database /path/to/GTDB_R232` to `end-to-end` or `chimera` to use an exist
 
 ### Resume analysis
 
-Rerun the original command with unchanged inputs. Preserve `.cache/` directories and intermediate files to reuse completed work.
+To resume an interrupted analysis, rerun the same command without changing the input files or output directory.
 
 ## 4. Individual modules
 
