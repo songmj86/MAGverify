@@ -28,8 +28,6 @@ Adjust the example resource values to your system.
 
 Assemblies and MAGs accept `.fa`, `.fasta` and `.fna`. Use unique contig IDs across assemblies and retain the original IDs in MAGs. FASTA filenames must be unique and must not include whitespace. Reads accept `.fastq`, `.fq`, `.fastq.gz` and `.fq.gz`. Supply the complete HiFi read set used to generate all input assemblies. Missing or unrelated reads can distort QC calls.
 
-`PARALLEL_JOBS` controls concurrent assembler jobs. Mapping, circularity and anvi'o profiling in `variants` process assemblers sequentially. Clipping, phantom and false duplication can distribute threads across assemblers.
-
 ## 2. Preparation
 
 Preparation is not part of `end-to-end`. Outputs are stored in `00_prep/`.

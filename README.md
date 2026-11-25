@@ -37,22 +37,22 @@ The dataset provides a set of inputs for MAGverify including 3 assemblies, 30 MA
 
 ```
 input_dataset
-├── contigs                        # -a: three assemblies of the same sample
+├── contigs
 │   ├── metaMDBG.fa
 │   ├── metaFlye.fa
 │   ╰── hifiasm-meta.fa
-├── MAGs                           # -g: 30 MAGs binned from those assemblies
+├── MAGs
 │   ├── Bin5L.fa
 │   ├── Bin8L.fa
 │   ├── ...
 │   ╰── Bin444L.fa
 ├── reads
-│   ╰── read.fastq.gz              # -r: the HiFi reads the assemblies were built from
-├── assembler_circularity          # prep-circularity -c
-│   ├── Read.p_ctg.noseq.gfa       #     hifiasm-meta
-│   ├── contigs.fasta.gz           #     metaMDBG
-│   ╰── assembly_info.txt          #     metaFlye
-╰── gtdbtk                         # prep-taxonomy -d
+│   ╰── read.fastq.gz
+├── assembler_circularity
+│   ├── Read.p_ctg.noseq.gfa
+│   ├── contigs.fasta.gz
+│   ╰── assembly_info.txt
+╰── gtdbtk
     ├── gtdbtk.bac120.summary.tsv
     ╰── gtdbtk.ar53.summary.tsv
 ```
@@ -67,7 +67,7 @@ After preparation, run all analysis modules using end-to-end with the following 
 
 - `-a DIR`: Input directory of contig files (`.fa`, `.fasta`, or `.fna`), one per assembler. Contig IDs must be unique across assembly files, and filenames must be unique and free of whitespace.
 - `-g DIR`: Input directory of MAG files (one file per MAG). MAG contig IDs must match those in the assembly files.
-- `-r DIR`: Input directory of PacBio HiFi reads (`.fastq`, `.fq`, `.fastq.gz`, or `.fq.gz`); several files are pooled into `$Base/00_prep/hifi_reads.fastq[.gz]`. Every assembly given with `-a` must come from this same read set.
+- `-r DIR`: Input directory of PacBio HiFi reads (`.fastq`, `.fq`, `.fastq.gz`, or `.fq.gz`); several files are pooled into `$Base/00_prep/hifi_reads.fastq[.gz]`. All assemblies specified with `-a` must be generated from the same HiFi read set.
 - `-o DIR`: Output base directory.
 - `-t N`: Number of threads (default: 80% of the available CPUs).
 - `-m N`: Memory limit in GB for `map`, `circularity`, `repeats` and `variants` (default: 80% of the available memory).
