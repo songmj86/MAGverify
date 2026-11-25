@@ -88,13 +88,13 @@ See [Usage](docs/USAGE.md#preparation) for the input formats, the download links
 
 After preparation, run all analysis modules using end-to-end with the following options:
 
-- `-a DIR`: Input directory of contig files (`.fa`, `.fasta`, or `.fna`), one per assembler. Contig IDs must be unique across assembly files.
+- `-a DIR`: Input directory of contig files (`.fa`, `.fasta`, or `.fna`), one per assembler. Contig IDs must be unique across assembly files, and filenames must be unique and free of whitespace.
 - `-g DIR`: Input directory of MAG files (one file per MAG). MAG contig IDs must match those in the assembly files.
 - `-r DIR`: Input directory of PacBio HiFi reads (`.fastq`, `.fq`, `.fastq.gz`, or `.fq.gz`) the assemblies were built from; several files are pooled into `$Base/00_prep/hifi_reads.fastq[.gz]`. Every assembly given with `-a` must come from this same read set, because these reads are mapped to all of them: withholding reads the assembly used produces clipping and phantom calls that are not real, and adding unrelated reads hides real ones.
 - `-o DIR`: Output base directory. Use the same `-o` for all commands to reuse intermediate results.
-- `-t N`: Number of threads (default: 80% of the available CPUs).
-- `-m N`: Memory limit in GB for `map`, `circularity`, `repeats` and `variants` (default: 80% of the detected memory).
-- `--skip MODULES`: Comma-separated modules to exclude (e.g., `--skip chimera,variants`).
+- `-t N`: Number of threads (default: 80% of the available CPUs, rounded down, at least 1).
+- `-m N`: Memory limit in GB for `map`, `circularity`, `repeats` and `variants` (default: 80% of the detected memory, rounded down).
+- `--skip MODULES`: Comma-separated modules to exclude (e.g., `--skip chimera,variants`). `map` cannot be skipped, because every analysis module reads its result.
 
 
 With the [test dataset](#2-test-dataset):
@@ -120,7 +120,7 @@ Each module can also be run separately. See [Usage](docs/USAGE.md#analysis-modul
 
 MAGverify generates two summary formats: `summary.MAG.tsv` and `summary.contig.tsv` provide `Y`/`N`/`NA` flags for each analysis, whereas `detail.MAG.tsv` and `detail.contig.tsv` additionally include detailed results from each module.
 
-Each module saves its results in a separate directory, as listed below. Intermediate files are stored in hidden `.cache/` directories for reuse in subsequent runs. Keep these directories to enable analysis resumption.
+Each module saves its results in a separate directory, as listed below; the directory numbers are fixed per module and are not the `end-to-end` run order. Intermediate files are stored in hidden `.cache/` directories for reuse in subsequent runs. Keep these directories to enable analysis resumption.
 
 | Module | Directory | Tables |
 | --- | --- | --- |
