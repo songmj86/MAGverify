@@ -45,7 +45,7 @@ Choose one option to prepare the MMseqs2 taxonomy database.
 
 #### Option A. Prebuilt database (recommended)
 
-Download the prebuilt database (140 GB) from [Hugging Face](https://huggingface.co/datasets/ATCC19718/MAGverify-resources) to avoid downloading the original GTDB protein archive and building the database locally. The database prefix should be `$Base/00_prep/GTDB_R232`. Keep all database companion files together. No `prep-chimera` run is needed.
+Download the prebuilt database (139 GB) from [Hugging Face](https://huggingface.co/datasets/ATCC19718/MAGverify-resources) to bypass `prep-chimera`. Keep all database files together under `$Base/00_prep/` with the prefix `GTDB_R232`.
 
 ```bash
 aria2c -c -x 8 -s 8 -k 8M \
@@ -56,6 +56,8 @@ tar -xzf "$Base/GTDB_R232.tar.gz" -C "$Base/00_prep"
 ```
 
 #### Option B. Local database build
+
+Ensure sufficient disk space for the GTDB protein archive (~123 GB), the resulting database and temporary build files generated in `$Base/00_prep/.cache/prep_chimera_work/`.
 
 ```bash
 GTDB_DIR=/path/to/GTDB_R232_downloads
@@ -68,8 +70,6 @@ aria2c -c -d "$GTDB_DIR" "$GTDB_URL/ar53_taxonomy_r232.tsv"
 
 MAGverify prep-chimera -d "$GTDB_DIR" -o "$Base" -t "$Threads"
 ```
-
-Allow space for the compressed archive (~123 GB), database and temporary build files in `00_prep/.cache/prep_chimera_work/`.
 
 ### 2.2. Single-copy gene annotation
 
@@ -91,11 +91,11 @@ MAGverify prep-circularity \
 
 ### 2.4. MAG taxonomy
 
+Supply GTDB-Tk `classify_wf` results (`gtdbtk.bac120.summary.tsv` and/or `gtdbtk.ar53.summary.tsv`). MAG IDs must match FASTA basenames without extensions.
+
 ```bash
 MAGverify prep-taxonomy -d "$Data/gtdbtk" -g "$Data/MAGs" -o "$Base"
 ```
-
-Supply GTDB-Tk `classify_wf` results (`gtdbtk.bac120.summary.tsv` and/or `gtdbtk.ar53.summary.tsv`). MAG IDs must match FASTA basenames without extensions. GTDB-Tk is installed separately.
 
 ## 3. End-to-end analysis
 
@@ -117,10 +117,6 @@ MAGverify end-to-end \
 ```
 
 The `map` module and any prerequisite modules for selected analyses must not be skipped.
-
-### Reuse a database
-
-Add `--database /path/to/GTDB_R232` to `end-to-end` or `chimera` to use an existing database. Specify the MMseqs2 prefix, not its directory or `.dbtype` file.
 
 ### Resume analysis
 
@@ -197,8 +193,6 @@ MAGverify variants -g "$Data/MAGs" -o "$Base" -t "$Threads" -m "$Memory"
 MAGverify chimera -g "$Data/MAGs" -o "$Base" -t "$Threads"
 ```
 
-An existing gene taxonomy table can be supplied with `--taxonomy TSV` instead of building or downloading the database for individual chimera analysis.
-
 ### 4.10. Integrated summary
 
 ```bash
@@ -210,8 +204,6 @@ For a partial analysis:
 ```bash
 MAGverify summary -g "$Data/MAGs" -o "$Base" --include clipping,chimera
 ```
-
-The summary reads completed results without rerunning any module. Use `MAGverify list` and `MAGverify <command> -h` for command-specific options.
 
 ## 5. Output files
 
