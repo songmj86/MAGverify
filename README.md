@@ -33,7 +33,7 @@ aria2c -c -x 8 -s 8 -k 8M \
 tar -xzf "$Data/test_inputs.tar.gz" -C "$Data"
 ```
 
-The dataset provides a set of test inputs for MAGverify including 3 assemblies, 30 MAGs, 1 HiFi read file, 3 assembler circularity files and 2 GTDB-Tk results.
+The dataset provides a set of test inputs for MAGverify including 3 assemblies, 10 MAGs , 1 HiFi read, 3 assembler circularity files and 2 GTDB-Tk results.
 
 ```
 test_inputs
@@ -99,10 +99,10 @@ MAGverify generates four integrated tables at the genome and contig levels in th
 
 | File | Description |
 | --- | --- |
-| `summary.MAG.tsv` | MAG-level flags |
-| `summary.contig.tsv` | Contig-level flags |
-| `detail.MAG.tsv` | MAG-level diagnostic results |
-| `detail.contig.tsv` | Contig-level diagnostic results |
+| `summary.MAG.tsv` | MAG-level summary results |
+| `summary.contig.tsv` | Contig-level summary results |
+| `detail.MAG.tsv` | MAG-level detailed results |
+| `detail.contig.tsv` | Contig-level detailed results |
 
 Module-specific tables are saved in numbered directories, listed in [Usage](docs/USAGE.md#5-output-files).
 
