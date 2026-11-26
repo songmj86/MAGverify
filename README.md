@@ -42,10 +42,10 @@ test_inputs
 │   ├── metaFlye.fa
 │   ╰── hifiasm-meta.fa
 ├── MAGs
-│   ├── Bin5L.fa
-│   ├── Bin8L.fa
+│   ├── Bin37L.fa
+│   ├── Bin65L.fa
 │   ├── ...
-│   ╰── Bin444L.fa
+│   ╰── Bin443L.fa
 ├── reads
 │   ╰── read.fastq.gz
 ├── assembler_circularity
